@@ -1,0 +1,15 @@
+enum FinancialExplanationNodeType {
+  recommendation,
+  selectedOption,
+  rejectedAlternative,
+  decisionOption,
+  problem,
+  deviation,
+  modelResult,
+  fact,
+  evaluation,
+  condition,
+  limitation,
+  assumption,
+  evidence,
+}

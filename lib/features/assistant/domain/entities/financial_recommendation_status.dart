@@ -1,0 +1,1 @@
+enum FinancialRecommendationStatus { selected, unavailable }

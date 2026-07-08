@@ -1,0 +1,18 @@
+enum FinancialDecisionOptionType {
+  increaseIncome,
+  reduceDiscretionarySpending,
+  reduceRecurringCommitments,
+  optimizeEssentialExpenses,
+  reviewExpenseStructure,
+  reviewLargeExpense,
+  improveCategorization,
+  confirmRecurringOperations,
+  collectMoreData,
+  useExistingReserves,
+  buildSavingsCapacity,
+  reviseFinancialStrategy,
+  restructureObligations,
+  adjustBudgetUnavailable,
+  deferOptionalSpending,
+  doNothingAndMonitor,
+}

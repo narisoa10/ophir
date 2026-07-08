@@ -1,0 +1,1 @@
+enum FinancialDeviationStatus { calculated, unavailable }

@@ -1,0 +1,1 @@
+enum FinancialProblemStatus { detected }

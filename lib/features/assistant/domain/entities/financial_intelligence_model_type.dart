@@ -1,0 +1,16 @@
+enum FinancialIntelligenceModelType {
+  ordinarySpendingTotal,
+  mandatorySpendingTotal,
+  flexibleSpendingTotal,
+  discretionarySpendingTotal,
+  assetBuildingTotal,
+  debtReductionTotal,
+  cashMovementTotal,
+  dataAdjustmentTotal,
+  contextRequiredTotal,
+  behavioralSavingsTotal,
+  ordinarySpendingRatio,
+  mandatoryRatio,
+  flexibleRatio,
+  discretionaryRatio,
+}
