@@ -59,6 +59,38 @@ void main() {
       );
     });
 
+    test('runtime config provider reads through configuration source', () {
+      final source = File(
+        'lib/features/assistant/controller/'
+        'financial_runtime_recommendation_config_provider.dart',
+      ).readAsStringSync();
+
+      expect(
+        source,
+        contains('financialRuntimeRecommendationConfigurationSourceProvider'),
+      );
+      expect(
+        source,
+        contains('LocalFinancialRuntimeRecommendationConfigurationSource'),
+      );
+      expect(
+        source,
+        isNot(
+          contains('FinancialRuntimeRecommendationMode.intelligenceAllowlist'),
+        ),
+      );
+    });
+
+    test('configuration source provider is internal to config provider', () {
+      final matches = _libMatches(
+        'financialRuntimeRecommendationConfigurationSourceProvider',
+      );
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_runtime_recommendation_config_provider.dart',
+      });
+    });
+
     test('legacy runtime mode provider has been removed from lib', () {
       final matches = _libMatches('financialRuntimeRecommendationModeProvider');
 
