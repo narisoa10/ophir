@@ -8,9 +8,12 @@ import 'package:ophir/features/accounts/domain/entities/account.dart';
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/assistant/controller/assistant_dashboard_briefing_provider.dart';
+import 'package:ophir/features/assistant/controller/current_assistant_recommendation_provider.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_decision_option_type.dart';
 import 'package:ophir/features/categories/controller/category_providers.dart';
 import 'package:ophir/features/categories/domain/entities/category.dart';
 import 'package:ophir/features/categories/domain/enums/category_analytics_group.dart';
+import 'package:ophir/features/categories/domain/enums/category_stable_key.dart';
 import 'package:ophir/features/categories/domain/enums/category_type.dart';
 import 'package:ophir/features/categories/domain/enums/category_ui_group.dart';
 import 'package:ophir/features/categories/domain/repositories/category_repository.dart';
@@ -20,6 +23,8 @@ import 'package:ophir/features/operations/domain/entities/operation.dart';
 import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
 import 'package:ophir/features/operations/domain/enums/operation_type.dart';
 import 'package:ophir/features/operations/domain/repositories/operation_repository.dart';
+
+import '../helpers/financial_recommendation_test_helpers.dart';
 
 void main() {
   group('assistantDashboardBriefingProvider', () {
@@ -108,12 +113,125 @@ void main() {
       expect(updated.financialState.expenses, 100);
       expect(updated.periodDistribution.expenseTotal, 100);
     });
+
+    test('uses runtime recommendation from current provider', () async {
+      final fixedNow = DateTime(2035, 6, 18, 9, 45);
+      final runtimeRecommendation = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.deferOptionalSpending,
+      );
+      final container = _container(
+        fixedNow: fixedNow,
+        overrides: [
+          currentAssistantRecommendationProvider.overrideWith(
+            (ref) async => Success(runtimeRecommendation),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        assistantDashboardBriefingProvider.future,
+      );
+      final briefing = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected assistant dashboard briefing'),
+      };
+
+      expect(briefing.recommendation, same(runtimeRecommendation));
+      expect(
+        briefing.recommendation?.selectedOptionType,
+        FinancialDecisionOptionType.deferOptionalSpending,
+      );
+    });
+
+    test('explanation follows selected runtime recommendation', () async {
+      final fixedNow = DateTime(2035, 6, 18, 9, 45);
+      final account = _account();
+      final categories = [
+        _category(
+          id: 'salary',
+          type: CategoryType.income,
+          uiGroup: CategoryUiGroup.income,
+          analyticsGroup: CategoryAnalyticsGroup.income,
+          stableKey: CategoryStableKey.incomeEmploymentSalary,
+        ),
+        _category(
+          id: 'rent',
+          analyticsGroup: CategoryAnalyticsGroup.essentialExpenses,
+          stableKey: CategoryStableKey.expenseHousingRent,
+        ),
+        _category(
+          id: 'haircare',
+          analyticsGroup: CategoryAnalyticsGroup.flexibleExpenses,
+          stableKey: CategoryStableKey.expensePersonalCareHaircare,
+        ),
+      ];
+      final container = _container(
+        fixedNow: fixedNow,
+        categories: categories,
+        operations: [
+          _operation(
+            id: 'income',
+            type: OperationType.income,
+            amount: 1000,
+            occurredAt: fixedNow,
+            toAccountId: account.id,
+            categoryId: 'salary',
+          ),
+          _operation(
+            id: 'rent',
+            type: OperationType.expense,
+            amount: 350,
+            occurredAt: fixedNow,
+            fromAccountId: account.id,
+            categoryId: 'rent',
+          ),
+          _operation(
+            id: 'haircare',
+            type: OperationType.expense,
+            amount: 450,
+            occurredAt: fixedNow,
+            fromAccountId: account.id,
+            categoryId: 'haircare',
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final briefing = switch (await container.read(
+        assistantDashboardBriefingProvider.future,
+      )) {
+        Success(:final value) => value,
+        Failure() => fail('Expected assistant dashboard briefing'),
+      };
+      final runtimeRecommendation = switch (await container.read(
+        currentAssistantRecommendationProvider.future,
+      )) {
+        Success(:final value) => value,
+        Failure() => fail('Expected runtime recommendation'),
+      };
+
+      expect(runtimeRecommendation, isNotNull);
+      expect(
+        briefing.recommendation?.recommendationId,
+        runtimeRecommendation?.recommendationId,
+      );
+      expect(
+        briefing.explanation?.explanationId,
+        'explanation.${runtimeRecommendation!.recommendationId}',
+      );
+    });
   });
 }
 
-ProviderContainer _container({required DateTime fixedNow}) {
+ProviderContainer _container({
+  required DateTime fixedNow,
+  List<Category>? categories,
+  List<Operation>? operations,
+  List<Override> overrides = const [],
+}) {
   final account = _account();
-  final category = _category();
+  final categoryList = categories ?? [_category()];
 
   return ProviderContainer(
     overrides: [
@@ -125,28 +243,31 @@ ProviderContainer _container({required DateTime fixedNow}) {
       ),
       operationRepositoryProvider.overrideWithValue(
         _FakeOperationRepository(
-          operations: [
-            _operation(
-              id: 'income',
-              type: OperationType.income,
-              amount: 1000,
-              occurredAt: fixedNow,
-              toAccountId: account.id,
-            ),
-            _operation(
-              id: 'rent',
-              type: OperationType.expense,
-              amount: 100,
-              occurredAt: fixedNow,
-              fromAccountId: account.id,
-              categoryId: category.id,
-            ),
-          ],
+          operations:
+              operations ??
+              [
+                _operation(
+                  id: 'income',
+                  type: OperationType.income,
+                  amount: 1000,
+                  occurredAt: fixedNow,
+                  toAccountId: account.id,
+                ),
+                _operation(
+                  id: 'rent',
+                  type: OperationType.expense,
+                  amount: 100,
+                  occurredAt: fixedNow,
+                  fromAccountId: account.id,
+                  categoryId: categoryList.first.id,
+                ),
+              ],
         ),
       ),
       categoryRepositoryProvider.overrideWithValue(
-        _FakeCategoryRepository(categories: [category]),
+        _FakeCategoryRepository(categories: categoryList),
       ),
+      ...overrides,
     ],
   );
 }
@@ -273,14 +394,21 @@ Account _account() {
   );
 }
 
-Category _category() {
+Category _category({
+  String id = 'rent',
+  CategoryType type = CategoryType.expense,
+  CategoryUiGroup uiGroup = CategoryUiGroup.housing,
+  CategoryAnalyticsGroup analyticsGroup =
+      CategoryAnalyticsGroup.essentialExpenses,
+  CategoryStableKey stableKey = CategoryStableKey.expenseHousingRent,
+}) {
   final now = DateTime.utc(2026);
 
   return Category(
-    id: 'rent',
-    type: CategoryType.expense,
-    uiGroup: CategoryUiGroup.housing,
-    analyticsGroup: CategoryAnalyticsGroup.essentialExpenses,
+    id: id,
+    type: type,
+    uiGroup: uiGroup,
+    analyticsGroup: analyticsGroup,
     nameKey: 'categoryTaxonomyExpenseHousingRentName',
     iconKey: 'housing',
     colorKey: 'blue',
@@ -289,7 +417,7 @@ Category _category() {
     createdAt: now,
     updatedAt: now,
     exampleKey: 'categoryExampleDefault',
-    stableKey: 'expense.housing.rent',
+    stableKey: stableKey.toJson(),
   );
 }
 
