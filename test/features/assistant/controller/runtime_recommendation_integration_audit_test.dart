@@ -91,6 +91,30 @@ void main() {
       });
     });
 
+    test('build source is used only inside local configuration source', () {
+      final matches = _libMatches(
+        'BuildFinancialRuntimeRecommendationConfigurationSource',
+      );
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\domain\\entities\\build_financial_runtime_recommendation_configuration_source.dart',
+        'lib\\features\\assistant\\domain\\entities\\local_financial_runtime_recommendation_configuration_source.dart',
+      });
+    });
+
+    test('build source reads only FINANCIAL_RUNTIME_MODE environment key', () {
+      final source = File(
+        'lib/features/assistant/domain/entities/'
+        'build_financial_runtime_recommendation_configuration_source.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('String.fromEnvironment'));
+      expect(source, contains('FINANCIAL_RUNTIME_MODE'));
+      expect(source, contains("'legacy'"));
+      expect(source, contains("'intelligenceAllowlist'"));
+      expect(source, contains("'shadowOnly'"));
+    });
+
     test('legacy runtime mode provider has been removed from lib', () {
       final matches = _libMatches('financialRuntimeRecommendationModeProvider');
 
