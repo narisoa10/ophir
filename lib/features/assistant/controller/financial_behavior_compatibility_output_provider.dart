@@ -6,12 +6,12 @@ import '../../operations/controller/operation_display_categories_provider.dart';
 import '../../operations/controller/operation_providers.dart';
 import '../domain/entities/financial_behavior_compatibility_output.dart';
 import '../domain/services/financial_behavior_compatibility_orchestrator.dart';
-import 'assistant_dashboard_briefing_provider.dart';
+import 'legacy_assistant_dashboard_briefing_provider.dart';
 
 final financialBehaviorCompatibilityOutputProvider =
     FutureProvider<Result<FinancialBehaviorCompatibilityOutput>>((ref) async {
       final briefingResult = await ref.watch(
-        assistantDashboardBriefingProvider.future,
+        legacyAssistantDashboardBriefingProvider.future,
       );
       final operationsResult = await ref.watch(operationsProvider.future);
       final categoriesResult = await ref.watch(

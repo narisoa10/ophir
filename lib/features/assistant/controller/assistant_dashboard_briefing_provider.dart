@@ -1,55 +1,60 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/result.dart';
-import '../../../core/evaluation/financial_evaluation_context_provider.dart';
-import '../../accounts/controller/account_providers.dart';
-import '../../accounts/domain/entities/account.dart';
-import '../../categories/domain/entities/category.dart';
-import '../../operations/controller/operation_display_categories_provider.dart';
-import '../../operations/controller/operation_providers.dart';
-import '../../operations/domain/entities/operation.dart';
 import '../domain/entities/assistant_dashboard_briefing.dart';
-import '../domain/services/assistant_dashboard_briefing_service.dart';
+import '../domain/entities/financial_recommendation.dart';
+import 'current_assistant_recommendation_provider.dart';
+import 'legacy_assistant_dashboard_briefing_provider.dart';
 
 final assistantDashboardBriefingProvider =
     FutureProvider<Result<AssistantDashboardBriefing>>((ref) async {
-      final evaluationContext = ref.watch(financialEvaluationContextProvider);
-      final accountsResult = await ref.watch(accountsProvider.future);
-      final operationsResult = await ref.watch(operationsProvider.future);
-      final categoriesResult = await ref.watch(
-        operationDisplayCategoriesProvider.future,
+      final legacyResult = await ref.watch(
+        legacyAssistantDashboardBriefingProvider.future,
       );
-      final accounts = _value(accountsResult);
-      final operations = _value(operationsResult);
-      final categories = _value(categoriesResult);
-
-      if (accounts == null || operations == null || categories == null) {
-        return Failure(switch (accountsResult) {
-          Failure<List<Account>>(:final failure) => failure,
-          _ => switch (operationsResult) {
-            Failure<List<Operation>>(:final failure) => failure,
-            _ => switch (categoriesResult) {
-              Failure<List<Category>>(:final failure) => failure,
-              _ => const UnknownFailure(),
-            },
-          },
-        });
+      if (legacyResult case Failure<AssistantDashboardBriefing>(
+        :final failure,
+      )) {
+        return Failure(failure);
       }
 
+      final recommendationResult = await ref.watch(
+        currentAssistantRecommendationProvider.future,
+      );
+      if (recommendationResult case Failure<FinancialRecommendation?>(
+        :final failure,
+      )) {
+        return Failure(failure);
+      }
+
+      final legacyBriefing =
+          (legacyResult as Success<AssistantDashboardBriefing>).value;
+      final recommendation =
+          (recommendationResult as Success<FinancialRecommendation?>).value;
+
       return Success(
-        const AssistantDashboardBriefingService().build(
-          accounts: accounts,
-          operations: operations,
-          categories: categories,
-          now: evaluationContext.now,
-        ),
+        _withRuntimeRecommendation(legacyBriefing, recommendation),
       );
     });
 
-List<T>? _value<T>(Result<List<T>> result) {
-  return switch (result) {
-    Success<List<T>>(:final value) => value,
-    Failure<List<T>>() => null,
-  };
+AssistantDashboardBriefing _withRuntimeRecommendation(
+  AssistantDashboardBriefing briefing,
+  FinancialRecommendation? recommendation,
+) {
+  final preservesExplanation =
+      recommendation?.recommendationId ==
+      briefing.recommendation?.recommendationId;
+
+  return AssistantDashboardBriefing(
+    factsSnapshot: briefing.factsSnapshot,
+    modelResults: briefing.modelResults,
+    deviations: briefing.deviations,
+    problems: briefing.problems,
+    decisionOptions: briefing.decisionOptions,
+    recommendation: recommendation,
+    explanation: preservesExplanation ? briefing.explanation : null,
+    radar: briefing.radar,
+    primaryProblem: briefing.primaryProblem,
+    financialState: briefing.financialState,
+    periodDistribution: briefing.periodDistribution,
+  );
 }

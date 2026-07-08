@@ -1,0 +1,1 @@
+enum FinancialRuntimeRecommendationSource { legacy, intelligenceAllowlist }

@@ -2,12 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/result.dart';
 import '../domain/entities/financial_recommendation.dart';
-import 'financial_runtime_recommendation_selection_provider.dart';
+import 'legacy_assistant_dashboard_briefing_provider.dart';
 
-final currentAssistantRecommendationProvider =
+final legacyAssistantRecommendationProvider =
     FutureProvider<Result<FinancialRecommendation?>>((ref) async {
       final result = await ref.watch(
-        financialRuntimeRecommendationSelectionProvider.future,
+        legacyAssistantDashboardBriefingProvider.future,
       );
 
       return switch (result) {

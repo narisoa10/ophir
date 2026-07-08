@@ -7,15 +7,15 @@ import '../domain/entities/financial_model_result.dart';
 import '../domain/entities/financial_model_status.dart';
 import '../domain/entities/financial_model_type.dart';
 import '../domain/services/financial_intelligence_models_service.dart';
-import 'assistant_dashboard_briefing_provider.dart';
 import 'financial_behavior_compatibility_output_provider.dart';
+import 'legacy_assistant_dashboard_briefing_provider.dart';
 
 final financialIntelligenceDiagnosticsProvider =
     FutureProvider<Result<FinancialIntelligenceDiagnosticsReadModel>>((
       ref,
     ) async {
       final briefingResult = await ref.watch(
-        assistantDashboardBriefingProvider.future,
+        legacyAssistantDashboardBriefingProvider.future,
       );
       final outputResult = await ref.watch(
         financialBehaviorCompatibilityOutputProvider.future,
@@ -63,10 +63,7 @@ T? _value<T>(Result<T> result) {
   };
 }
 
-AppFailure _failureOrUnknown(
-  Result<Object?> first, [
-  Result<Object?>? second,
-]) {
+AppFailure _failureOrUnknown(Result<Object?> first, [Result<Object?>? second]) {
   for (final result in [first, second].whereType<Result<Object?>>()) {
     if (result case Failure<Object?>(:final failure)) {
       return failure;
