@@ -7,18 +7,15 @@ import '../domain/entities/financial_runtime_recommendation_mode.dart';
 import '../domain/entities/financial_runtime_recommendation_selection.dart';
 import '../domain/services/financial_runtime_recommendation_policy.dart';
 import 'financial_recommendation_comparison_provider.dart';
+import 'financial_runtime_recommendation_config_provider.dart';
 import 'legacy_assistant_recommendation_provider.dart';
-
-final financialRuntimeRecommendationModeProvider =
-    Provider<FinancialRuntimeRecommendationMode>(
-      (ref) => FinancialRuntimeRecommendationMode.intelligenceAllowlist,
-    );
 
 final financialRuntimeRecommendationSelectionProvider =
     FutureProvider<Result<FinancialRuntimeRecommendationSelection>>((
       ref,
     ) async {
-      final mode = ref.watch(financialRuntimeRecommendationModeProvider);
+      final config = ref.watch(financialRuntimeRecommendationConfigProvider);
+      final mode = config.mode;
       final legacyResult = await ref.watch(
         legacyAssistantRecommendationProvider.future,
       );

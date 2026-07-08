@@ -42,6 +42,29 @@ void main() {
       expect(matches.keys.toSet(), allowedPaths);
     });
 
+    test('runtime mode is read through config provider', () {
+      final source = File(
+        'lib/features/assistant/controller/'
+        'financial_runtime_recommendation_selection_provider.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('financialRuntimeRecommendationConfigProvider'));
+      expect(
+        source,
+        isNot(contains('financialRuntimeRecommendationModeProvider')),
+      );
+      expect(
+        source,
+        isNot(contains('Provider<FinancialRuntimeRecommendationMode>')),
+      );
+    });
+
+    test('legacy runtime mode provider has been removed from lib', () {
+      final matches = _libMatches('financialRuntimeRecommendationModeProvider');
+
+      expect(matches, isEmpty);
+    });
+
     test('comparison provider is not used by Dashboard or UI', () {
       for (final file in [
         ...Directory('lib/features/dashboard').listSync(recursive: true),
