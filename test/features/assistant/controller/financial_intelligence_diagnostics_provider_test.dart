@@ -10,6 +10,7 @@ import 'package:ophir/features/accounts/domain/entities/account.dart';
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/assistant/controller/assistant_dashboard_briefing_provider.dart';
+import 'package:ophir/features/assistant/controller/financial_intelligence_diagnostics_input_provider.dart';
 import 'package:ophir/features/assistant/controller/financial_intelligence_diagnostics_provider.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_intelligence_model_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_model_type.dart';
@@ -28,6 +29,34 @@ import 'package:ophir/features/operations/domain/repositories/operation_reposito
 
 void main() {
   group('financialIntelligenceDiagnosticsProvider', () {
+    test('diagnostics input provider builds period independently', () async {
+      final fixedNow = DateTime(2035, 6, 18, 9, 45);
+      final container = _container(fixedNow: fixedNow);
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        financialIntelligenceDiagnosticsInputProvider.future,
+      );
+      final input = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected financial intelligence diagnostics input'),
+      };
+      final source = File(
+        'lib/features/assistant/controller/'
+        'financial_intelligence_diagnostics_input_provider.dart',
+      ).readAsStringSync();
+
+      expect(input.period.start, DateTime(2035, 6));
+      expect(input.period.end, DateTime(2035, 7));
+      expect(input.operations, hasLength(4));
+      expect(input.categories, hasLength(4));
+      expect(source, contains('financialEvaluationContextProvider'));
+      expect(
+        source,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
+      );
+    });
+
     test('builds diagnostics snapshot from compatibility output', () async {
       final container = _container();
       addTearDown(container.dispose);
@@ -58,30 +87,43 @@ void main() {
       );
     });
 
-    test('uses legacy briefing income total as denominator', () async {
-      final container = _container();
-      addTearDown(container.dispose);
+    test(
+      'diagnostics input incomeDenominator matches legacy incomeTotal on fixture',
+      () async {
+        final container = _container();
+        addTearDown(container.dispose);
 
-      final briefingResult = await container.read(
-        assistantDashboardBriefingProvider.future,
-      );
-      final diagnosticsResult = await container.read(
-        financialIntelligenceDiagnosticsProvider.future,
-      );
-      final briefing = switch (briefingResult) {
-        Success(:final value) => value,
-        Failure() => fail('Expected assistant dashboard briefing'),
-      };
-      final diagnostics = switch (diagnosticsResult) {
-        Success(:final value) => value,
-        Failure() => fail('Expected financial intelligence diagnostics'),
-      };
-      final incomeModel = briefing.modelResults.singleWhere(
-        (model) => model.modelType == FinancialModelType.incomeTotal,
-      );
+        final inputResult = await container.read(
+          financialIntelligenceDiagnosticsInputProvider.future,
+        );
+        final briefingResult = await container.read(
+          assistantDashboardBriefingProvider.future,
+        );
+        final diagnosticsResult = await container.read(
+          financialIntelligenceDiagnosticsProvider.future,
+        );
+        final input = switch (inputResult) {
+          Success(:final value) => value,
+          Failure() => fail(
+            'Expected financial intelligence diagnostics input',
+          ),
+        };
+        final briefing = switch (briefingResult) {
+          Success(:final value) => value,
+          Failure() => fail('Expected assistant dashboard briefing'),
+        };
+        final diagnostics = switch (diagnosticsResult) {
+          Success(:final value) => value,
+          Failure() => fail('Expected financial intelligence diagnostics'),
+        };
+        final incomeModel = briefing.modelResults.singleWhere(
+          (model) => model.modelType == FinancialModelType.incomeTotal,
+        );
 
-      expect(diagnostics.incomeDenominator, incomeModel.value);
-    });
+        expect(input.incomeDenominator, incomeModel.value);
+        expect(diagnostics.incomeDenominator, incomeModel.value);
+      },
+    );
 
     test('does not create provider cycle with Assistant briefing', () async {
       final container = _container();
@@ -98,6 +140,19 @@ void main() {
       expect(
         briefingProviderSource,
         isNot(contains('financialIntelligenceDiagnosticsProvider')),
+      );
+    });
+
+    test('diagnostics provider does not depend on legacy briefing', () {
+      final source = File(
+        'lib/features/assistant/controller/'
+        'financial_intelligence_diagnostics_provider.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('financialIntelligenceDiagnosticsInputProvider'));
+      expect(
+        source,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
       );
     });
 

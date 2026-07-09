@@ -11,6 +11,7 @@ import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/assistant/controller/assistant_dashboard_briefing_provider.dart';
 import 'package:ophir/features/assistant/controller/financial_behavior_compatibility_output_provider.dart';
+import 'package:ophir/features/assistant/controller/financial_intelligence_diagnostics_input_provider.dart';
 import 'package:ophir/features/categories/controller/category_providers.dart';
 import 'package:ophir/features/categories/domain/entities/category.dart';
 import 'package:ophir/features/categories/domain/enums/category_analytics_group.dart';
@@ -46,7 +47,7 @@ void main() {
       expect(output.totals.unresolvedCount, 1);
     });
 
-    test('uses Assistant briefing period for totals', () async {
+    test('uses diagnostics input period for totals', () async {
       final fixedNow = DateTime(2035, 6, 18, 9, 45);
       final rent = _category(
         id: 'rent',
@@ -76,12 +77,19 @@ void main() {
       );
       addTearDown(container.dispose);
 
+      final inputResult = await container.read(
+        financialIntelligenceDiagnosticsInputProvider.future,
+      );
       final briefingResult = await container.read(
         assistantDashboardBriefingProvider.future,
       );
       final outputResult = await container.read(
         financialBehaviorCompatibilityOutputProvider.future,
       );
+      final input = switch (inputResult) {
+        Success(:final value) => value,
+        Failure() => fail('Expected financial intelligence diagnostics input'),
+      };
       final briefing = switch (briefingResult) {
         Success(:final value) => value,
         Failure() => fail('Expected assistant dashboard briefing'),
@@ -93,6 +101,8 @@ void main() {
 
       expect(briefing.financialState.period.start, DateTime(2035, 6));
       expect(briefing.financialState.period.end, DateTime(2035, 7));
+      expect(input.period.start, briefing.financialState.period.start);
+      expect(input.period.end, briefing.financialState.period.end);
       expect(output.totals.legacyExpenseTotal, 100);
       expect(output.totals.ordinarySpendingTotal, 100);
       expect(output.snapshot.facts, hasLength(2));
@@ -133,6 +143,10 @@ void main() {
       final briefingProviderSource = File(
         'lib/features/assistant/controller/assistant_dashboard_briefing_provider.dart',
       ).readAsStringSync();
+      final behaviorProviderSource = File(
+        'lib/features/assistant/controller/'
+        'financial_behavior_compatibility_output_provider.dart',
+      ).readAsStringSync();
       final briefingServiceSource = File(
         'lib/features/assistant/domain/services/assistant_dashboard_briefing_service.dart',
       ).readAsStringSync();
@@ -143,6 +157,14 @@ void main() {
       expect(
         briefingProviderSource,
         isNot(contains('financialBehaviorCompatibilityOutputProvider')),
+      );
+      expect(
+        behaviorProviderSource,
+        contains('financialIntelligenceDiagnosticsInputProvider'),
+      );
+      expect(
+        behaviorProviderSource,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
       );
       expect(
         briefingServiceSource,

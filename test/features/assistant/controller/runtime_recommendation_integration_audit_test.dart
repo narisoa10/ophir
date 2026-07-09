@@ -141,7 +141,7 @@ void main() {
       }
     });
 
-    test('diagnostics internals do not depend on public runtime briefing', () {
+    test('diagnostics internals use independent input boundary', () {
       final compatibilitySource = File(
         'lib/features/assistant/controller/'
         'financial_behavior_compatibility_output_provider.dart',
@@ -150,14 +150,31 @@ void main() {
         'lib/features/assistant/controller/'
         'financial_intelligence_diagnostics_provider.dart',
       ).readAsStringSync();
+      final inputSource = File(
+        'lib/features/assistant/controller/'
+        'financial_intelligence_diagnostics_input_provider.dart',
+      ).readAsStringSync();
 
       expect(
         compatibilitySource,
-        contains('legacyAssistantDashboardBriefingProvider'),
+        contains('financialIntelligenceDiagnosticsInputProvider'),
       );
       expect(
         diagnosticsSource,
-        contains('legacyAssistantDashboardBriefingProvider'),
+        contains('financialIntelligenceDiagnosticsInputProvider'),
+      );
+      expect(inputSource, contains('financialEvaluationContextProvider'));
+      expect(
+        compatibilitySource,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
+      );
+      expect(
+        diagnosticsSource,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
+      );
+      expect(
+        inputSource,
+        isNot(contains('legacyAssistantDashboardBriefingProvider')),
       );
       expect(
         compatibilitySource,
