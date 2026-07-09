@@ -254,6 +254,54 @@ void main() {
         'lib\\features\\assistant\\controller\\financial_runtime_shadow_diagnostics_provider.dart',
       });
     });
+
+    test('runtime shadow diagnostics provider stays diagnostics-only', () {
+      const providerName = 'financialRuntimeShadowDiagnosticsProvider';
+
+      for (final file in Directory(
+        'lib/features/dashboard',
+      ).listSync(recursive: true).whereType<File>()) {
+        final source = file.readAsStringSync();
+
+        expect(source, isNot(contains(providerName)), reason: file.path);
+      }
+
+      for (final file in Directory(
+        'lib/features/dashboard/presentation/widgets',
+      ).listSync(recursive: true).whereType<File>()) {
+        final source = file.readAsStringSync();
+
+        expect(source, isNot(contains(providerName)), reason: file.path);
+      }
+
+      final briefingSource = File(
+        'lib/features/assistant/controller/'
+        'assistant_dashboard_briefing_provider.dart',
+      ).readAsStringSync();
+      expect(briefingSource, isNot(contains(providerName)));
+
+      final matches = _libMatches(providerName);
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_runtime_shadow_diagnostics_provider.dart',
+      });
+
+      final diagnosticsSource = File(
+        'lib/features/assistant/controller/'
+        'financial_runtime_shadow_diagnostics_provider.dart',
+      ).readAsStringSync();
+      expect(
+        diagnosticsSource,
+        contains('FinancialRuntimeShadowDiagnosticsService'),
+      );
+      expect(
+        diagnosticsSource,
+        isNot(contains('assistantDashboardBriefingProvider')),
+      );
+      expect(
+        diagnosticsSource,
+        isNot(contains('currentAssistantRecommendationProvider')),
+      );
+    });
   });
 }
 
