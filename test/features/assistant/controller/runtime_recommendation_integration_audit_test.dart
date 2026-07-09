@@ -185,6 +185,14 @@ void main() {
         isNot(contains('assistantDashboardBriefingProvider')),
       );
     });
+
+    test('model parity provider is not part of runtime boundary', () {
+      final matches = _libMatches('financialIntelligenceModelParityProvider');
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_model_parity_provider.dart',
+      });
+    });
   });
 }
 
