@@ -190,7 +190,18 @@ void main() {
       final matches = _libMatches('financialIntelligenceModelParityProvider');
 
       expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_decision_options_provider.dart',
         'lib\\features\\assistant\\controller\\financial_intelligence_model_parity_provider.dart',
+      });
+    });
+
+    test('decision options provider is not part of runtime boundary', () {
+      final matches = _libMatches(
+        'financialIntelligenceDecisionOptionsProvider',
+      );
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_decision_options_provider.dart',
       });
     });
   });
