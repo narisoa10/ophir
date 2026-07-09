@@ -47,6 +47,7 @@ void main() {
         'lib\\features\\assistant\\controller\\legacy_assistant_recommendation_provider.dart',
         'lib\\features\\assistant\\controller\\financial_recommendation_comparison_provider.dart',
         'lib\\features\\assistant\\controller\\financial_runtime_recommendation_selection_provider.dart',
+        'lib\\features\\assistant\\controller\\financial_runtime_shadow_diagnostics_provider.dart',
       };
 
       final matches = _libMatches('legacyAssistantRecommendationProvider');
@@ -250,6 +251,7 @@ void main() {
       expect(matches.keys.toSet(), {
         'lib\\features\\assistant\\controller\\financial_intelligence_runtime_recommendation_candidate_provider.dart',
         'lib\\features\\assistant\\controller\\financial_runtime_recommendation_selection_provider.dart',
+        'lib\\features\\assistant\\controller\\financial_runtime_shadow_diagnostics_provider.dart',
       });
     });
   });
