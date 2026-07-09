@@ -1,0 +1,4 @@
+enum FinancialIntelligenceRecommendationSelectionReason {
+  priorityOrder,
+  noAvailableOptions,
+}

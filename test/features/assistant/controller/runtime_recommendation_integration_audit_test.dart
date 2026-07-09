@@ -27,6 +27,12 @@ void main() {
             contains('financialIntelligenceRecommendationDiagnosticsProvider'),
           ),
         );
+        expect(
+          source,
+          isNot(
+            contains('financialIntelligenceRecommendationSelectionProvider'),
+          ),
+        );
       },
     );
 
@@ -202,6 +208,17 @@ void main() {
 
       expect(matches.keys.toSet(), {
         'lib\\features\\assistant\\controller\\financial_intelligence_decision_options_provider.dart',
+        'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_selection_provider.dart',
+      });
+    });
+
+    test('recommendation selection provider is not part of runtime boundary', () {
+      final matches = _libMatches(
+        'financialIntelligenceRecommendationSelectionProvider',
+      );
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_selection_provider.dart',
       });
     });
   });
