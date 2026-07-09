@@ -50,6 +50,8 @@ Each document has one clear responsibility:
 - `architecture/code_standard.md` owns general coding rules and layer
   boundaries.
 - `architecture/feature_workflow.md` owns the feature development process.
+- `runtime_recommendation_mode.md` owns Runtime Recommendation Mode rollout
+  behavior, dart-define launch commands, production safety, and manual QA.
 - `decisions/` owns ADRs: why important decisions were made.
 - `reference/` owns non-normative visual and UX references.
 - `roadmap/` owns long-term product direction.
