@@ -18,6 +18,7 @@ final financialRuntimeRecommendationSelectionProvider =
     ) async {
       final config = ref.watch(financialRuntimeRecommendationConfigProvider);
       final mode = config.mode;
+      final policy = const FinancialRuntimeRecommendationPolicy();
       final legacyResult = await ref.watch(
         legacyAssistantRecommendationProvider.future,
       );
@@ -31,7 +32,7 @@ final financialRuntimeRecommendationSelectionProvider =
 
       if (mode != FinancialRuntimeRecommendationMode.intelligenceAllowlist) {
         return Success(
-          const FinancialRuntimeRecommendationPolicy().select(
+          policy.select(
             mode: mode,
             legacyRecommendation: legacyRecommendation,
             comparison: null,
@@ -58,7 +59,7 @@ final financialRuntimeRecommendationSelectionProvider =
           : null;
 
       return Success(
-        const FinancialRuntimeRecommendationPolicy().select(
+        policy.select(
           mode: mode,
           legacyRecommendation: legacyRecommendation,
           comparison: comparison,
