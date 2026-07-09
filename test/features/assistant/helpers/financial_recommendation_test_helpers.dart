@@ -17,6 +17,18 @@ import 'package:ophir/features/assistant/domain/entities/financial_decision_opti
 import 'package:ophir/features/assistant/domain/entities/financial_decision_option_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_decision_target.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_decision_target_direction.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_edge.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_edge_type.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_graph.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_metadata.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_node.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_node_type.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_source_layer.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_status.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_step.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_explanation_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_intelligence_recommendation_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_model_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_model_unit.dart';
@@ -134,6 +146,70 @@ FinancialDecisionOption buildTestFinancialDecisionOption(
       ruleId: 'rule.${type.name}',
     ),
     effectHorizon: FinancialDecisionOptionEffectHorizon.immediate,
+  );
+}
+
+FinancialExplanation buildTestFinancialExplanation(
+  FinancialRecommendation recommendation,
+) {
+  final recommendationNodeId =
+      'explanation.node.${recommendation.recommendationId}';
+  final optionNodeId = 'explanation.node.${recommendation.selectedOptionId}';
+
+  return FinancialExplanation(
+    explanationId: 'explanation.${recommendation.recommendationId}',
+    explanationType: FinancialExplanationType.recommendationSelection,
+    status: FinancialExplanationStatus.complete,
+    confidence: FinancialExplanationConfidence.medium,
+    graph: FinancialExplanationGraph(
+      nodes: [
+        FinancialExplanationNode(
+          id: recommendationNodeId,
+          nodeType: FinancialExplanationNodeType.recommendation,
+          sourceLayer: FinancialExplanationSourceLayer.recommendation,
+          referencedEntityIds: [recommendation.recommendationId],
+          confidence: FinancialExplanationConfidence.medium,
+          evidence: const [],
+          assumptions: const [],
+          limitations: const [],
+          children: [optionNodeId],
+          parents: const [],
+        ),
+        FinancialExplanationNode(
+          id: optionNodeId,
+          nodeType: FinancialExplanationNodeType.selectedOption,
+          sourceLayer: FinancialExplanationSourceLayer.decisionOption,
+          referencedEntityIds: [recommendation.selectedOptionId],
+          confidence: FinancialExplanationConfidence.medium,
+          evidence: const [],
+          assumptions: const [],
+          limitations: const [],
+          children: const [],
+          parents: [recommendationNodeId],
+        ),
+      ],
+      edges: [
+        FinancialExplanationEdge(
+          id: 'explanation.edge.${recommendation.recommendationId}',
+          fromNodeId: recommendationNodeId,
+          toNodeId: optionNodeId,
+          edgeType: FinancialExplanationEdgeType.selected,
+        ),
+      ],
+      rootNodeId: recommendationNodeId,
+    ),
+    steps: [
+      FinancialExplanationStep(
+        stepId: 'explanation.step.${recommendation.recommendationId}',
+        explanationType: FinancialExplanationType.recommendationSelection,
+        nodeIds: [recommendationNodeId, optionNodeId],
+      ),
+    ],
+    validationIssues: const [],
+    metadata: FinancialExplanationMetadata(
+      generatedAt: DateTime.utc(2035, 6),
+      engineVersion: 'test',
+    ),
   );
 }
 

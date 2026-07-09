@@ -3,11 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/features/assistant/controller/current_assistant_recommendation_provider.dart';
 import 'package:ophir/features/assistant/controller/financial_recommendation_comparison_provider.dart';
+import 'package:ophir/features/assistant/controller/financial_intelligence_runtime_recommendation_candidate_provider.dart';
 import 'package:ophir/features/assistant/controller/financial_runtime_recommendation_config_provider.dart';
 import 'package:ophir/features/assistant/controller/financial_runtime_recommendation_selection_provider.dart';
 import 'package:ophir/features/assistant/controller/legacy_assistant_recommendation_provider.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_decision_option_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_intelligence_recommendation_type.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_intelligence_runtime_recommendation_candidate.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_recommendation.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_recommendation_conflict_level.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_runtime_recommendation_config.dart';
@@ -36,6 +38,10 @@ void main() {
           financialRecommendationComparisonProvider.overrideWith((ref) async {
             throw StateError('comparison should not be read in legacy mode');
           }),
+          financialIntelligenceRuntimeRecommendationCandidateProvider
+              .overrideWith((ref) async {
+                throw StateError('candidate should not be read in legacy mode');
+              }),
         ],
       );
       addTearDown(container.dispose);
@@ -69,6 +75,12 @@ void main() {
               'comparison should not be read in shadowOnly mode',
             );
           }),
+          financialIntelligenceRuntimeRecommendationCandidateProvider
+              .overrideWith((ref) async {
+                throw StateError(
+                  'candidate should not be read in shadowOnly mode',
+                );
+              }),
         ],
       );
       addTearDown(container.dispose);
@@ -85,6 +97,9 @@ void main() {
 
     test('intelligenceAllowlist uses aligned allowlist comparison', () async {
       final legacy = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+      final adapted = buildTestFinancialRecommendation(
         FinancialDecisionOptionType.reduceDiscretionarySpending,
       );
       final comparison = buildTestRecommendationComparison(
@@ -107,6 +122,8 @@ void main() {
           financialRecommendationComparisonProvider.overrideWith(
             (ref) async => Success(comparison),
           ),
+          financialIntelligenceRuntimeRecommendationCandidateProvider
+              .overrideWith((ref) async => Success(_candidate(adapted))),
         ],
       );
       addTearDown(container.dispose);
@@ -124,7 +141,8 @@ void main() {
         selection.source,
         FinancialRuntimeRecommendationSource.intelligenceAllowlist,
       );
-      expect(selection.recommendation, same(legacy));
+      expect(selection.recommendation, same(adapted));
+      expect(selection.explanation, isNotNull);
     });
 
     test(
@@ -162,6 +180,9 @@ void main() {
         final legacy = buildTestFinancialRecommendation(
           FinancialDecisionOptionType.reduceDiscretionarySpending,
         );
+        final adapted = buildTestFinancialRecommendation(
+          FinancialDecisionOptionType.reduceDiscretionarySpending,
+        );
         final comparison = buildTestRecommendationComparison(
           legacyType: FinancialDecisionOptionType.reduceDiscretionarySpending,
           shadowTypes: const [
@@ -182,6 +203,8 @@ void main() {
             financialRecommendationComparisonProvider.overrideWith(
               (ref) async => Success(comparison),
             ),
+            financialIntelligenceRuntimeRecommendationCandidateProvider
+                .overrideWith((ref) async => Success(_candidate(adapted))),
           ],
         );
         addTearDown(container.dispose);
@@ -193,11 +216,27 @@ void main() {
           currentAssistantRecommendationProvider.future,
         );
 
-        expect(_selectionValue(selectionResult).recommendation, same(legacy));
-        expect(_recommendationValue(recommendationResult), same(legacy));
+        expect(_selectionValue(selectionResult).recommendation, same(adapted));
+        expect(_recommendationValue(recommendationResult), same(adapted));
       },
     );
   });
+}
+
+FinancialIntelligenceRuntimeRecommendationCandidate _candidate(
+  FinancialRecommendation recommendation,
+) {
+  return FinancialIntelligenceRuntimeRecommendationCandidate(
+    adaptedRecommendation: recommendation,
+    adaptedExplanation: buildTestFinancialExplanation(recommendation),
+    sourceIntelligenceOptionIds: const ['intelligence.option'],
+    rejectedIntelligenceOptionIds: const [],
+    isEligibleForRuntime: true,
+    blockReasons: const [],
+    confidence: recommendation.confidence,
+    priority: recommendation.priority,
+    isDiagnosticsOnlySource: true,
+  );
 }
 
 FinancialRuntimeRecommendationSelection _selectionValue(

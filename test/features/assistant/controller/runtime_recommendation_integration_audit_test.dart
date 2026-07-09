@@ -225,23 +225,33 @@ void main() {
       );
 
       expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_runtime_recommendation_candidate_provider.dart',
         'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_explanation_provider.dart',
         'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_selection_provider.dart',
       });
     });
 
-    test(
-      'recommendation explanation provider is not part of runtime boundary',
-      () {
-        final matches = _libMatches(
-          'financialIntelligenceRecommendationExplanationProvider',
-        );
+    test('recommendation explanation provider is not part of runtime boundary', () {
+      final matches = _libMatches(
+        'financialIntelligenceRecommendationExplanationProvider',
+      );
 
-        expect(matches.keys.toSet(), {
-          'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_explanation_provider.dart',
-        });
-      },
-    );
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_runtime_recommendation_candidate_provider.dart',
+        'lib\\features\\assistant\\controller\\financial_intelligence_recommendation_explanation_provider.dart',
+      });
+    });
+
+    test('runtime candidate provider is only used by runtime selection', () {
+      final matches = _libMatches(
+        'financialIntelligenceRuntimeRecommendationCandidateProvider',
+      );
+
+      expect(matches.keys.toSet(), {
+        'lib\\features\\assistant\\controller\\financial_intelligence_runtime_recommendation_candidate_provider.dart',
+        'lib\\features\\assistant\\controller\\financial_runtime_recommendation_selection_provider.dart',
+      });
+    });
   });
 }
 

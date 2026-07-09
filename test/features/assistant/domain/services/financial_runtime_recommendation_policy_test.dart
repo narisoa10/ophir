@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_decision_option_type.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_intelligence_recommendation_type.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_intelligence_runtime_recommendation_candidate.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_recommendation.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_recommendation_comparison_flag.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_recommendation_comparison_read_model.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_recommendation_conflict_level.dart';
@@ -89,6 +91,8 @@ void main() {
 
       for (final testCase in cases) {
         final legacy = buildTestFinancialRecommendation(testCase.legacyType);
+        final adapted = buildTestFinancialRecommendation(testCase.legacyType);
+        final candidate = _eligibleCandidate(adapted);
         final comparison = _alignedComparison(
           legacyType: testCase.legacyType,
           shadowTypes: testCase.shadowTypes,
@@ -98,6 +102,7 @@ void main() {
           mode: FinancialRuntimeRecommendationMode.intelligenceAllowlist,
           legacyRecommendation: legacy,
           comparison: comparison,
+          candidate: candidate,
         );
 
         expect(
@@ -105,7 +110,8 @@ void main() {
           FinancialRuntimeRecommendationSource.intelligenceAllowlist,
           reason: testCase.legacyType.name,
         );
-        expect(selection.recommendation, same(legacy));
+        expect(selection.recommendation, same(adapted));
+        expect(selection.explanation, same(candidate.adaptedExplanation));
         expect(selection.comparison, same(comparison));
         expect(selection.usesIntelligenceRuntime, isTrue);
       }
@@ -113,6 +119,9 @@ void main() {
 
     test('any warning flag returns legacy', () {
       final legacy = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+      final adapted = buildTestFinancialRecommendation(
         FinancialDecisionOptionType.reduceDiscretionarySpending,
       );
 
@@ -128,6 +137,7 @@ void main() {
             FinancialRecommendationComparisonFlag.contextWarningPresent,
           ],
         ),
+        candidate: _eligibleCandidate(adapted),
       );
 
       expect(selection.source, FinancialRuntimeRecommendationSource.legacy);
@@ -236,6 +246,9 @@ void main() {
       final legacy = buildTestFinancialRecommendation(
         FinancialDecisionOptionType.improveCategorization,
       );
+      final adapted = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.improveCategorization,
+      );
 
       final selection = policy.select(
         mode: FinancialRuntimeRecommendationMode.intelligenceAllowlist,
@@ -247,9 +260,63 @@ void main() {
           ],
           hasCoverageWarnings: true,
         ),
+        candidate: _eligibleCandidate(adapted),
+      );
+
+      expect(
+        selection.source,
+        FinancialRuntimeRecommendationSource.intelligenceAllowlist,
+      );
+      expect(selection.recommendation, same(adapted));
+    });
+
+    test('coverage warning blocks non coverage allowlist cases', () {
+      final legacy = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+      final adapted = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+
+      final selection = policy.select(
+        mode: FinancialRuntimeRecommendationMode.intelligenceAllowlist,
+        legacyRecommendation: legacy,
+        comparison: _alignedComparison(
+          legacyType: FinancialDecisionOptionType.reduceDiscretionarySpending,
+          shadowTypes: const [
+            FinancialIntelligenceRecommendationType.reduceReducibleSpending,
+          ],
+          hasCoverageWarnings: true,
+        ),
+        candidate: _eligibleCandidate(adapted),
       );
 
       expect(selection.source, FinancialRuntimeRecommendationSource.legacy);
+      expect(selection.recommendation, same(legacy));
+    });
+
+    test('blocked candidate returns legacy', () {
+      final legacy = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+      final adapted = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.reduceDiscretionarySpending,
+      );
+
+      final selection = policy.select(
+        mode: FinancialRuntimeRecommendationMode.intelligenceAllowlist,
+        legacyRecommendation: legacy,
+        comparison: _alignedComparison(
+          legacyType: FinancialDecisionOptionType.reduceDiscretionarySpending,
+          shadowTypes: const [
+            FinancialIntelligenceRecommendationType.reduceReducibleSpending,
+          ],
+        ),
+        candidate: _blockedCandidate(adapted),
+      );
+
+      expect(selection.source, FinancialRuntimeRecommendationSource.legacy);
+      expect(selection.recommendation, same(legacy));
     });
 
     test('missing recommendation returns legacy', () {
@@ -328,4 +395,36 @@ final class _AllowlistCase {
 
   final FinancialDecisionOptionType legacyType;
   final List<FinancialIntelligenceRecommendationType> shadowTypes;
+}
+
+FinancialIntelligenceRuntimeRecommendationCandidate _eligibleCandidate(
+  FinancialRecommendation recommendation,
+) {
+  return FinancialIntelligenceRuntimeRecommendationCandidate(
+    adaptedRecommendation: recommendation,
+    adaptedExplanation: buildTestFinancialExplanation(recommendation),
+    sourceIntelligenceOptionIds: const ['intelligence.option'],
+    rejectedIntelligenceOptionIds: const [],
+    isEligibleForRuntime: true,
+    blockReasons: const [],
+    confidence: recommendation.confidence,
+    priority: recommendation.priority,
+    isDiagnosticsOnlySource: true,
+  );
+}
+
+FinancialIntelligenceRuntimeRecommendationCandidate _blockedCandidate(
+  FinancialRecommendation recommendation,
+) {
+  return FinancialIntelligenceRuntimeRecommendationCandidate(
+    adaptedRecommendation: recommendation,
+    adaptedExplanation: buildTestFinancialExplanation(recommendation),
+    sourceIntelligenceOptionIds: const ['intelligence.option'],
+    rejectedIntelligenceOptionIds: const [],
+    isEligibleForRuntime: false,
+    blockReasons: const ['blocked'],
+    confidence: recommendation.confidence,
+    priority: recommendation.priority,
+    isDiagnosticsOnlySource: true,
+  );
 }

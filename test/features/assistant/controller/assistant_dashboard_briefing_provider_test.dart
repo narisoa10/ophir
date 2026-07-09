@@ -8,6 +8,7 @@ import 'package:ophir/features/accounts/domain/entities/account.dart';
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/assistant/controller/assistant_dashboard_briefing_provider.dart';
+import 'package:ophir/features/assistant/controller/current_assistant_recommendation_explanation_provider.dart';
 import 'package:ophir/features/assistant/controller/current_assistant_recommendation_provider.dart';
 import 'package:ophir/features/assistant/domain/entities/financial_decision_option_type.dart';
 import 'package:ophir/features/categories/controller/category_providers.dart';
@@ -125,6 +126,9 @@ void main() {
           currentAssistantRecommendationProvider.overrideWith(
             (ref) async => Success(runtimeRecommendation),
           ),
+          currentAssistantRecommendationExplanationProvider.overrideWith(
+            (ref) async => const Success(null),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -141,6 +145,43 @@ void main() {
       expect(
         briefing.recommendation?.selectedOptionType,
         FinancialDecisionOptionType.deferOptionalSpending,
+      );
+    });
+
+    test('uses runtime explanation when adapter provides one', () async {
+      final fixedNow = DateTime(2035, 6, 18, 9, 45);
+      final runtimeRecommendation = buildTestFinancialRecommendation(
+        FinancialDecisionOptionType.improveCategorization,
+      );
+      final runtimeExplanation = buildTestFinancialExplanation(
+        runtimeRecommendation,
+      );
+      final container = _container(
+        fixedNow: fixedNow,
+        overrides: [
+          currentAssistantRecommendationProvider.overrideWith(
+            (ref) async => Success(runtimeRecommendation),
+          ),
+          currentAssistantRecommendationExplanationProvider.overrideWith(
+            (ref) async => Success(runtimeExplanation),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        assistantDashboardBriefingProvider.future,
+      );
+      final briefing = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected assistant dashboard briefing'),
+      };
+
+      expect(briefing.recommendation, same(runtimeRecommendation));
+      expect(briefing.explanation, same(runtimeExplanation));
+      expect(
+        briefing.explanation?.graph.nodes.first.referencedEntityIds,
+        contains(runtimeRecommendation.recommendationId),
       );
     });
 
