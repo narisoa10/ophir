@@ -73,6 +73,62 @@ extension DashboardFinancialStateL10n on AppLocalizations {
     };
   }
 
+  String get dashboardContributorDeficitTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui crée le déficit',
+      'ru' => 'Что создаёт дефицит',
+      _ => 'What creates the deficit',
+    };
+  }
+
+  String get dashboardContributorFragileTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui crée le risque',
+      'ru' => 'Что создаёт риск',
+      _ => 'What creates the risk',
+    };
+  }
+
+  String get dashboardContributorStableTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui soutient la stabilité',
+      'ru' => 'Что поддерживает стабильность',
+      _ => 'What supports stability',
+    };
+  }
+
+  String get dashboardContributorGrowthTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui soutient la croissance',
+      'ru' => 'Что поддерживает рост',
+      _ => 'What supports growth',
+    };
+  }
+
+  String get dashboardContributorStrongPositionTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui crée une position solide',
+      'ru' => 'Что создаёт сильную позицию',
+      _ => 'What creates a strong position',
+    };
+  }
+
+  String get dashboardContributorRequiredAmountLabel {
+    return switch (localeName) {
+      'fr' => 'Montant à couvrir',
+      'ru' => 'Необходимо покрыть',
+      _ => 'Amount to cover',
+    };
+  }
+
+  String get dashboardContributorCoveredAmountLabel {
+    return switch (localeName) {
+      'fr' => 'Montant expliqué par ces catégories',
+      'ru' => 'Сумма по выбранным категориям',
+      _ => 'Amount represented by these categories',
+    };
+  }
+
   String get dashboardFinancialStateDetailWhyTitle {
     return switch (localeName) {
       'fr' => 'Pourquoi cet etat',
