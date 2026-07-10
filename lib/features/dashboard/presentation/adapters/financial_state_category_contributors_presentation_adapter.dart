@@ -17,19 +17,6 @@ final class FinancialStateCategoryContributorsPresentationAdapter {
   }) {
     return DashboardFinancialStateCategoryContributorsPresentation(
       title: _title(snapshot.stateType, l10n),
-      requiredAmountLabel: l10n.dashboardContributorRequiredAmountLabel,
-      requiredAmount: _amount(
-        snapshot.requiredAmount,
-        snapshot.currencyCode,
-        formatMoney,
-      ),
-      coveredAmountLabel: l10n.dashboardContributorCoveredAmountLabel,
-      coveredAmount: _amount(
-        snapshot.coveredAmount,
-        snapshot.currencyCode,
-        formatMoney,
-      ),
-      isCoverageComplete: snapshot.isCoverageComplete,
       contributors: _contributors(snapshot, l10n, formatMoney),
     );
   }
@@ -56,11 +43,7 @@ final class FinancialStateCategoryContributorsPresentationAdapter {
         <DashboardFinancialStateCategoryContributorPresentation>[];
 
     for (final contributor in snapshot.contributors) {
-      final definition = CategoryTaxonomy.definitionFor(contributor.stableKey);
-      if (definition == null) {
-        continue;
-      }
-
+      final definition = CategoryTaxonomy.definitionFor(contributor.stableKey)!;
       final category = adapter.toPresentation(definition, l10n);
       contributors.add(
         DashboardFinancialStateCategoryContributorPresentation(
@@ -73,6 +56,8 @@ final class FinancialStateCategoryContributorsPresentationAdapter {
           ),
           percentOfIncome: _percent(contributor.percentOfIncome),
           percentOfExpenses: _percent(contributor.percentOfExpenses),
+          distributionRole: contributor.distributionRole,
+          spendingPattern: contributor.spendingPattern,
           icon: category.icon,
           color: category.color,
           backgroundColor: category.backgroundColor,

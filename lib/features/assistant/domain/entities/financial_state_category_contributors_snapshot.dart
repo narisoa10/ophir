@@ -5,6 +5,7 @@ import 'financial_state_contributor_strategy.dart';
 import 'financial_state_type.dart';
 
 final class FinancialStateCategoryContributorsSnapshot {
+  /// Explanatory category factors for the current financial state.
   FinancialStateCategoryContributorsSnapshot({
     required this.stateType,
     required this.strategy,

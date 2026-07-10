@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/result.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
+import '../../../../core/localization/l10n/dashboard_financial_state_l10n.dart';
 import '../../../../core/theme_v1/app_colors.dart';
 import '../../../../core/theme_v1/app_dimensions.dart';
 import '../../../../core/theme_v1/app_radius.dart';
@@ -13,7 +14,6 @@ import '../../../assistant/domain/entities/financial_state_category_contributors
 import '../adapters/financial_state_category_contributors_presentation_adapter.dart';
 import '../models/dashboard_financial_state_category_contributor_presentation.dart';
 import '../models/dashboard_financial_state_category_contributors_presentation.dart';
-import 'dashboard_panel.dart';
 
 class DashboardFinancialStateCategoryContributorsBuilder
     extends ConsumerWidget {
@@ -25,18 +25,16 @@ class DashboardFinancialStateCategoryContributorsBuilder
     final l10n = AppLocalizations.of(context);
 
     if (state.isLoading) {
-      return const DashboardPanel(
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (state.hasError) {
-      return _FailurePanel(message: l10n.failureUnknown);
+      return Text(l10n.failureUnknown, style: AppTypography.body);
     }
 
     final snapshot = _snapshotFromResult(state.valueOrNull);
     if (snapshot == null) {
-      return _FailurePanel(message: l10n.failureUnknown);
+      return Text(l10n.failureUnknown, style: AppTypography.body);
     }
 
     final presentation =
@@ -49,7 +47,7 @@ class DashboardFinancialStateCategoryContributorsBuilder
               },
             );
 
-    return _ContributorsCard(presentation: presentation);
+    return _ContributorsContent(presentation: presentation);
   }
 
   FinancialStateCategoryContributorsSnapshot? _snapshotFromResult(
@@ -90,70 +88,28 @@ class DashboardFinancialStateCategoryContributorsBuilder
   }
 }
 
-class _ContributorsCard extends StatelessWidget {
-  const _ContributorsCard({required this.presentation});
+class _ContributorsContent extends StatelessWidget {
+  const _ContributorsContent({required this.presentation});
 
   final DashboardFinancialStateCategoryContributorsPresentation presentation;
 
   @override
   Widget build(BuildContext context) {
-    return DashboardPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(presentation.title, style: AppTypography.sectionTitle),
-          const SizedBox(height: AppSpacing.md),
-          _AmountRow(
-            label: presentation.requiredAmountLabel,
-            amount: presentation.requiredAmount,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _AmountRow(
-            label: presentation.coveredAmountLabel,
-            amount: presentation.coveredAmount,
-          ),
-          if (presentation.contributors.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.md),
-            for (final contributor in presentation.contributors) ...[
-              _ContributorRow(contributor: contributor),
-              if (contributor != presentation.contributors.last)
-                const SizedBox(height: AppSpacing.md),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-}
+    final l10n = AppLocalizations.of(context);
 
-class _AmountRow extends StatelessWidget {
-  const _AmountRow({required this.label, required this.amount});
-
-  final String label;
-  final String amount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: AppTypography.caption,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Text(
-          amount,
-          style: AppTypography.currencyStrong.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.end,
-        ),
+        Text(presentation.title, style: AppTypography.sectionTitle),
+        const SizedBox(height: AppSpacing.md),
+        if (presentation.contributors.isEmpty)
+          Text(l10n.dashboardContributorEmpty, style: AppTypography.body)
+        else
+          for (final contributor in presentation.contributors) ...[
+            _ContributorRow(contributor: contributor),
+            if (contributor != presentation.contributors.last)
+              const SizedBox(height: AppSpacing.md),
+          ],
       ],
     );
   }
@@ -193,6 +149,8 @@ class _ContributorRow extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+              const SizedBox(height: AppSpacing.xs),
+              _FactorLine(contributor: contributor),
               _PercentLine(contributor: contributor),
             ],
           ),
@@ -214,6 +172,34 @@ class _ContributorRow extends StatelessWidget {
   }
 }
 
+class _FactorLine extends StatelessWidget {
+  const _FactorLine({required this.contributor});
+
+  final DashboardFinancialStateCategoryContributorPresentation contributor;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      children: [
+        Text(
+          l10n.dashboardContributorDistributionRole(
+            contributor.distributionRole,
+          ),
+          style: AppTypography.caption,
+        ),
+        Text(
+          l10n.dashboardContributorSpendingPattern(contributor.spendingPattern),
+          style: AppTypography.caption,
+        ),
+      ],
+    );
+  }
+}
+
 class _PercentLine extends StatelessWidget {
   const _PercentLine({required this.contributor});
 
@@ -221,9 +207,14 @@ class _PercentLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final values = [
-      if (contributor.percentOfIncome != null) contributor.percentOfIncome!,
-      if (contributor.percentOfExpenses != null) contributor.percentOfExpenses!,
+      if (contributor.percentOfIncome != null)
+        l10n.dashboardContributorPercentOfIncome(contributor.percentOfIncome!),
+      if (contributor.percentOfExpenses != null)
+        l10n.dashboardContributorPercentOfExpenses(
+          contributor.percentOfExpenses!,
+        ),
     ];
 
     if (values.isEmpty) {
@@ -232,25 +223,19 @@ class _PercentLine extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Text(
-        values.join(' / '),
-        style: AppTypography.captionStrong.copyWith(
-          color: AppColors.textSecondary,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.xs,
+        children: [
+          for (final value in values)
+            Text(
+              value,
+              style: AppTypography.captionStrong.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+        ],
       ),
     );
-  }
-}
-
-class _FailurePanel extends StatelessWidget {
-  const _FailurePanel({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return DashboardPanel(child: Text(message, style: AppTypography.body));
   }
 }

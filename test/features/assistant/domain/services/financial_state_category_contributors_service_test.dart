@@ -11,7 +11,6 @@ import 'package:ophir/features/assistant/domain/entities/financial_state_type.da
 import 'package:ophir/features/assistant/domain/services/financial_state_category_contributors_service.dart';
 import 'package:ophir/features/categories/domain/enums/category_financial_distribution_role.dart';
 import 'package:ophir/features/categories/domain/enums/category_stable_key.dart';
-import 'package:ophir/features/categories/domain/enums/spending_pattern.dart';
 import 'package:ophir/features/operations/domain/enums/operation_type.dart';
 
 void main() {
@@ -90,83 +89,85 @@ void main() {
       );
     });
 
-    test('sorts wants before flexibleExpenses before mandatoryExpenses', () {
+    test('fragileBalance at ten percent keeps explanatory contributors', () {
       final snapshot = service.build(
-        financialState: _state(type: FinancialStateType.deficit, net: -300),
+        financialState: _state(
+          type: FinancialStateType.fragileBalance,
+          income: 1000,
+          net: 100,
+        ),
+        behaviorFacts: _snapshot(
+          facts: [_fact(categoryId: 'restaurant', amount: 120)],
+        ),
+      );
+
+      expect(snapshot.requiredAmount, 0);
+      expect(snapshot.contributors, isNotEmpty);
+      expect(
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['restaurant'],
+      );
+    });
+
+    test('stable includes relevant positive contributors', () {
+      final snapshot = service.build(
+        financialState: _state(type: FinancialStateType.stable),
+        behaviorFacts: _snapshot(facts: [_positiveFact()]),
+      );
+
+      expect(snapshot.contributors, isNotEmpty);
+    });
+
+    test('growth includes relevant positive contributors', () {
+      final snapshot = service.build(
+        financialState: _state(type: FinancialStateType.growth),
+        behaviorFacts: _snapshot(facts: [_positiveFact()]),
+      );
+
+      expect(snapshot.contributors, isNotEmpty);
+    });
+
+    test('strongPosition includes relevant positive contributors', () {
+      final snapshot = service.build(
+        financialState: _state(type: FinancialStateType.strongPosition),
+        behaviorFacts: _snapshot(facts: [_positiveFact()]),
+      );
+
+      expect(snapshot.contributors, isNotEmpty);
+    });
+
+    test('sorts contributors by real contribution amount', () {
+      final snapshot = service.build(
+        financialState: _state(type: FinancialStateType.deficit, net: -1200),
         behaviorFacts: _snapshot(
           facts: [
+            _fact(categoryId: 'wants', amount: 100),
             _fact(
               categoryId: 'mandatory',
-              amount: 100,
+              stableKey: CategoryStableKey.expenseHousingRent,
+              amount: 900,
               distributionRole:
                   CategoryFinancialDistributionRole.mandatoryExpenses,
             ),
             _fact(
               categoryId: 'flexible',
-              amount: 100,
+              amount: 30,
               distributionRole:
                   CategoryFinancialDistributionRole.flexibleExpenses,
             ),
-            _fact(
-              categoryId: 'wants',
-              amount: 100,
-              distributionRole: CategoryFinancialDistributionRole.wants,
-            ),
           ],
         ),
       );
 
       expect(
-        snapshot.contributors.map(
-          (contributor) => contributor.distributionRole,
-        ),
-        [
-          CategoryFinancialDistributionRole.wants,
-          CategoryFinancialDistributionRole.flexibleExpenses,
-          CategoryFinancialDistributionRole.mandatoryExpenses,
-        ],
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['mandatory', 'wants', 'flexible'],
       );
-    });
-
-    test('sorts by spending pattern priority', () {
-      final snapshot = service.build(
-        financialState: _state(type: FinancialStateType.deficit, net: -400),
-        behaviorFacts: _snapshot(
-          facts: [
-            _fact(
-              categoryId: 'periodic',
-              stableKey: CategoryStableKey.expenseHousingPropertyTax,
-              amount: 100,
-            ),
-            _fact(
-              categoryId: 'recurring',
-              stableKey: CategoryStableKey
-                  .expenseEntertainmentLifestyleStreamingSubscriptions,
-              amount: 100,
-            ),
-            _fact(
-              categoryId: 'one-off',
-              stableKey: CategoryStableKey.expenseEntertainmentLifestyleTravel,
-              amount: 100,
-            ),
-            _fact(
-              categoryId: 'variable',
-              stableKey: CategoryStableKey.expenseFoodRestaurant,
-              amount: 100,
-            ),
-          ],
-        ),
-      );
-
-      expect(
-        snapshot.contributors.map((contributor) => contributor.spendingPattern),
-        [
-          SpendingPattern.usuallyVariable,
-          SpendingPattern.usuallyOneOff,
-          SpendingPattern.usuallyRecurring,
-          SpendingPattern.periodic,
-        ],
-      );
+      expect(snapshot.contributors.map((contributor) => contributor.amount), [
+        900,
+        100,
+        30,
+      ]);
     });
 
     test('excludes unsupported facts and context-dependent categories', () {
@@ -254,21 +255,16 @@ void main() {
       expect(snapshot.coveredAmount, 10);
     });
 
-    test('selects minimal sufficient contributors and sums covered amount', () {
+    test('includes mandatory expenses as explanatory contributors', () {
       final snapshot = service.build(
-        financialState: _state(type: FinancialStateType.deficit, net: -120),
+        financialState: _state(type: FinancialStateType.deficit, net: -50),
         behaviorFacts: _snapshot(
           facts: [
-            _fact(categoryId: 'wants-large', amount: 100),
+            _fact(categoryId: 'restaurant', amount: 50),
             _fact(
-              categoryId: 'flexible-small',
-              amount: 30,
-              distributionRole:
-                  CategoryFinancialDistributionRole.flexibleExpenses,
-            ),
-            _fact(
-              categoryId: 'mandatory-large',
-              amount: 100,
+              categoryId: 'rent',
+              stableKey: CategoryStableKey.expenseHousingRent,
+              amount: 900,
               distributionRole:
                   CategoryFinancialDistributionRole.mandatoryExpenses,
             ),
@@ -278,10 +274,87 @@ void main() {
 
       expect(
         snapshot.contributors.map((contributor) => contributor.categoryId),
-        ['wants-large', 'flexible-small'],
+        contains('rent'),
       );
-      expect(snapshot.coveredAmount, 130);
-      expect(snapshot.isCoverageComplete, isTrue);
+      expect(
+        snapshot.contributors
+            .singleWhere((contributor) => contributor.categoryId == 'rent')
+            .distributionRole,
+        CategoryFinancialDistributionRole.mandatoryExpenses,
+      );
+    });
+
+    test(
+      'returns all relevant contributors after required amount is reached',
+      () {
+        final snapshot = service.build(
+          financialState: _state(type: FinancialStateType.deficit, net: -120),
+          behaviorFacts: _snapshot(
+            facts: [
+              _fact(categoryId: 'wants-large', amount: 100),
+              _fact(
+                categoryId: 'flexible-small',
+                amount: 30,
+                distributionRole:
+                    CategoryFinancialDistributionRole.flexibleExpenses,
+              ),
+              _fact(
+                categoryId: 'mandatory-large',
+                amount: 100,
+                distributionRole:
+                    CategoryFinancialDistributionRole.mandatoryExpenses,
+              ),
+            ],
+          ),
+        );
+
+        expect(
+          snapshot.contributors
+              .map((contributor) => contributor.categoryId)
+              .toSet(),
+          {'wants-large', 'flexible-small', 'mandatory-large'},
+        );
+        expect(snapshot.coveredAmount, 230);
+        expect(snapshot.isCoverageComplete, isTrue);
+      },
+    );
+
+    test('recovery fields do not determine contributor list composition', () {
+      final facts = [
+        _fact(categoryId: 'restaurant', amount: 100),
+        _fact(
+          categoryId: 'flexible',
+          amount: 30,
+          distributionRole: CategoryFinancialDistributionRole.flexibleExpenses,
+        ),
+        _fact(
+          categoryId: 'mandatory',
+          stableKey: CategoryStableKey.expenseHousingRent,
+          amount: 900,
+          distributionRole: CategoryFinancialDistributionRole.mandatoryExpenses,
+        ),
+      ];
+      final alreadyCovered = service.build(
+        financialState: _state(type: FinancialStateType.deficit, net: -80),
+        behaviorFacts: _snapshot(facts: facts),
+      );
+      final notCovered = service.build(
+        financialState: _state(type: FinancialStateType.deficit, net: -1200),
+        behaviorFacts: _snapshot(facts: facts),
+      );
+
+      expect(
+        alreadyCovered.contributors
+            .map((contributor) => contributor.categoryId)
+            .toSet(),
+        {'restaurant', 'flexible', 'mandatory'},
+      );
+      expect(
+        notCovered.contributors
+            .map((contributor) => contributor.categoryId)
+            .toSet(),
+        {'restaurant', 'flexible', 'mandatory'},
+      );
     });
 
     test('returns all eligible contributors when coverage is insufficient', () {
@@ -394,5 +467,15 @@ FinancialBehaviorFact _fact({
     kind: kind,
     distributionRole: distributionRole,
     requiresTransactionContext: requiresTransactionContext,
+  );
+}
+
+FinancialBehaviorFact _positiveFact() {
+  return _fact(
+    categoryId: 'savings',
+    stableKey: CategoryStableKey.expenseFinanceSavings,
+    amount: 150,
+    kind: FinancialBehaviorFactKind.assetBuilding,
+    distributionRole: CategoryFinancialDistributionRole.assetBuilding,
   );
 }

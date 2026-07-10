@@ -1,4 +1,6 @@
 import '../generated/app_localizations.dart';
+import '../../../features/categories/domain/enums/category_financial_distribution_role.dart';
+import '../../../features/categories/domain/enums/spending_pattern.dart';
 
 extension DashboardFinancialStateL10n on AppLocalizations {
   String get dashboardAllocationFlexibleFinal {
@@ -126,6 +128,120 @@ extension DashboardFinancialStateL10n on AppLocalizations {
       'fr' => 'Montant expliqué par ces catégories',
       'ru' => 'Сумма по выбранным категориям',
       _ => 'Amount represented by these categories',
+    };
+  }
+
+  String get dashboardContributorEmpty {
+    return switch (localeName) {
+      'fr' => 'Aucun facteur de catégorie disponible pour cet état.',
+      'ru' => 'Нет доступных категорий-факторов для этого состояния.',
+      _ => 'No category factors are available for this state.',
+    };
+  }
+
+  String dashboardContributorPercentOfIncome(String percent) {
+    return switch (localeName) {
+      'fr' => '$percent du revenu',
+      'ru' => '$percent от дохода',
+      _ => '$percent of income',
+    };
+  }
+
+  String dashboardContributorPercentOfExpenses(String percent) {
+    return switch (localeName) {
+      'fr' => '$percent des dépenses',
+      'ru' => '$percent от расходов',
+      _ => '$percent of expenses',
+    };
+  }
+
+  String dashboardContributorDistributionRole(
+    CategoryFinancialDistributionRole role,
+  ) {
+    return switch (role) {
+      CategoryFinancialDistributionRole.mandatoryExpenses =>
+        switch (localeName) {
+          'fr' => 'Charge obligatoire',
+          'ru' => 'Обязательная нагрузка',
+          _ => 'Mandatory cost',
+        },
+      CategoryFinancialDistributionRole.flexibleExpenses =>
+        switch (localeName) {
+          'fr' => 'Dépense flexible',
+          'ru' => 'Гибкий расход',
+          _ => 'Flexible expense',
+        },
+      CategoryFinancialDistributionRole.wants => switch (localeName) {
+        'fr' => 'Envie / style de vie',
+        'ru' => 'Желание / стиль жизни',
+        _ => 'Want / lifestyle',
+      },
+      CategoryFinancialDistributionRole.income => switch (localeName) {
+        'fr' => 'Revenu',
+        'ru' => 'Доход',
+        _ => 'Income',
+      },
+      CategoryFinancialDistributionRole.assetBuilding => switch (localeName) {
+        'fr' => 'Construction d’actifs',
+        'ru' => 'Формирование активов',
+        _ => 'Asset building',
+      },
+      CategoryFinancialDistributionRole.debtReduction => switch (localeName) {
+        'fr' => 'Réduction de dette',
+        'ru' => 'Снижение долга',
+        _ => 'Debt reduction',
+      },
+      CategoryFinancialDistributionRole.cashMovement => switch (localeName) {
+        'fr' => 'Mouvement de trésorerie',
+        'ru' => 'Движение денег',
+        _ => 'Cash movement',
+      },
+      CategoryFinancialDistributionRole.dataAdjustment => switch (localeName) {
+        'fr' => 'Ajustement de données',
+        'ru' => 'Корректировка данных',
+        _ => 'Data adjustment',
+      },
+      CategoryFinancialDistributionRole.contextDependent =>
+        switch (localeName) {
+          'fr' => 'Dépend du contexte',
+          'ru' => 'Зависит от контекста',
+          _ => 'Context dependent',
+        },
+    };
+  }
+
+  String dashboardContributorSpendingPattern(SpendingPattern pattern) {
+    return switch (pattern) {
+      SpendingPattern.usuallyRecurring => switch (localeName) {
+        'fr' => 'Habituellement récurrent',
+        'ru' => 'Обычно повторяется',
+        _ => 'Usually recurring',
+      },
+      SpendingPattern.usuallyVariable => switch (localeName) {
+        'fr' => 'Habituellement variable',
+        'ru' => 'Обычно переменный',
+        _ => 'Usually variable',
+      },
+      SpendingPattern.periodic => switch (localeName) {
+        'fr' => 'Périodique',
+        'ru' => 'Периодический',
+        _ => 'Periodic',
+      },
+      SpendingPattern.usuallyOneOff => switch (localeName) {
+        'fr' => 'Habituellement ponctuel',
+        'ru' => 'Обычно разовый',
+        _ => 'Usually one-off',
+      },
+      SpendingPattern.requiresTransactionEvidence => switch (localeName) {
+        'fr' => 'Nécessite des transactions',
+        'ru' => 'Требует данных транзакций',
+        _ => 'Requires transaction evidence',
+      },
+      SpendingPattern.unknown => switch (localeName) {
+        'fr' => 'Inconnu',
+        'ru' => 'Неизвестно',
+        _ => 'Unknown',
+      },
     };
   }
 

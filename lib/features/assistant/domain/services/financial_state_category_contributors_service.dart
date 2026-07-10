@@ -24,17 +24,6 @@ final class FinancialStateCategoryContributorsService {
     final strategy = _strategyFor(financialState.type);
     final requiredAmount = _requiredAmountFor(financialState);
 
-    if (!_usesContributors(financialState.type)) {
-      return _snapshot(
-        financialState: financialState,
-        strategy: strategy,
-        requiredAmount: requiredAmount,
-        coveredAmount: 0,
-        isCoverageComplete: true,
-        contributors: const [],
-      );
-    }
-
     if (_hasMixedCurrencyRisk(financialState)) {
       return _snapshot(
         financialState: financialState,
@@ -46,31 +35,14 @@ final class FinancialStateCategoryContributorsService {
       );
     }
 
-    if (requiredAmount == 0) {
-      return _snapshot(
-        financialState: financialState,
-        strategy: strategy,
-        requiredAmount: requiredAmount,
-        coveredAmount: 0,
-        isCoverageComplete: true,
-        contributors: const [],
-      );
-    }
-
-    final candidates = _contributorsFor(
+    final contributors = _contributorsFor(
       facts: behaviorFacts.facts,
       financialState: financialState,
     )..sort(_compareContributors);
-    final selected = <FinancialStateCategoryContributor>[];
-    var coveredAmount = 0.0;
-
-    for (final contributor in candidates) {
-      selected.add(contributor);
-      coveredAmount += contributor.amount;
-      if (coveredAmount >= requiredAmount) {
-        break;
-      }
-    }
+    final coveredAmount = contributors.fold<double>(
+      0,
+      (sum, contributor) => sum + contributor.amount,
+    );
 
     return _snapshot(
       financialState: financialState,
@@ -78,7 +50,7 @@ final class FinancialStateCategoryContributorsService {
       requiredAmount: requiredAmount,
       coveredAmount: coveredAmount,
       isCoverageComplete: coveredAmount >= requiredAmount,
-      contributors: selected,
+      contributors: contributors,
     );
   }
 
@@ -110,15 +82,6 @@ final class FinancialStateCategoryContributorsService {
     };
   }
 
-  bool _usesContributors(FinancialStateType stateType) {
-    return switch (stateType) {
-      FinancialStateType.deficit || FinancialStateType.fragileBalance => true,
-      FinancialStateType.stable ||
-      FinancialStateType.growth ||
-      FinancialStateType.strongPosition => false,
-    };
-  }
-
   bool _hasMixedCurrencyRisk(FinancialState financialState) {
     return financialState.currencyCode == null ||
         financialState.limitations.contains(
@@ -137,13 +100,16 @@ final class FinancialStateCategoryContributorsService {
       final stableKey = fact.stableKey;
       final distributionRole = fact.distributionRole;
 
-      if (fact.kind != FinancialBehaviorFactKind.ordinarySpending ||
-          categoryId == null ||
+      if (categoryId == null ||
           stableKey == null ||
           distributionRole == null ||
           fact.requiresTransactionContext ||
           fact.currencyCode != financialState.currencyCode ||
-          !_isAllowedRole(distributionRole)) {
+          !_isRelevantFact(
+            stateType: financialState.type,
+            kind: fact.kind,
+            distributionRole: distributionRole,
+          )) {
         continue;
       }
 
@@ -176,17 +142,29 @@ final class FinancialStateCategoryContributorsService {
     ];
   }
 
-  bool _isAllowedRole(CategoryFinancialDistributionRole role) {
+  bool _isRelevantFact({
+    required FinancialStateType stateType,
+    required FinancialBehaviorFactKind kind,
+    required CategoryFinancialDistributionRole distributionRole,
+  }) {
+    return switch (stateType) {
+      FinancialStateType.deficit || FinancialStateType.fragileBalance =>
+        kind == FinancialBehaviorFactKind.ordinarySpending &&
+            _isOrdinarySpendingRole(distributionRole),
+      FinancialStateType.stable ||
+      FinancialStateType.growth ||
+      FinancialStateType.strongPosition =>
+        kind == FinancialBehaviorFactKind.assetBuilding &&
+            distributionRole == CategoryFinancialDistributionRole.assetBuilding,
+    };
+  }
+
+  bool _isOrdinarySpendingRole(CategoryFinancialDistributionRole role) {
     return switch (role) {
       CategoryFinancialDistributionRole.wants ||
       CategoryFinancialDistributionRole.flexibleExpenses ||
       CategoryFinancialDistributionRole.mandatoryExpenses => true,
-      CategoryFinancialDistributionRole.contextDependent ||
-      CategoryFinancialDistributionRole.income ||
-      CategoryFinancialDistributionRole.assetBuilding ||
-      CategoryFinancialDistributionRole.debtReduction ||
-      CategoryFinancialDistributionRole.cashMovement ||
-      CategoryFinancialDistributionRole.dataAdjustment => false,
+      _ => false,
     };
   }
 
@@ -212,20 +190,6 @@ final class FinancialStateCategoryContributorsService {
     FinancialStateCategoryContributor left,
     FinancialStateCategoryContributor right,
   ) {
-    final roleComparison = _roleRank(
-      left.distributionRole,
-    ).compareTo(_roleRank(right.distributionRole));
-    if (roleComparison != 0) {
-      return roleComparison;
-    }
-
-    final patternComparison = _patternRank(
-      left.spendingPattern,
-    ).compareTo(_patternRank(right.spendingPattern));
-    if (patternComparison != 0) {
-      return patternComparison;
-    }
-
     final amountComparison = right.amount.compareTo(left.amount);
     if (amountComparison != 0) {
       return amountComparison;
@@ -239,25 +203,6 @@ final class FinancialStateCategoryContributorsService {
     }
 
     return left.categoryId.compareTo(right.categoryId);
-  }
-
-  int _roleRank(CategoryFinancialDistributionRole role) {
-    return switch (role) {
-      CategoryFinancialDistributionRole.wants => 0,
-      CategoryFinancialDistributionRole.flexibleExpenses => 1,
-      CategoryFinancialDistributionRole.mandatoryExpenses => 2,
-      _ => 3,
-    };
-  }
-
-  int _patternRank(SpendingPattern pattern) {
-    return switch (pattern) {
-      SpendingPattern.usuallyVariable => 0,
-      SpendingPattern.usuallyOneOff => 1,
-      SpendingPattern.usuallyRecurring => 2,
-      SpendingPattern.periodic => 3,
-      _ => 4,
-    };
   }
 
   FinancialStateCategoryContributorsSnapshot _snapshot({

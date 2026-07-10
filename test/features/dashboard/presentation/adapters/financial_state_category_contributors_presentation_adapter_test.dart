@@ -21,89 +21,66 @@ void main() {
   const adapter = FinancialStateCategoryContributorsPresentationAdapter();
 
   group('FinancialStateCategoryContributorsPresentationAdapter', () {
-    test('deficit maps labels and money through injected formatter', () {
-      final l10n = AppLocalizationsEn();
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(
+    test('maps state titles from l10n', () {
+      final cases = [
+        _TitleCase(
           stateType: FinancialStateType.deficit,
-          requiredAmount: 125,
-          coveredAmount: 80,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorDeficitTitle,
         ),
-        l10n: l10n,
-        formatMoney: _formatMoney,
-      );
+        _TitleCase(
+          stateType: FinancialStateType.fragileBalance,
+          l10n: AppLocalizationsFr(),
+          expectedTitle: (l10n) => l10n.dashboardContributorFragileTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.stable,
+          l10n: AppLocalizationsRu(),
+          expectedTitle: (l10n) => l10n.dashboardContributorStableTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.growth,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorGrowthTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.strongPosition,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorStrongPositionTitle,
+        ),
+      ];
 
-      expect(presentation.title, l10n.dashboardContributorDeficitTitle);
-      expect(
-        presentation.requiredAmountLabel,
-        l10n.dashboardContributorRequiredAmountLabel,
-      );
-      expect(
-        presentation.coveredAmountLabel,
-        l10n.dashboardContributorCoveredAmountLabel,
-      );
-      expect(presentation.requiredAmount, '125.0 CAD');
-      expect(presentation.coveredAmount, '80.0 CAD');
-    });
+      for (final testCase in cases) {
+        final presentation = adapter.toPresentation(
+          snapshot: _snapshot(stateType: testCase.stateType),
+          l10n: testCase.l10n,
+          formatMoney: _formatMoney,
+        );
 
-    test('fragileBalance maps title from l10n', () {
-      final l10n = AppLocalizationsFr();
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(stateType: FinancialStateType.fragileBalance),
-        l10n: l10n,
-        formatMoney: _formatMoney,
-      );
-
-      expect(presentation.title, l10n.dashboardContributorFragileTitle);
-    });
-
-    test('stable maps title from l10n', () {
-      final l10n = AppLocalizationsRu();
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(stateType: FinancialStateType.stable),
-        l10n: l10n,
-        formatMoney: _formatMoney,
-      );
-
-      expect(presentation.title, l10n.dashboardContributorStableTitle);
-    });
-
-    test('growth maps title from l10n', () {
-      final l10n = AppLocalizationsEn();
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(stateType: FinancialStateType.growth),
-        l10n: l10n,
-        formatMoney: _formatMoney,
-      );
-
-      expect(presentation.title, l10n.dashboardContributorGrowthTitle);
-    });
-
-    test('strongPosition maps title from l10n', () {
-      final l10n = AppLocalizationsEn();
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(stateType: FinancialStateType.strongPosition),
-        l10n: l10n,
-        formatMoney: _formatMoney,
-      );
-
-      expect(presentation.title, l10n.dashboardContributorStrongPositionTitle);
+        expect(
+          presentation.title,
+          testCase.expectedTitle(testCase.l10n),
+          reason: testCase.stateType.name,
+        );
+      }
     });
 
     test(
-      'contributor mapping uses taxonomy presentation and formats values',
+      'maps all contributors preserving domain order and explanatory fields',
       () {
         final l10n = AppLocalizationsEn();
-        const stableKey = CategoryStableKey.expenseHousingRent;
-        final expectedCategory = const CategoryDefinitionAdapter()
-            .toPresentation(CategoryTaxonomy.definitionFor(stableKey)!, l10n);
+        const rentKey = CategoryStableKey.expenseHousingRent;
+        final expectedRent = const CategoryDefinitionAdapter().toPresentation(
+          CategoryTaxonomy.definitionFor(rentKey)!,
+          l10n,
+        );
 
         final presentation = adapter.toPresentation(
           snapshot: _snapshot(
             contributors: const [
               FinancialStateCategoryContributor(
                 categoryId: 'rent',
-                stableKey: stableKey,
+                stableKey: rentKey,
                 amount: 720,
                 percentOfIncome: 12.345,
                 percentOfExpenses: 45.678,
@@ -111,21 +88,41 @@ void main() {
                     CategoryFinancialDistributionRole.mandatoryExpenses,
                 spendingPattern: SpendingPattern.usuallyRecurring,
               ),
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 50,
+                percentOfIncome: 1.2,
+                percentOfExpenses: 3.4,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
             ],
           ),
           l10n: l10n,
           formatMoney: _formatMoney,
         );
 
-        final contributor = presentation.contributors.single;
-        expect(contributor.categoryId, 'rent');
-        expect(contributor.name, expectedCategory.name);
-        expect(contributor.icon, expectedCategory.icon);
-        expect(contributor.color, expectedCategory.color);
-        expect(contributor.backgroundColor, expectedCategory.backgroundColor);
-        expect(contributor.amount, '720.0 CAD');
-        expect(contributor.percentOfIncome, '12.3%');
-        expect(contributor.percentOfExpenses, '45.7%');
+        expect(
+          presentation.contributors.map(
+            (contributor) => contributor.categoryId,
+          ),
+          ['rent', 'restaurant'],
+        );
+
+        final rent = presentation.contributors.first;
+        expect(rent.name, expectedRent.name);
+        expect(rent.icon, expectedRent.icon);
+        expect(rent.color, expectedRent.color);
+        expect(rent.backgroundColor, expectedRent.backgroundColor);
+        expect(rent.amount, '720.0 CAD');
+        expect(rent.percentOfIncome, '12.3%');
+        expect(rent.percentOfExpenses, '45.7%');
+        expect(
+          rent.distributionRole,
+          CategoryFinancialDistributionRole.mandatoryExpenses,
+        );
+        expect(rent.spendingPattern, SpendingPattern.usuallyRecurring);
       },
     );
 
@@ -152,107 +149,73 @@ void main() {
       expect(presentation.contributors.single.percentOfExpenses, isNull);
     });
 
-    test('null currency uses fixed decimals and does not call formatter', () {
-      var formatCalls = 0;
+    test(
+      'null currency formats contributor amount without money formatter',
+      () {
+        var formatCalls = 0;
 
+        final presentation = adapter.toPresentation(
+          snapshot: _snapshot(
+            currencyCode: null,
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 6.7,
+                percentOfIncome: null,
+                percentOfExpenses: null,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+            ],
+          ),
+          l10n: AppLocalizationsEn(),
+          formatMoney: (amount, currencyCode) {
+            formatCalls += 1;
+            return _formatMoney(amount, currencyCode);
+          },
+        );
+
+        expect(presentation.contributors.single.amount, '6.70');
+        expect(formatCalls, 0);
+      },
+    );
+
+    test('supports empty contributor list', () {
       final presentation = adapter.toPresentation(
-        snapshot: _snapshot(
-          currencyCode: null,
-          requiredAmount: 12.3,
-          coveredAmount: 4.5,
-          contributors: const [
-            FinancialStateCategoryContributor(
-              categoryId: 'restaurant',
-              stableKey: CategoryStableKey.expenseFoodRestaurant,
-              amount: 6.7,
-              percentOfIncome: null,
-              percentOfExpenses: null,
-              distributionRole: CategoryFinancialDistributionRole.wants,
-              spendingPattern: SpendingPattern.usuallyVariable,
-            ),
-          ],
-        ),
-        l10n: AppLocalizationsEn(),
-        formatMoney: (amount, currencyCode) {
-          formatCalls += 1;
-          return _formatMoney(amount, currencyCode);
-        },
-      );
-
-      expect(presentation.requiredAmount, '12.30');
-      expect(presentation.coveredAmount, '4.50');
-      expect(presentation.contributors.single.amount, '6.70');
-      expect(formatCalls, 0);
-    });
-
-    test('keeps contributor order', () {
-      final presentation = adapter.toPresentation(
-        snapshot: _snapshot(
-          contributors: const [
-            FinancialStateCategoryContributor(
-              categoryId: 'groceries',
-              stableKey: CategoryStableKey.expenseFoodGroceries,
-              amount: 100,
-              percentOfIncome: null,
-              percentOfExpenses: null,
-              distributionRole:
-                  CategoryFinancialDistributionRole.mandatoryExpenses,
-              spendingPattern: SpendingPattern.usuallyVariable,
-            ),
-            FinancialStateCategoryContributor(
-              categoryId: 'restaurant',
-              stableKey: CategoryStableKey.expenseFoodRestaurant,
-              amount: 50,
-              percentOfIncome: null,
-              percentOfExpenses: null,
-              distributionRole: CategoryFinancialDistributionRole.wants,
-              spendingPattern: SpendingPattern.usuallyVariable,
-            ),
-          ],
-        ),
+        snapshot: _snapshot(contributors: const []),
         l10n: AppLocalizationsEn(),
         formatMoney: _formatMoney,
       );
 
-      expect(
-        presentation.contributors.map((contributor) => contributor.categoryId),
-        ['groceries', 'restaurant'],
-      );
-    });
-
-    test('uses real localizations for supported locales', () {
-      final localizations = <AppLocalizations>[
-        AppLocalizationsEn(),
-        AppLocalizationsFr(),
-        AppLocalizationsRu(),
-      ];
-
-      for (final l10n in localizations) {
-        final presentation = adapter.toPresentation(
-          snapshot: _snapshot(stateType: FinancialStateType.deficit),
-          l10n: l10n,
-          formatMoney: _formatMoney,
-        );
-
-        expect(presentation.title, l10n.dashboardContributorDeficitTitle);
-      }
+      expect(presentation.contributors, isEmpty);
     });
   });
+}
+
+final class _TitleCase {
+  const _TitleCase({
+    required this.stateType,
+    required this.l10n,
+    required this.expectedTitle,
+  });
+
+  final FinancialStateType stateType;
+  final AppLocalizations l10n;
+  final String Function(AppLocalizations l10n) expectedTitle;
 }
 
 FinancialStateCategoryContributorsSnapshot _snapshot({
   FinancialStateType stateType = FinancialStateType.deficit,
   String? currencyCode = 'CAD',
-  double requiredAmount = 100,
-  double coveredAmount = 50,
   List<FinancialStateCategoryContributor> contributors = const [],
 }) {
   return FinancialStateCategoryContributorsSnapshot(
     stateType: stateType,
     strategy: _strategyFor(stateType),
-    requiredAmount: requiredAmount,
-    coveredAmount: coveredAmount,
-    isCoverageComplete: coveredAmount >= requiredAmount,
+    requiredAmount: 100,
+    coveredAmount: 50,
+    isCoverageComplete: false,
     currencyCode: currencyCode,
     confidence: FinancialStateConfidence.high,
     contributors: contributors,

@@ -3,6 +3,7 @@ import '../../../categories/domain/enums/category_stable_key.dart';
 import '../../../categories/domain/enums/spending_pattern.dart';
 
 final class FinancialStateCategoryContributor {
+  /// A category-level factor that contributed to the current financial state.
   const FinancialStateCategoryContributor({
     required this.categoryId,
     required this.stableKey,
