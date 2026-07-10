@@ -129,6 +129,69 @@ extension DashboardFinancialStateL10n on AppLocalizations {
     };
   }
 
+  String get dashboardFinancialPlanMainProblemTitle {
+    return switch (localeName) {
+      'fr' => 'Problème principal',
+      'ru' => 'Главная проблема',
+      _ => 'Main problem',
+    };
+  }
+
+  String get dashboardFinancialPlanBestEffectTitle {
+    return switch (localeName) {
+      'fr' => 'Ce qui aura le plus d’effet',
+      'ru' => 'Что даст наибольший эффект',
+      _ => 'What will have the biggest effect',
+    };
+  }
+
+  String get dashboardFinancialPlanExpectedResultTitle {
+    return switch (localeName) {
+      'fr' => 'Résultat attendu',
+      'ru' => 'Ожидаемый результат',
+      _ => 'Expected result',
+    };
+  }
+
+  String get dashboardFinancialPlanRecoveryPlanTitle {
+    return switch (localeName) {
+      'fr' => 'Plan de rétablissement',
+      'ru' => 'План восстановления',
+      _ => 'Recovery plan',
+    };
+  }
+
+  String get dashboardFinancialPlanBestEffectPlaceholder {
+    return switch (localeName) {
+      'fr' =>
+        'Les changements minimaux avec l’effet financier maximal seront affichés ici',
+      'ru' =>
+        'Здесь будут показаны минимальные изменения с максимальным финансовым эффектом',
+      _ => 'Minimum changes with maximum financial effect will be shown here',
+    };
+  }
+
+  String get dashboardFinancialPlanExpectedResultPlaceholder {
+    return switch (localeName) {
+      'fr' =>
+        'Les économies attendues, le nouveau solde et le délai d’amélioration seront affichés ici',
+      'ru' =>
+        'Здесь будут показаны ожидаемая экономия, новый остаток и срок улучшения состояния',
+      _ =>
+        'Expected savings, new cash left, and time to improve state will be shown here',
+    };
+  }
+
+  String get dashboardFinancialPlanRecoveryPlanPlaceholder {
+    return switch (localeName) {
+      'fr' =>
+        'Les étapes dans le temps et un objectif financier positif seront affichés ici',
+      'ru' =>
+        'Здесь будут показаны временные шаги и положительная финансовая цель',
+      _ => 'Time-based steps and a positive financial goal will be shown here',
+    };
+  }
+
   String get dashboardFinancialStateDetailWhyTitle {
     return switch (localeName) {
       'fr' => 'Pourquoi cet etat',
