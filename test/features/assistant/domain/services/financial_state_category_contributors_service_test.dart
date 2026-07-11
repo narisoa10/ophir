@@ -186,6 +186,10 @@ void main() {
             ),
           ],
         ),
+        sourceDeviationTypes: const [
+          FinancialDeviationType.negativeNetCashFlow,
+          FinancialDeviationType.highEssentialExpenseRatio,
+        ],
       );
 
       expect(
@@ -205,6 +209,127 @@ void main() {
         30,
         1000,
       ]);
+    });
+
+    test('mandatory evidence is ignored for cashFlowDeficit', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [
+            _fact(
+              categoryId: 'rent',
+              stableKey: CategoryStableKey.expenseHousingRent,
+              amount: 900,
+              distributionRole:
+                  CategoryFinancialDistributionRole.mandatoryExpenses,
+            ),
+          ],
+        ),
+        evidenceCategoryIds: {'rent'},
+        problemType: FinancialProblemType.cashFlowDeficit,
+      );
+
+      expect(snapshot.contributors, isEmpty);
+    });
+
+    test('mandatory evidence is included for essentialCostPressure', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [
+            _fact(
+              categoryId: 'rent',
+              stableKey: CategoryStableKey.expenseHousingRent,
+              amount: 900,
+              distributionRole:
+                  CategoryFinancialDistributionRole.mandatoryExpenses,
+            ),
+          ],
+        ),
+        evidenceCategoryIds: {'rent'},
+        problemType: FinancialProblemType.essentialCostPressure,
+      );
+
+      expect(
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['rent'],
+      );
+    });
+
+    test('mandatory evidence is included for fixedCommitmentPressure', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [
+            _fact(
+              categoryId: 'rent',
+              stableKey: CategoryStableKey.expenseHousingRent,
+              amount: 900,
+              distributionRole:
+                  CategoryFinancialDistributionRole.mandatoryExpenses,
+            ),
+          ],
+        ),
+        evidenceCategoryIds: {'rent'},
+        problemType: FinancialProblemType.fixedCommitmentPressure,
+      );
+
+      expect(
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['rent'],
+      );
+    });
+
+    test('wants evidence is included for discretionarySpendingPressure', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [_fact(categoryId: 'restaurant', amount: 120)],
+        ),
+        evidenceCategoryIds: {'restaurant'},
+        problemType: FinancialProblemType.discretionarySpendingPressure,
+      );
+
+      expect(
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['restaurant'],
+      );
+    });
+
+    test('flexible evidence is included for expensePressure', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [
+            _fact(
+              categoryId: 'flexible',
+              amount: 120,
+              distributionRole:
+                  CategoryFinancialDistributionRole.flexibleExpenses,
+            ),
+          ],
+        ),
+        evidenceCategoryIds: {'flexible'},
+        problemType: FinancialProblemType.expensePressure,
+      );
+
+      expect(
+        snapshot.contributors.map((contributor) => contributor.categoryId),
+        ['flexible'],
+      );
+    });
+
+    test('allowed problem type still requires category evidence', () {
+      final snapshot = _build(
+        financialState: _state(type: FinancialStateType.deficit, net: -100),
+        behaviorFacts: _snapshot(
+          facts: [_fact(categoryId: 'restaurant', amount: 120)],
+        ),
+        evidenceCategoryIds: const {},
+        problemType: FinancialProblemType.discretionarySpendingPressure,
+      );
+
+      expect(snapshot.contributors, isEmpty);
     });
 
     test(
@@ -391,6 +516,7 @@ void main() {
             ],
           ),
           evidenceCategoryIds: {'rent'},
+          problemType: FinancialProblemType.essentialCostPressure,
         );
 
         expect(
@@ -428,6 +554,10 @@ void main() {
               ),
             ],
           ),
+          sourceDeviationTypes: const [
+            FinancialDeviationType.negativeNetCashFlow,
+            FinancialDeviationType.highEssentialExpenseRatio,
+          ],
         );
 
         expect(
@@ -459,10 +589,18 @@ void main() {
       final alreadyCovered = _build(
         financialState: _state(type: FinancialStateType.deficit, net: -80),
         behaviorFacts: _snapshot(facts: facts),
+        sourceDeviationTypes: const [
+          FinancialDeviationType.negativeNetCashFlow,
+          FinancialDeviationType.highEssentialExpenseRatio,
+        ],
       );
       final notCovered = _build(
         financialState: _state(type: FinancialStateType.deficit, net: -1200),
         behaviorFacts: _snapshot(facts: facts),
+        sourceDeviationTypes: const [
+          FinancialDeviationType.negativeNetCashFlow,
+          FinancialDeviationType.highEssentialExpenseRatio,
+        ],
       );
 
       expect(
@@ -542,6 +680,10 @@ FinancialStateCategoryContributorsSnapshot _build({
   FinancialBehaviorFactsSnapshot? behaviorFacts,
   Set<String>? evidenceCategoryIds,
   bool includeProblemEvidence = true,
+  FinancialProblemType problemType = FinancialProblemType.cashFlowDeficit,
+  List<FinancialDeviationType> sourceDeviationTypes = const [
+    FinancialDeviationType.negativeNetCashFlow,
+  ],
   FinancialProblem? primaryProblem,
   List<FinancialDeviation>? deviations,
   FinancialFactsSnapshot? financialFacts,
@@ -551,6 +693,8 @@ FinancialStateCategoryContributorsSnapshot _build({
       ? _evidenceFixture(
           categoryIds:
               evidenceCategoryIds ?? _categoryIdsFrom(resolvedBehaviorFacts),
+          problemType: problemType,
+          sourceDeviationTypes: sourceDeviationTypes,
         )
       : null;
 
@@ -577,7 +721,11 @@ Set<String> _categoryIdsFrom(FinancialBehaviorFactsSnapshot snapshot) {
   return categoryIds;
 }
 
-_ProblemEvidenceFixture _evidenceFixture({required Set<String> categoryIds}) {
+_ProblemEvidenceFixture _evidenceFixture({
+  required Set<String> categoryIds,
+  required FinancialProblemType problemType,
+  required List<FinancialDeviationType> sourceDeviationTypes,
+}) {
   final facts = <FinancialFact>[];
   final factIds = <String>[];
   var index = 0;
@@ -590,7 +738,11 @@ _ProblemEvidenceFixture _evidenceFixture({required Set<String> categoryIds}) {
   }
 
   return _ProblemEvidenceFixture(
-    primaryProblem: _problem(sourceDeviationIds: const ['deviation']),
+    primaryProblem: _problem(
+      problemType: problemType,
+      sourceDeviationIds: const ['deviation'],
+      sourceDeviationTypes: sourceDeviationTypes,
+    ),
     deviations: [_deviation(sourceFactIds: factIds)],
     financialFacts: FinancialFactsSnapshot(facts: facts, dataGaps: const []),
   );
@@ -661,10 +813,14 @@ FinancialBehaviorFact _positiveFact() {
   );
 }
 
-FinancialProblem _problem({required List<String> sourceDeviationIds}) {
+FinancialProblem _problem({
+  required FinancialProblemType problemType,
+  required List<String> sourceDeviationIds,
+  required List<FinancialDeviationType> sourceDeviationTypes,
+}) {
   return FinancialProblem(
     problemId: 'problem',
-    problemType: FinancialProblemType.cashFlowDeficit,
+    problemType: problemType,
     status: FinancialProblemStatus.detected,
     severity: FinancialProblemSeverity.high,
     confidence: FinancialProblemConfidence.high,
@@ -676,7 +832,7 @@ FinancialProblem _problem({required List<String> sourceDeviationIds}) {
     signals: const [],
     evidence: FinancialProblemEvidence(
       sourceDeviationIds: sourceDeviationIds,
-      sourceDeviationTypes: const [FinancialDeviationType.negativeNetCashFlow],
+      sourceDeviationTypes: sourceDeviationTypes,
       sourceModelIds: const ['model'],
     ),
     limitations: const [],

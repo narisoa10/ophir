@@ -173,21 +173,9 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text(l10n.dashboardContributorPercentOfExpenses('45.7%')),
-        findsOneWidget,
-      );
-      expect(
         find.text(
           l10n.dashboardContributorDistributionRole(
             CategoryFinancialDistributionRole.mandatoryExpenses,
-          ),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          l10n.dashboardContributorSpendingPattern(
-            SpendingPattern.usuallyRecurring,
           ),
         ),
         findsOneWidget,

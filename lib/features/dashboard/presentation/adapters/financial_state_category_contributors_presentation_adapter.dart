@@ -55,9 +55,9 @@ final class FinancialStateCategoryContributorsPresentationAdapter {
             formatMoney,
           ),
           percentOfIncome: _percent(contributor.percentOfIncome),
-          percentOfExpenses: _percent(contributor.percentOfExpenses),
-          distributionRole: contributor.distributionRole,
-          spendingPattern: contributor.spendingPattern,
+          roleLabel: l10n.dashboardContributorDistributionRole(
+            contributor.distributionRole,
+          ),
           icon: category.icon,
           color: category.color,
           backgroundColor: category.backgroundColor,

@@ -146,17 +146,26 @@ class _ContributorRow extends StatelessWidget {
               Text(
                 contributor.name,
                 style: AppTypography.bodyStrong,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: AppSpacing.xs),
-              _FactorLine(contributor: contributor),
+              Text(
+                contributor.roleLabel,
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: AppSpacing.xs),
               _PercentLine(contributor: contributor),
             ],
           ),
         ),
         const SizedBox(width: AppSpacing.md),
         Flexible(
+          fit: FlexFit.loose,
           child: Text(
             contributor.amount,
             style: AppTypography.currencyStrong.copyWith(
@@ -172,34 +181,6 @@ class _ContributorRow extends StatelessWidget {
   }
 }
 
-class _FactorLine extends StatelessWidget {
-  const _FactorLine({required this.contributor});
-
-  final DashboardFinancialStateCategoryContributorPresentation contributor;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.xs,
-      children: [
-        Text(
-          l10n.dashboardContributorDistributionRole(
-            contributor.distributionRole,
-          ),
-          style: AppTypography.caption,
-        ),
-        Text(
-          l10n.dashboardContributorSpendingPattern(contributor.spendingPattern),
-          style: AppTypography.caption,
-        ),
-      ],
-    );
-  }
-}
-
 class _PercentLine extends StatelessWidget {
   const _PercentLine({required this.contributor});
 
@@ -208,33 +189,16 @@ class _PercentLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final values = [
-      if (contributor.percentOfIncome != null)
-        l10n.dashboardContributorPercentOfIncome(contributor.percentOfIncome!),
-      if (contributor.percentOfExpenses != null)
-        l10n.dashboardContributorPercentOfExpenses(
-          contributor.percentOfExpenses!,
-        ),
-    ];
+    final percentOfIncome = contributor.percentOfIncome;
 
-    if (values.isEmpty) {
+    if (percentOfIncome == null) {
       return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.xs,
-        children: [
-          for (final value in values)
-            Text(
-              value,
-              style: AppTypography.captionStrong.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-        ],
+    return Text(
+      l10n.dashboardContributorPercentOfIncome(percentOfIncome),
+      style: AppTypography.captionStrong.copyWith(
+        color: AppColors.textSecondary,
       ),
     );
   }

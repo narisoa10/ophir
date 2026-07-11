@@ -8,9 +8,11 @@ import '../entities/financial_behavior_fact.dart';
 import '../entities/financial_behavior_fact_kind.dart';
 import '../entities/financial_behavior_facts_snapshot.dart';
 import '../entities/financial_deviation.dart';
+import '../entities/financial_deviation_type.dart';
 import '../entities/financial_facts_snapshot.dart';
 import '../entities/financial_model_limitation.dart';
 import '../entities/financial_problem.dart';
+import '../entities/financial_problem_type.dart';
 import '../entities/financial_state.dart';
 import '../entities/financial_state_category_contributor.dart';
 import '../entities/financial_state_category_contributors_snapshot.dart';
@@ -50,6 +52,7 @@ final class FinancialStateCategoryContributorsService {
       facts: behaviorFacts.facts,
       financialState: financialState,
       evidenceCategoryIds: evidenceCategoryIds,
+      primaryProblem: primaryProblem,
     )..sort(_compareContributors);
     final coveredAmount = contributors.fold<double>(
       0,
@@ -138,6 +141,7 @@ final class FinancialStateCategoryContributorsService {
     required List<FinancialBehaviorFact> facts,
     required FinancialState financialState,
     required Set<String> evidenceCategoryIds,
+    required FinancialProblem? primaryProblem,
   }) {
     final aggregates = <_ContributorKey, double>{};
 
@@ -157,6 +161,7 @@ final class FinancialStateCategoryContributorsService {
             stateType: financialState.type,
             kind: fact.kind,
             distributionRole: distributionRole,
+            primaryProblem: primaryProblem,
           )) {
         continue;
       }
@@ -203,11 +208,15 @@ final class FinancialStateCategoryContributorsService {
     required FinancialStateType stateType,
     required FinancialBehaviorFactKind kind,
     required CategoryFinancialDistributionRole distributionRole,
+    required FinancialProblem? primaryProblem,
   }) {
     return switch (stateType) {
       FinancialStateType.deficit || FinancialStateType.fragileBalance =>
         kind == FinancialBehaviorFactKind.ordinarySpending &&
-            _isOrdinarySpendingRole(distributionRole),
+            _isOrdinarySpendingRoleAllowedForProblem(
+              role: distributionRole,
+              primaryProblem: primaryProblem,
+            ),
       FinancialStateType.stable ||
       FinancialStateType.growth ||
       FinancialStateType.strongPosition =>
@@ -216,13 +225,61 @@ final class FinancialStateCategoryContributorsService {
     };
   }
 
-  bool _isOrdinarySpendingRole(CategoryFinancialDistributionRole role) {
+  bool _isOrdinarySpendingRoleAllowedForProblem({
+    required CategoryFinancialDistributionRole role,
+    required FinancialProblem? primaryProblem,
+  }) {
+    if (primaryProblem == null) {
+      return false;
+    }
+
     return switch (role) {
-      CategoryFinancialDistributionRole.wants ||
-      CategoryFinancialDistributionRole.flexibleExpenses ||
-      CategoryFinancialDistributionRole.mandatoryExpenses => true,
+      CategoryFinancialDistributionRole.wants => _isWantsProblem(
+        primaryProblem.problemType,
+      ),
+      CategoryFinancialDistributionRole.flexibleExpenses => _isFlexibleProblem(
+        primaryProblem.problemType,
+      ),
+      CategoryFinancialDistributionRole.mandatoryExpenses =>
+        _isMandatoryProblem(primaryProblem),
       _ => false,
     };
+  }
+
+  bool _isWantsProblem(FinancialProblemType problemType) {
+    return switch (problemType) {
+      FinancialProblemType.cashFlowDeficit ||
+      FinancialProblemType.expensePressure ||
+      FinancialProblemType.discretionarySpendingPressure ||
+      FinancialProblemType.weakSavingsCapacity => true,
+      _ => false,
+    };
+  }
+
+  bool _isFlexibleProblem(FinancialProblemType problemType) {
+    return switch (problemType) {
+      FinancialProblemType.cashFlowDeficit ||
+      FinancialProblemType.expensePressure ||
+      FinancialProblemType.weakSavingsCapacity => true,
+      _ => false,
+    };
+  }
+
+  bool _isMandatoryProblem(FinancialProblem primaryProblem) {
+    return switch (primaryProblem.problemType) {
+      FinancialProblemType.essentialCostPressure ||
+      FinancialProblemType.fixedCommitmentPressure => true,
+      _ => _hasMandatoryDeviation(primaryProblem.evidence.sourceDeviationTypes),
+    };
+  }
+
+  bool _hasMandatoryDeviation(List<FinancialDeviationType> deviationTypes) {
+    return deviationTypes.contains(
+          FinancialDeviationType.highEssentialExpenseRatio,
+        ) ||
+        deviationTypes.contains(
+          FinancialDeviationType.highRecurringCommitmentLoad,
+        );
   }
 
   bool _isAllowedPattern(SpendingPattern pattern) {

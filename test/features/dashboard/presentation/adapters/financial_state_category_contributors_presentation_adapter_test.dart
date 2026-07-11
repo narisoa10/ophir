@@ -117,16 +117,16 @@ void main() {
         expect(rent.backgroundColor, expectedRent.backgroundColor);
         expect(rent.amount, '720.0 CAD');
         expect(rent.percentOfIncome, '12.3%');
-        expect(rent.percentOfExpenses, '45.7%');
         expect(
-          rent.distributionRole,
-          CategoryFinancialDistributionRole.mandatoryExpenses,
+          rent.roleLabel,
+          l10n.dashboardContributorDistributionRole(
+            CategoryFinancialDistributionRole.mandatoryExpenses,
+          ),
         );
-        expect(rent.spendingPattern, SpendingPattern.usuallyRecurring);
       },
     );
 
-    test('nullable percentages stay null', () {
+    test('nullable percent of income stays null', () {
       final presentation = adapter.toPresentation(
         snapshot: _snapshot(
           contributors: const [
@@ -146,7 +146,6 @@ void main() {
       );
 
       expect(presentation.contributors.single.percentOfIncome, isNull);
-      expect(presentation.contributors.single.percentOfExpenses, isNull);
     });
 
     test(
