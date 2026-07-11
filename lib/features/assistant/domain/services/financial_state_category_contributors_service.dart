@@ -7,7 +7,10 @@ import '../../../categories/domain/enums/spending_pattern.dart';
 import '../entities/financial_behavior_fact.dart';
 import '../entities/financial_behavior_fact_kind.dart';
 import '../entities/financial_behavior_facts_snapshot.dart';
+import '../entities/financial_deviation.dart';
+import '../entities/financial_facts_snapshot.dart';
 import '../entities/financial_model_limitation.dart';
+import '../entities/financial_problem.dart';
 import '../entities/financial_state.dart';
 import '../entities/financial_state_category_contributor.dart';
 import '../entities/financial_state_category_contributors_snapshot.dart';
@@ -20,6 +23,9 @@ final class FinancialStateCategoryContributorsService {
   FinancialStateCategoryContributorsSnapshot build({
     required FinancialState financialState,
     required FinancialBehaviorFactsSnapshot behaviorFacts,
+    required FinancialProblem? primaryProblem,
+    required List<FinancialDeviation> deviations,
+    required FinancialFactsSnapshot financialFacts,
   }) {
     final strategy = _strategyFor(financialState.type);
     final requiredAmount = _requiredAmountFor(financialState);
@@ -35,9 +41,15 @@ final class FinancialStateCategoryContributorsService {
       );
     }
 
+    final evidenceCategoryIds = _evidenceCategoryIdsFor(
+      primaryProblem: primaryProblem,
+      deviations: deviations,
+      financialFacts: financialFacts,
+    );
     final contributors = _contributorsFor(
       facts: behaviorFacts.facts,
       financialState: financialState,
+      evidenceCategoryIds: evidenceCategoryIds,
     )..sort(_compareContributors);
     final coveredAmount = contributors.fold<double>(
       0,
@@ -52,6 +64,39 @@ final class FinancialStateCategoryContributorsService {
       isCoverageComplete: coveredAmount >= requiredAmount,
       contributors: contributors,
     );
+  }
+
+  Set<String> _evidenceCategoryIdsFor({
+    required FinancialProblem? primaryProblem,
+    required List<FinancialDeviation> deviations,
+    required FinancialFactsSnapshot financialFacts,
+  }) {
+    if (primaryProblem == null) {
+      return <String>{};
+    }
+
+    final sourceDeviationIds = primaryProblem.evidence.sourceDeviationIds
+        .toSet();
+    final sourceFactIds = <String>{};
+
+    for (final deviation in deviations) {
+      if (!sourceDeviationIds.contains(deviation.deviationId)) {
+        continue;
+      }
+      sourceFactIds.addAll(deviation.evidence.sourceModelEvidenceFactIds);
+    }
+
+    final categoryIds = <String>{};
+    for (final fact in financialFacts.facts) {
+      final categoryId = fact.categoryId;
+      if (sourceFactIds.contains(fact.id) &&
+          categoryId != null &&
+          categoryId.isNotEmpty) {
+        categoryIds.add(categoryId);
+      }
+    }
+
+    return categoryIds;
   }
 
   FinancialStateContributorStrategy _strategyFor(FinancialStateType stateType) {
@@ -92,6 +137,7 @@ final class FinancialStateCategoryContributorsService {
   List<FinancialStateCategoryContributor> _contributorsFor({
     required List<FinancialBehaviorFact> facts,
     required FinancialState financialState,
+    required Set<String> evidenceCategoryIds,
   }) {
     final aggregates = <_ContributorKey, double>{};
 
@@ -103,6 +149,8 @@ final class FinancialStateCategoryContributorsService {
       if (categoryId == null ||
           stableKey == null ||
           distributionRole == null ||
+          (_requiresProblemEvidence(financialState.type) &&
+              !evidenceCategoryIds.contains(categoryId)) ||
           fact.requiresTransactionContext ||
           fact.currencyCode != financialState.currencyCode ||
           !_isRelevantFact(
@@ -140,6 +188,15 @@ final class FinancialStateCategoryContributorsService {
           spendingPattern: entry.key.spendingPattern,
         ),
     ];
+  }
+
+  bool _requiresProblemEvidence(FinancialStateType stateType) {
+    return switch (stateType) {
+      FinancialStateType.deficit || FinancialStateType.fragileBalance => true,
+      FinancialStateType.stable ||
+      FinancialStateType.growth ||
+      FinancialStateType.strongPosition => false,
+    };
   }
 
   bool _isRelevantFact({
@@ -190,6 +247,13 @@ final class FinancialStateCategoryContributorsService {
     FinancialStateCategoryContributor left,
     FinancialStateCategoryContributor right,
   ) {
+    final roleComparison = _distributionRolePriority(
+      left.distributionRole,
+    ).compareTo(_distributionRolePriority(right.distributionRole));
+    if (roleComparison != 0) {
+      return roleComparison;
+    }
+
     final amountComparison = right.amount.compareTo(left.amount);
     if (amountComparison != 0) {
       return amountComparison;
@@ -203,6 +267,15 @@ final class FinancialStateCategoryContributorsService {
     }
 
     return left.categoryId.compareTo(right.categoryId);
+  }
+
+  int _distributionRolePriority(CategoryFinancialDistributionRole role) {
+    return switch (role) {
+      CategoryFinancialDistributionRole.wants => 0,
+      CategoryFinancialDistributionRole.flexibleExpenses => 1,
+      CategoryFinancialDistributionRole.mandatoryExpenses => 2,
+      _ => 3,
+    };
   }
 
   FinancialStateCategoryContributorsSnapshot _snapshot({

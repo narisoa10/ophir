@@ -40,6 +40,9 @@ final financialStateCategoryContributorsProvider =
         const FinancialStateCategoryContributorsService().build(
           financialState: briefing.financialState,
           behaviorFacts: output.snapshot,
+          primaryProblem: briefing.primaryProblem,
+          deviations: briefing.deviations,
+          financialFacts: briefing.factsSnapshot,
         ),
       );
     });
