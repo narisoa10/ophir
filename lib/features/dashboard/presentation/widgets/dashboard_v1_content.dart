@@ -21,12 +21,12 @@ class DashboardV1Content extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DashboardIncomeDistributionCard(presentation: summary.financialState),
-        const SizedBox(height: AppSpacing.sectionGap),
         DashboardFinancialStateCard(
           presentation: summary.financialState,
           onDetailTap: onFinancialStateDetailTap,
         ),
+        const SizedBox(height: AppSpacing.sectionGap),
+        DashboardIncomeDistributionCard(presentation: summary.financialState),
       ],
     );
   }

@@ -33,13 +33,14 @@ class DashboardScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: AppSpacing.screenGap),
               DashboardHeader(
                 dateText: dateText,
                 greeting: greeting,
                 name: profile?.fullName,
                 avatarUrl: profile?.avatarUrl,
               ),
-              const SizedBox(height: AppSpacing.dashboardSectionGap),
+              const SizedBox(height: AppSpacing.screenGap),
               DashboardPresentationBuilder(
                 builder: (context, presentation, l10n) {
                   return DashboardV1Content(

@@ -24,11 +24,13 @@ import 'package:ophir/features/categories/domain/enums/category_financial_distri
 import 'package:ophir/features/categories/domain/enums/category_stable_key.dart';
 import 'package:ophir/features/categories/domain/enums/spending_pattern.dart';
 import 'package:ophir/features/categories/presentation/adapters/category_definition_adapter.dart';
+import 'package:ophir/features/dashboard/presentation/models/dashboard_presentation.dart';
 import 'package:ophir/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_plan_section_card.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_card.dart';
 import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart';
 import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_detail_content.dart';
-import 'package:ophir/features/dashboard/presentation/models/dashboard_presentation.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_v1_content.dart';
 import 'package:ophir/features/profile/controller/profile_providers.dart';
 import 'package:ophir/features/profile/domain/entities/profile.dart';
 import 'package:ophir/features/profile/domain/repositories/profile_repository.dart';
@@ -64,6 +66,30 @@ void main() {
 
       expect(find.text('Fri, May 10'), findsOneWidget);
       expect(find.text('Good morning, Ada'), findsOneWidget);
+    });
+
+    testWidgets('places financial state above income distribution', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DashboardV1Content(
+                presentation: _dashboardPresentation(),
+                onFinancialStateDetailTap: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getTopLeft(find.byType(DashboardFinancialStateCard)).dy,
+        lessThan(
+          tester.getTopLeft(find.byType(DashboardIncomeDistributionCard)).dy,
+        ),
+      );
     });
 
     test('does not create DateTime.now inside dashboard feature', () {
@@ -468,4 +494,97 @@ FinancialStateContributorStrategy _strategyFor(FinancialStateType stateType) {
     FinancialStateType.strongPosition =>
       FinancialStateContributorStrategy.protectStrongPosition,
   };
+}
+
+DashboardPresentation _dashboardPresentation() {
+  const financialState = DashboardFinancialStatePresentation(
+    title: 'Income distribution',
+    subtitle: 'Distribution subtitle',
+    items: [
+      DashboardPeriodDistributionItemPresentation(
+        label: 'Income',
+        amount: '100.00 CAD',
+        percent: '100%',
+        progress: 1,
+        icon: Icons.south_west,
+        color: Colors.green,
+        backgroundColor: Colors.white,
+        hasDetail: false,
+      ),
+    ],
+    stateLabel: 'Stable',
+    stateDescription: 'State description',
+    stateIcon: Icons.check_circle,
+    stateColor: Colors.green,
+    stateBackgroundColor: Colors.white,
+    incomeTotalLabel: 'Income',
+    incomeTotalAmount: '100.00 CAD',
+    expenseTotalLabel: 'Expenses',
+    expenseTotalAmount: '80.00 CAD',
+    netCashFlowLabel: 'Net',
+    netCashFlowAmount: '20.00 CAD',
+    periodLabel: 'This month',
+    detailButtonLabel: 'Details',
+    detail: DashboardFinancialStateDetailPresentation(
+      title: 'Financial state',
+      currentStateTitle: 'Current state',
+      currentStateDescription: 'Current state description',
+      whyTitle: 'Why',
+      whyDescription: 'Why description',
+      problemsTitle: 'Problems',
+      problems: [],
+      influenceTitle: 'Influence',
+      buckets: [],
+      recommendationTitle: 'Recommendation',
+      recommendationDescription: 'Recommendation description',
+      evidenceTitle: 'Evidence',
+      evidence: [],
+    ),
+  );
+
+  const message = DashboardMessagePresentation(
+    title: 'Title',
+    description: 'Description',
+    icon: Icons.info,
+    color: Colors.blue,
+    backgroundColor: Colors.white,
+  );
+
+  return const DashboardPresentation(
+    assistantSummary: DashboardAssistantSummaryPresentation(
+      stateTitle: 'State',
+      stateDescription: 'State description',
+      financialState: financialState,
+      radar: DashboardRadarPresentation(
+        axes: [],
+        isLowConfidence: false,
+        caption: 'Caption',
+      ),
+      why: message,
+      whatNext: message,
+      recommendedAction: message,
+      detailLinks: [],
+    ),
+    today: DashboardTodayPresentation(
+      net: '20.00 CAD',
+      income: '100.00 CAD',
+      expenses: '80.00 CAD',
+      operationCount: '2',
+      summary: 'Summary',
+    ),
+    recordedBalance: DashboardRecordedBalancePresentation(
+      amount: '100.00 CAD',
+      description: 'Balance',
+    ),
+    cashFlow: DashboardCashFlowPresentation(
+      income: '100.00 CAD',
+      expenses: '80.00 CAD',
+      net: '20.00 CAD',
+      summary: 'Summary',
+      groups: [],
+    ),
+    insights: [],
+    upcoming: [],
+    actions: [],
+  );
 }
