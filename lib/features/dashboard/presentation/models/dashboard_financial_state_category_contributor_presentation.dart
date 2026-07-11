@@ -6,7 +6,6 @@ final class DashboardFinancialStateCategoryContributorPresentation {
     required this.name,
     required this.amount,
     required this.percentOfIncome,
-    required this.roleLabel,
     required this.icon,
     required this.color,
     required this.backgroundColor,
@@ -16,7 +15,6 @@ final class DashboardFinancialStateCategoryContributorPresentation {
   final String name;
   final String amount;
   final String? percentOfIncome;
-  final String roleLabel;
   final IconData icon;
   final Color color;
   final Color backgroundColor;

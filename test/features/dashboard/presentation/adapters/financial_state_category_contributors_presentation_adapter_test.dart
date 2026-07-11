@@ -117,12 +117,6 @@ void main() {
         expect(rent.backgroundColor, expectedRent.backgroundColor);
         expect(rent.amount, '720.0 CAD');
         expect(rent.percentOfIncome, '12.3%');
-        expect(
-          rent.roleLabel,
-          l10n.dashboardContributorDistributionRole(
-            CategoryFinancialDistributionRole.mandatoryExpenses,
-          ),
-        );
       },
     );
 

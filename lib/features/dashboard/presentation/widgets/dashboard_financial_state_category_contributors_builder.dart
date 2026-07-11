@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/result.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/localization/l10n/dashboard_financial_state_l10n.dart';
-import '../../../../core/theme_v1/app_colors.dart';
 import '../../../../core/theme_v1/app_dimensions.dart';
-import '../../../../core/theme_v1/app_radius.dart';
 import '../../../../core/theme_v1/app_spacing.dart';
 import '../../../../core/theme_v1/app_typography.dart';
 import '../../../assistant/controller/financial_state_category_contributors_provider.dart';
@@ -125,11 +123,11 @@ class _ContributorRow extends StatelessWidget {
     return Row(
       children: [
         SizedBox.square(
-          dimension: AppDimensions.financialStateMetricIconBox,
+          dimension: AppDimensions.avatarSm,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: contributor.backgroundColor,
-              borderRadius: AppRadius.smRadius,
+              shape: BoxShape.circle,
             ),
             child: Icon(
               contributor.icon,
@@ -138,7 +136,7 @@ class _ContributorRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sectionGap),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,32 +147,18 @@ class _ContributorRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                contributor.roleLabel,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.hairline),
               _PercentLine(contributor: contributor),
             ],
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Flexible(
-          fit: FlexFit.loose,
-          child: Text(
-            contributor.amount,
-            style: AppTypography.currencyStrong.copyWith(
-              color: AppColors.textPrimary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.end,
-          ),
+        const SizedBox(width: AppSpacing.inlineGap),
+        Text(
+          contributor.amount,
+          style: AppTypography.currency,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.end,
         ),
       ],
     );
@@ -197,9 +181,9 @@ class _PercentLine extends StatelessWidget {
 
     return Text(
       l10n.dashboardContributorPercentOfIncome(percentOfIncome),
-      style: AppTypography.captionStrong.copyWith(
-        color: AppColors.textSecondary,
-      ),
+      style: AppTypography.caption,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

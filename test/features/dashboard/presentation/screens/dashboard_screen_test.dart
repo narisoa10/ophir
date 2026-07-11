@@ -173,14 +173,6 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text(
-          l10n.dashboardContributorDistributionRole(
-            CategoryFinancialDistributionRole.mandatoryExpenses,
-          ),
-        ),
-        findsOneWidget,
-      );
-      expect(
         find.text(l10n.dashboardContributorRequiredAmountLabel),
         findsNothing,
       );
@@ -232,6 +224,13 @@ void main() {
     testWidgets('positive states show positive factors when present', (
       tester,
     ) async {
+      final savings = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(
+          CategoryStableKey.expenseFinanceSavings,
+        )!,
+        AppLocalizationsEn(),
+      );
+
       for (final stateType in [
         FinancialStateType.stable,
         FinancialStateType.growth,
@@ -260,15 +259,8 @@ void main() {
         );
         await tester.pump();
 
+        expect(find.text(savings.name), findsOneWidget);
         expect(find.text('150.00 CAD'), findsOneWidget);
-        expect(
-          find.text(
-            AppLocalizationsEn().dashboardContributorDistributionRole(
-              CategoryFinancialDistributionRole.assetBuilding,
-            ),
-          ),
-          findsOneWidget,
-        );
       }
     });
 
