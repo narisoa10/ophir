@@ -1,0 +1,1 @@
+enum BudgetSetupGateStatus { required, completed }

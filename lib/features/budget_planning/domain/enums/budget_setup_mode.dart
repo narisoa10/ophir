@@ -1,0 +1,1 @@
+enum BudgetSetupMode { onboarding, edit }

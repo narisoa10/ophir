@@ -1,0 +1,14 @@
+lib/features/assistant/domain/entities/financial_behavior_fact.dart:6:final class FinancialBehaviorFact {
+lib/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart:4:final class FinancialBehaviorFactsSnapshot {
+lib/features/assistant/domain/entities/financial_state.dart:6:final class FinancialState {
+lib/features/assistant/domain/entities/financial_state_category_contributor.dart:5:final class FinancialStateCategoryContributor {
+lib/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart:7:final class FinancialStateCategoryContributorsSnapshot {
+lib/features/assistant/domain/entities/financial_state_confidence.dart:1:enum FinancialStateConfidence { high, medium, low, none }
+lib/features/assistant/domain/entities/financial_state_contributor_strategy.dart:1:enum FinancialStateContributorStrategy {
+lib/features/assistant/domain/entities/financial_state_type.dart:1:enum FinancialStateType {
+lib/features/assistant/domain/services/financial_behavior_facts_service.dart:10:final class FinancialBehaviorFactsService {
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:17:final class FinancialStateCategoryContributorsService {
+lib/features/assistant/domain/services/financial_state_service.dart:10:final class FinancialStateService {
+lib/features/categories/domain/entities/category_taxonomy.dart:7:abstract final class CategoryTaxonomy {
+lib/features/categories/domain/enums/spending_pattern.dart:1:enum SpendingPattern {
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:10:final class FinancialStateCategoryContributorsPresentationAdapter {

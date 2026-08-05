@@ -1,0 +1,242 @@
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:158:  String dashboardContributorDistributionRole(
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:159:    CategoryFinancialDistributionRole role,
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:162:      CategoryFinancialDistributionRole.mandatoryExpenses =>
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:168:      CategoryFinancialDistributionRole.flexibleExpenses =>
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:174:      CategoryFinancialDistributionRole.wants => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:179:      CategoryFinancialDistributionRole.income => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:184:      CategoryFinancialDistributionRole.assetBuilding => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:189:      CategoryFinancialDistributionRole.debtReduction => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:194:      CategoryFinancialDistributionRole.cashMovement => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:199:      CategoryFinancialDistributionRole.dataAdjustment => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:204:      CategoryFinancialDistributionRole.contextDependent =>
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:213:  String dashboardContributorSpendingPattern(SpendingPattern pattern) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:215:      SpendingPattern.usuallyRecurring => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:220:      SpendingPattern.usuallyVariable => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:225:      SpendingPattern.periodic => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:230:      SpendingPattern.usuallyOneOff => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:235:      SpendingPattern.requiresTransactionEvidence => switch (localeName) {
+lib/core/localization/l10n/dashboard_financial_state_l10n.dart:240:      SpendingPattern.unknown => switch (localeName) {
+lib/features/assistant/controller/financial_state_category_contributors_provider.dart:12:    FutureProvider<Result<FinancialStateCategoryContributorsSnapshot>>((
+lib/features/assistant/controller/financial_state_category_contributors_provider.dart:40:        const FinancialStateCategoryContributorsService().build(
+lib/features/assistant/domain/entities/financial_behavior_compatibility_output.dart:11:  final FinancialBehaviorFactsSnapshot snapshot;
+lib/features/assistant/domain/entities/financial_behavior_fact.dart:28:  final CategoryFinancialDistributionRole? distributionRole;
+lib/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart:4:final class FinancialBehaviorFactsSnapshot {
+lib/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart:5:  FinancialBehaviorFactsSnapshot({required List<FinancialBehaviorFact> facts})
+lib/features/assistant/domain/entities/financial_state_category_contributor.dart:5:final class FinancialStateCategoryContributor {
+lib/features/assistant/domain/entities/financial_state_category_contributor.dart:7:  const FinancialStateCategoryContributor({
+lib/features/assistant/domain/entities/financial_state_category_contributor.dart:22:  final CategoryFinancialDistributionRole distributionRole;
+lib/features/assistant/domain/entities/financial_state_category_contributor.dart:23:  final SpendingPattern spendingPattern;
+lib/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart:7:final class FinancialStateCategoryContributorsSnapshot {
+lib/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart:9:  FinancialStateCategoryContributorsSnapshot({
+lib/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart:17:    required List<FinancialStateCategoryContributor> contributors,
+lib/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart:29:  final List<FinancialStateCategoryContributor> contributors;
+lib/features/assistant/domain/services/financial_behavior_facts_service.dart:18:  FinancialBehaviorFactsSnapshot buildSnapshot({
+lib/features/assistant/domain/services/financial_behavior_facts_service.dart:40:    return FinancialBehaviorFactsSnapshot(facts: facts);
+lib/features/assistant/domain/services/financial_behavior_totals_service.dart:12:    required FinancialBehaviorFactsSnapshot snapshot,
+lib/features/assistant/domain/services/financial_behavior_totals_service.dart:74:    required FinancialBehaviorFactsSnapshot snapshot,
+lib/features/assistant/domain/services/financial_intelligence_models_service.dart:20:      CategoryFinancialDistributionRole.mandatoryExpenses,
+lib/features/assistant/domain/services/financial_intelligence_models_service.dart:25:      CategoryFinancialDistributionRole.flexibleExpenses,
+lib/features/assistant/domain/services/financial_intelligence_models_service.dart:30:      CategoryFinancialDistributionRole.wants,
+lib/features/assistant/domain/services/financial_intelligence_models_service.dart:103:    CategoryFinancialDistributionRole role,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:17:final class FinancialStateCategoryContributorsService {
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:18:  const FinancialStateCategoryContributorsService();
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:20:  FinancialStateCategoryContributorsSnapshot build({
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:22:    required FinancialBehaviorFactsSnapshot behaviorFacts,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:92:  List<FinancialStateCategoryContributor> _contributorsFor({
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:133:        FinancialStateCategoryContributor(
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:148:    required CategoryFinancialDistributionRole distributionRole,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:158:            distributionRole == CategoryFinancialDistributionRole.assetBuilding,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:162:  bool _isOrdinarySpendingRole(CategoryFinancialDistributionRole role) {
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:164:      CategoryFinancialDistributionRole.wants ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:165:      CategoryFinancialDistributionRole.flexibleExpenses ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:166:      CategoryFinancialDistributionRole.mandatoryExpenses => true,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:171:  bool _isAllowedPattern(SpendingPattern pattern) {
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:173:      SpendingPattern.usuallyVariable ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:174:      SpendingPattern.usuallyOneOff ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:175:      SpendingPattern.usuallyRecurring ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:176:      SpendingPattern.periodic => true,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:177:      SpendingPattern.requiresTransactionEvidence ||
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:178:      SpendingPattern.unknown => false,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:190:    FinancialStateCategoryContributor left,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:191:    FinancialStateCategoryContributor right,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:208:  FinancialStateCategoryContributorsSnapshot _snapshot({
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:214:    required List<FinancialStateCategoryContributor> contributors,
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:216:    return FinancialStateCategoryContributorsSnapshot(
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:240:  final CategoryFinancialDistributionRole distributionRole;
+lib/features/assistant/domain/services/financial_state_category_contributors_service.dart:241:  final SpendingPattern spendingPattern;
+lib/features/categories/domain/entities/category_financial_behavior.dart:24:  final CategoryFinancialDistributionRole distributionRole;
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:16:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:41:      pattern: SpendingPattern.usuallyVariable,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:57:      pattern: SpendingPattern.periodic,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:79:      pattern: SpendingPattern.usuallyVariable,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:103:      pattern: SpendingPattern.periodic,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:127:      pattern: SpendingPattern.usuallyOneOff,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:141:      pattern: SpendingPattern.requiresTransactionEvidence,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:146:      pattern: SpendingPattern.usuallyVariable,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:169:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:176:      pattern: SpendingPattern.usuallyOneOff,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:186:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:194:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:202:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:210:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:218:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:226:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:234:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:242:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:250:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:258:      pattern: SpendingPattern.requiresTransactionEvidence,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:266:      pattern: SpendingPattern.requiresTransactionEvidence,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:271:      pattern: SpendingPattern.usuallyRecurring,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:283:      pattern: SpendingPattern.usuallyVariable,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:301:      pattern: SpendingPattern.usuallyOneOff,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:320:  required SpendingPattern pattern,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:337:  required SpendingPattern pattern,
+lib/features/categories/domain/entities/category_intelligence_catalog.dart:357:  required SpendingPattern pattern,
+lib/features/categories/domain/entities/category_intelligence_profile.dart:21:  final SpendingPattern spendingPattern;
+lib/features/categories/domain/enums/category_financial_distribution_role.dart:1:enum CategoryFinancialDistributionRole {
+lib/features/categories/domain/enums/spending_pattern.dart:1:enum SpendingPattern {
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:40:        distributionRole: CategoryFinancialDistributionRole.contextDependent,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:53:        distributionRole: CategoryFinancialDistributionRole.contextDependent,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:63:        distributionRole: CategoryFinancialDistributionRole.income,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:69:        distributionRole: CategoryFinancialDistributionRole.assetBuilding,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:76:        distributionRole: CategoryFinancialDistributionRole.debtReduction,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:83:        distributionRole: CategoryFinancialDistributionRole.cashMovement,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:89:        distributionRole: CategoryFinancialDistributionRole.dataAdjustment,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:95:        distributionRole: CategoryFinancialDistributionRole.contextDependent,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:113:          SpendingPattern.requiresTransactionEvidence,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:117:  CategoryFinancialDistributionRole _distributionRoleFor(SpendingRole role) {
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:120:        CategoryFinancialDistributionRole.mandatoryExpenses,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:122:        CategoryFinancialDistributionRole.flexibleExpenses,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:123:      SpendingRole.discretionary => CategoryFinancialDistributionRole.wants,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:124:      SpendingRole.income => CategoryFinancialDistributionRole.income,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:126:        CategoryFinancialDistributionRole.assetBuilding,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:128:        CategoryFinancialDistributionRole.debtReduction,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:130:        CategoryFinancialDistributionRole.contextDependent,
+lib/features/categories/domain/services/category_financial_behavior_policy.dart:144:    required CategoryFinancialDistributionRole distributionRole,
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:10:final class FinancialStateCategoryContributorsPresentationAdapter {
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:11:  const FinancialStateCategoryContributorsPresentationAdapter();
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:13:  DashboardFinancialStateCategoryContributorsPresentation toPresentation({
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:14:    required FinancialStateCategoryContributorsSnapshot snapshot,
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:18:    return DashboardFinancialStateCategoryContributorsPresentation(
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:36:  List<DashboardFinancialStateCategoryContributorPresentation> _contributors(
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:37:    FinancialStateCategoryContributorsSnapshot snapshot,
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:43:        <DashboardFinancialStateCategoryContributorPresentation>[];
+lib/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart:49:        DashboardFinancialStateCategoryContributorPresentation(
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributors_presentation.dart:3:final class DashboardFinancialStateCategoryContributorsPresentation {
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributors_presentation.dart:4:  DashboardFinancialStateCategoryContributorsPresentation({
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributors_presentation.dart:6:    required List<DashboardFinancialStateCategoryContributorPresentation>
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributors_presentation.dart:11:  final List<DashboardFinancialStateCategoryContributorPresentation>
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributor_presentation.dart:6:final class DashboardFinancialStateCategoryContributorPresentation {
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributor_presentation.dart:7:  const DashboardFinancialStateCategoryContributorPresentation({
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributor_presentation.dart:25:  final CategoryFinancialDistributionRole distributionRole;
+lib/features/dashboard/presentation/models/dashboard_financial_state_category_contributor_presentation.dart:26:  final SpendingPattern spendingPattern;
+lib/features/dashboard/presentation/screens/dashboard_financial_state_detail_screen.dart:19:              const DashboardFinancialStateCategoryContributorsBuilder(),
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:18:class DashboardFinancialStateCategoryContributorsBuilder
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:20:  const DashboardFinancialStateCategoryContributorsBuilder({super.key});
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:41:        const FinancialStateCategoryContributorsPresentationAdapter()
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:53:  FinancialStateCategoryContributorsSnapshot? _snapshotFromResult(
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:54:    Result<FinancialStateCategoryContributorsSnapshot>? result,
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:57:      Success<FinancialStateCategoryContributorsSnapshot>(:final value) =>
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:59:      Failure<FinancialStateCategoryContributorsSnapshot>() => null,
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:94:  final DashboardFinancialStateCategoryContributorsPresentation presentation;
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:121:  final DashboardFinancialStateCategoryContributorPresentation contributor;
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:178:  final DashboardFinancialStateCategoryContributorPresentation contributor;
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:189:          l10n.dashboardContributorDistributionRole(
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:195:          l10n.dashboardContributorSpendingPattern(contributor.spendingPattern),
+lib/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart:206:  final DashboardFinancialStateCategoryContributorPresentation contributor;
+test/features/assistant/controller/financial_intelligence_deviations_provider_test.dart:77:      snapshot: FinancialBehaviorFactsSnapshot(facts: const []),
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:60:        isA<Failure<FinancialStateCategoryContributorsSnapshot>>(),
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:63:        (result as Failure<FinancialStateCategoryContributorsSnapshot>).failure,
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:84:        isA<Failure<FinancialStateCategoryContributorsSnapshot>>(),
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:87:        (result as Failure<FinancialStateCategoryContributorsSnapshot>).failure,
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:162:    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:178:FinancialStateCategoryContributorsSnapshot _snapshotValue(
+test/features/assistant/controller/financial_state_category_contributors_provider_test.dart:179:  Result<FinancialStateCategoryContributorsSnapshot> result,
+test/features/assistant/domain/services/financial_intelligence_deviation_service_test.dart:153:      snapshot: FinancialBehaviorFactsSnapshot(facts: const []),
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:17:  const service = FinancialStateCategoryContributorsService();
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:19:  group('FinancialStateCategoryContributorsService', () {
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:150:                  CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:156:                  CategoryFinancialDistributionRole.flexibleExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:205:              distributionRole: CategoryFinancialDistributionRole.assetBuilding,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:210:              distributionRole: CategoryFinancialDistributionRole.debtReduction,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:215:              distributionRole: CategoryFinancialDistributionRole.cashMovement,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:221:                  CategoryFinancialDistributionRole.dataAdjustment,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:227:                  CategoryFinancialDistributionRole.contextDependent,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:244:                  CategoryFinancialDistributionRole.flexibleExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:269:                  CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:283:        CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:299:                    CategoryFinancialDistributionRole.flexibleExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:305:                    CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:328:          distributionRole: CategoryFinancialDistributionRole.flexibleExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:334:          distributionRole: CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:442:FinancialBehaviorFactsSnapshot _snapshot({
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:445:  return FinancialBehaviorFactsSnapshot(facts: facts);
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:455:  CategoryFinancialDistributionRole? distributionRole =
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:456:      CategoryFinancialDistributionRole.wants,
+test/features/assistant/domain/services/financial_state_category_contributors_service_test.dart:479:    distributionRole: CategoryFinancialDistributionRole.assetBuilding,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:54:            CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:55:            CategoryFinancialDistributionRole.flexibleExpenses,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:56:            CategoryFinancialDistributionRole.wants,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:81:          CategoryFinancialDistributionRole.assetBuilding,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:96:          CategoryFinancialDistributionRole.debtReduction,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:113:        CategoryFinancialDistributionRole.cashMovement,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:129:        CategoryFinancialDistributionRole.dataAdjustment,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:145:        CategoryFinancialDistributionRole.contextDependent,
+test/features/categories/domain/services/category_financial_behavior_policy_test.dart:162:        CategoryFinancialDistributionRole.contextDependent,
+test/features/dashboard/controller/dashboard_compatibility_read_model_provider_test.dart:463:    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+test/features/dashboard/domain/entities/dashboard_compatibility_read_model_test.dart:102:    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+test/features/dashboard/domain/services/dashboard_compatibility_assembler_test.dart:115:    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:21:  const adapter = FinancialStateCategoryContributorsPresentationAdapter();
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:23:  group('FinancialStateCategoryContributorsPresentationAdapter', () {
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:81:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:88:                    CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:89:                spendingPattern: SpendingPattern.usuallyRecurring,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:91:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:97:                distributionRole: CategoryFinancialDistributionRole.wants,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:98:                spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:123:          CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:125:        expect(rent.spendingPattern, SpendingPattern.usuallyRecurring);
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:133:            FinancialStateCategoryContributor(
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:139:              distributionRole: CategoryFinancialDistributionRole.wants,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:140:              spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:161:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:167:                distributionRole: CategoryFinancialDistributionRole.wants,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:168:                spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:208:FinancialStateCategoryContributorsSnapshot _snapshot({
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:211:  List<FinancialStateCategoryContributor> contributors = const [],
+test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart:213:  return FinancialStateCategoryContributorsSnapshot(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:149:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:153:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:160:                    CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:161:                spendingPattern: SpendingPattern.usuallyRecurring,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:181:          l10n.dashboardContributorDistributionRole(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:182:            CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:189:          l10n.dashboardContributorSpendingPattern(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:190:            SpendingPattern.usuallyRecurring,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:218:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:224:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:230:                distributionRole: CategoryFinancialDistributionRole.wants,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:231:                spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:254:          const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:259:                FinancialStateCategoryContributor(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:266:                      CategoryFinancialDistributionRole.assetBuilding,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:267:                  spendingPattern: SpendingPattern.usuallyRecurring,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:278:            AppLocalizationsEn().dashboardContributorDistributionRole(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:279:              CategoryFinancialDistributionRole.assetBuilding,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:302:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:306:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:313:                    CategoryFinancialDistributionRole.mandatoryExpenses,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:314:                spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:316:              FinancialStateCategoryContributor(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:322:                distributionRole: CategoryFinancialDistributionRole.wants,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:323:                spendingPattern: SpendingPattern.usuallyVariable,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:342:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:352:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:354:            Completer<Result<FinancialStateCategoryContributorsSnapshot>>()
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:365:        const DashboardFinancialStateCategoryContributorsBuilder(),
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:367:            const Failure<FinancialStateCategoryContributorsSnapshot>(
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:417:  Result<FinancialStateCategoryContributorsSnapshot>? contributorsResult,
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:418:  Future<Result<FinancialStateCategoryContributorsSnapshot>>?
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:460:FinancialStateCategoryContributorsSnapshot _snapshot({
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:463:  List<FinancialStateCategoryContributor> contributors = const [],
+test/features/dashboard/presentation/screens/dashboard_screen_test.dart:465:  return FinancialStateCategoryContributorsSnapshot(

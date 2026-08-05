@@ -1,0 +1,1900 @@
+
+
+============================================================
+FILE: test/features/dashboard/controller/dashboard_compatibility_read_model_provider_test.dart
+============================================================
+
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/errors/app_failure.dart';
+import 'package:ophir/core/errors/result.dart';
+import 'package:ophir/core/evaluation/evaluation_clock.dart';
+import 'package:ophir/core/evaluation/financial_evaluation_context_provider.dart';
+import 'package:ophir/features/accounts/controller/account_providers.dart';
+import 'package:ophir/features/accounts/domain/entities/account.dart';
+import 'package:ophir/features/accounts/domain/enums/account_type.dart';
+import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
+import 'package:ophir/features/assistant/controller/financial_behavior_compatibility_output_provider.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_compatibility_output.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_totals.dart';
+import 'package:ophir/features/categories/controller/category_providers.dart';
+import 'package:ophir/features/categories/domain/entities/category.dart';
+import 'package:ophir/features/categories/domain/enums/category_analytics_group.dart';
+import 'package:ophir/features/categories/domain/enums/category_type.dart';
+import 'package:ophir/features/categories/domain/enums/category_ui_group.dart';
+import 'package:ophir/features/categories/domain/repositories/category_repository.dart';
+import 'package:ophir/features/dashboard/controller/dashboard_compatibility_read_model_provider.dart';
+import 'package:ophir/features/dashboard/domain/entities/dashboard_financial_summary.dart';
+import 'package:ophir/features/operations/controller/operation_providers.dart';
+import 'package:ophir/features/operations/domain/entities/operation.dart';
+import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
+import 'package:ophir/features/operations/domain/enums/operation_type.dart';
+import 'package:ophir/features/operations/domain/repositories/operation_repository.dart';
+
+void main() {
+  group('dashboardCompatibilityReadModelProvider', () {
+    test('builds dashboard compatibility read model', () async {
+      final container = _container();
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.legacySummary.cashFlow.income, 1000);
+      expect(readModel.legacySummary.cashFlow.expenses, 100);
+      expect(readModel.intelligenceOutput, isNotNull);
+      expect(readModel.intelligenceOrdinarySpendingTotal, 100);
+    });
+
+    test('supports unavailable intelligence output', () async {
+      final container = _container(
+        overrides: [
+          financialBehaviorCompatibilityOutputProvider.overrideWith(
+            (ref) async => const Failure(UnknownFailure()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.legacySummary.cashFlow.expenses, 100);
+      expect(readModel.hasIntelligenceComparison, isFalse);
+      expect(readModel.intelligenceOutput, isNull);
+    });
+
+    test('supports failed intelligence output', () async {
+      final container = _container(
+        overrides: [
+          financialBehaviorCompatibilityOutputProvider.overrideWith(
+            (ref) async => const Failure(UnknownFailure()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.legacySummary.cashFlow.expenses, 100);
+      expect(readModel.hasIntelligenceComparison, isFalse);
+      expect(readModel.intelligenceOutput, isNull);
+    });
+
+    test('builds read model directly from compatibility output', () async {
+      final container = _container();
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.intelligenceOutput, isNotNull);
+      expect(readModel.intelligenceOutput!.totals.legacyExpenseTotal, 100);
+      expect(readModel.intelligenceOrdinarySpendingTotal, 100);
+      expect(readModel.legacyVsIntelligenceDifference, 0);
+      expect(readModel.specialActionTotals!.contextRequiredTotal, 0);
+    });
+
+    test('keeps legacy summary unchanged', () async {
+      final legacySummary = _legacySummary();
+      final container = ProviderContainer(
+        overrides: [
+          dashboardLegacyFinancialSummaryProvider.overrideWith(
+            (ref) async => Success(legacySummary),
+          ),
+          financialBehaviorCompatibilityOutputProvider.overrideWith(
+            (ref) async => const Failure(UnknownFailure()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.legacySummary, same(legacySummary));
+      expect(readModel.legacyExpenseTotal, 1500);
+    });
+
+    test('keeps intelligence output unchanged', () async {
+      final output = _output();
+      final container = _container(
+        overrides: [
+          financialBehaviorCompatibilityOutputProvider.overrideWith(
+            (ref) async => Success(output),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.intelligenceOutput, same(output));
+      expect(readModel.legacyVsIntelligenceDifference, 500);
+      expect(readModel.specialActionTotals!.assetBuildingTotal, 300);
+    });
+
+    test('uses evaluation context now for legacy summary path', () async {
+      final fixedNow = DateTime(2030, 12, 15, 10, 30);
+      final container = _container(
+        now: fixedNow,
+        overrides: [
+          evaluationClockProvider.overrideWithValue(
+            EvaluationClock(fixedNow: fixedNow),
+          ),
+          financialBehaviorCompatibilityOutputProvider.overrideWith(
+            (ref) async => const Failure(UnknownFailure()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container.read(
+        dashboardCompatibilityReadModelProvider.future,
+      );
+
+      final readModel = switch (result) {
+        Success(:final value) => value,
+        Failure() => fail('Expected dashboard compatibility read model'),
+      };
+
+      expect(readModel.legacySummary.cashFlow.income, 1000);
+      expect(readModel.legacySummary.cashFlow.expenses, 100);
+      expect(readModel.legacySummary.today.operationCount, 2);
+    });
+
+    test('does not connect compatibility provider to dashboard presentation', () {
+      final builderSource = File(
+        'lib/features/dashboard/presentation/widgets/dashboard_presentation_builder.dart',
+      ).readAsStringSync();
+      final adapterSource = File(
+        'lib/features/dashboard/presentation/adapters/dashboard_presentation_adapter.dart',
+      ).readAsStringSync();
+
+      expect(
+        builderSource,
+        isNot(contains('dashboardCompatibilityReadModelProvider')),
+      );
+      expect(
+        adapterSource,
+        isNot(contains('dashboardCompatibilityReadModelProvider')),
+      );
+      expect(adapterSource, isNot(contains('DashboardCompatibilityReadModel')));
+    });
+
+    test('read model provider uses compatibility output directly', () {
+      final providerSource = File(
+        'lib/features/dashboard/controller/dashboard_compatibility_read_model_provider.dart',
+      ).readAsStringSync();
+
+      expect(
+        providerSource,
+        contains('financialBehaviorCompatibilityOutputProvider'),
+      );
+    });
+
+    test('dashboard compatibility read model does not read snapshot facts', () {
+      final readModelSource = File(
+        'lib/features/dashboard/domain/entities/dashboard_compatibility_read_model.dart',
+      ).readAsStringSync();
+
+      expect(readModelSource, isNot(contains('.snapshot')));
+      expect(readModelSource, isNot(contains('snapshot.facts')));
+    });
+  });
+}
+
+ProviderContainer _container({
+  DateTime? now,
+  List<Override> overrides = const [],
+}) {
+  final occurredAt = now ?? DateTime.now();
+  final account = _account();
+  final category = _category();
+
+  return ProviderContainer(
+    overrides: [
+      accountRepositoryProvider.overrideWithValue(
+        _FakeAccountRepository(accounts: [account]),
+      ),
+      operationRepositoryProvider.overrideWithValue(
+        _FakeOperationRepository(
+          operations: [
+            _operation(
+              id: 'income',
+              type: OperationType.income,
+              amount: 1000,
+              occurredAt: occurredAt,
+              toAccountId: account.id,
+            ),
+            _operation(
+              id: 'rent',
+              type: OperationType.expense,
+              amount: 100,
+              occurredAt: occurredAt,
+              fromAccountId: account.id,
+              categoryId: category.id,
+            ),
+          ],
+        ),
+      ),
+      categoryRepositoryProvider.overrideWithValue(
+        _FakeCategoryRepository(categories: [category]),
+      ),
+      ...overrides,
+    ],
+  );
+}
+
+final class _FakeAccountRepository implements AccountRepository {
+  const _FakeAccountRepository({required this.accounts});
+
+  final List<Account> accounts;
+
+  @override
+  Future<Result<List<Account>>> getAccounts() async {
+    return Success(accounts);
+  }
+
+  @override
+  Future<Result<Account>> createAccount(Account account) async {
+    return Success(account);
+  }
+
+  @override
+  Future<Result<Account>> updateAccount(Account account) async {
+    return Success(account);
+  }
+
+  @override
+  Future<Result<void>> archiveAccount(String accountId) async {
+    return const Success(null);
+  }
+}
+
+final class _FakeOperationRepository implements OperationRepository {
+  const _FakeOperationRepository({required this.operations});
+
+  final List<Operation> operations;
+
+  @override
+  Future<Result<List<Operation>>> getOperations() async {
+    return Success(operations);
+  }
+
+  @override
+  Future<Result<Operation>> createOperation(Operation operation) async {
+    return Success(operation);
+  }
+
+  @override
+  Future<Result<Operation>> updateOperation(Operation operation) async {
+    return Success(operation);
+  }
+
+  @override
+  Future<Result<void>> archiveOperation(String operationId) async {
+    return const Success(null);
+  }
+}
+
+final class _FakeCategoryRepository implements CategoryRepository {
+  const _FakeCategoryRepository({required this.categories});
+
+  final List<Category> categories;
+
+  @override
+  Future<Result<List<Category>>> getCategories() async {
+    return Success(categories);
+  }
+
+  @override
+  Future<Result<List<Category>>> getCategoriesByType(CategoryType type) async {
+    return Success(
+      categories
+          .where((category) => category.type == type && category.isActive)
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<Result<List<Category>>> getTaxonomyCategoriesByType(
+    CategoryType type,
+  ) async {
+    return Success(
+      categories
+          .where(
+            (category) => category.type == type && category.stableKey != null,
+          )
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<Result<List<Category>>> getCategoriesByIds(Set<String> ids) async {
+    return Success(
+      categories
+          .where((category) => ids.contains(category.id))
+          .toList(growable: false),
+    );
+  }
+}
+
+Account _account() {
+  final now = DateTime.utc(2026);
+
+  return Account(
+    id: 'cash',
+    userId: 'user',
+    name: 'Cash',
+    type: AccountType.cash,
+    currencyCode: 'CAD',
+    initialBalance: 1000,
+    iconKey: 'cash',
+    colorKey: 'green',
+    sortOrder: 0,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+Category _category() {
+  final now = DateTime.utc(2026);
+
+  return Category(
+    id: 'rent',
+    type: CategoryType.expense,
+    uiGroup: CategoryUiGroup.housing,
+    analyticsGroup: CategoryAnalyticsGroup.essentialExpenses,
+    nameKey: 'categoryTaxonomyExpenseHousingRentName',
+    iconKey: 'housing',
+    colorKey: 'blue',
+    sortOrder: 0,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+    exampleKey: 'categoryExampleDefault',
+    stableKey: 'expense.housing.rent',
+  );
+}
+
+Operation _operation({
+  required String id,
+  required OperationType type,
+  required double amount,
+  required DateTime occurredAt,
+  String? fromAccountId,
+  String? toAccountId,
+  String? categoryId,
+}) {
+  return Operation(
+    id: id,
+    userId: 'user',
+    fromAccountId: fromAccountId,
+    toAccountId: toAccountId,
+    categoryId: categoryId,
+    type: type,
+    amount: amount,
+    currencyCode: 'CAD',
+    occurredAt: occurredAt,
+    recurrence: OperationRecurrence.none,
+    isRecurring: false,
+    createdAt: occurredAt,
+    updatedAt: occurredAt,
+  );
+}
+
+DashboardFinancialSummary _legacySummary() {
+  return const DashboardFinancialSummary(
+    currencyCode: 'CAD',
+    today: DashboardTodaySummary(
+      income: 100,
+      expenses: 50,
+      net: 50,
+      operationCount: 2,
+    ),
+    recordedBalance: 10000,
+    cashFlow: DashboardCashFlowSummary(income: 4000, expenses: 1500, net: 2500),
+    expenseGroups: [],
+    insights: [],
+    upcomingRecurring: [],
+    actions: [],
+  );
+}
+
+FinancialBehaviorCompatibilityOutput _output() {
+  return FinancialBehaviorCompatibilityOutput(
+    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+    totals: const FinancialBehaviorTotals(
+      legacyExpenseTotal: 1500,
+      ordinarySpendingTotal: 1000,
+      assetBuildingTotal: 300,
+      debtReductionTotal: 200,
+      cashMovementTotal: 80,
+      dataAdjustmentTotal: 40,
+      contextRequiredTotal: 320,
+      behavioralSavingsTotal: 300,
+      legacyVsIntelligenceDifference: 500,
+      unresolvedCount: 0,
+    ),
+  );
+}
+
+
+============================================================
+FILE: test/features/dashboard/controller/financial_evaluation_context_provider_test.dart
+============================================================
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/evaluation/evaluation_clock.dart';
+import 'package:ophir/core/evaluation/financial_evaluation_context.dart';
+import 'package:ophir/core/evaluation/financial_evaluation_context_provider.dart';
+
+void main() {
+  group('financialEvaluationContextProvider', () {
+    test('returns stable now and current month period', () {
+      final fixedNow = DateTime(2030, 12, 15, 10, 30);
+      final container = ProviderContainer(
+        overrides: [
+          evaluationClockProvider.overrideWithValue(
+            EvaluationClock(fixedNow: fixedNow),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final context = container.read(financialEvaluationContextProvider);
+
+      expect(context.now, fixedNow);
+      expect(context.currentMonth.start, DateTime(2030, 12));
+      expect(context.currentMonth.end, DateTime(2031));
+      expect(context.currentMonth.contains(fixedNow), isTrue);
+    });
+
+    test('provider override works in tests', () {
+      final fixedNow = DateTime(2040, 2, 20);
+      final fixedContext = FinancialEvaluationContext.forNow(fixedNow);
+      final container = ProviderContainer(
+        overrides: [
+          financialEvaluationContextProvider.overrideWithValue(fixedContext),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final context = container.read(financialEvaluationContextProvider);
+
+      expect(context, same(fixedContext));
+      expect(context.now, fixedNow);
+      expect(context.currentMonth.start, DateTime(2040, 2));
+      expect(context.currentMonth.end, DateTime(2040, 3));
+    });
+  });
+}
+
+
+============================================================
+FILE: test/features/dashboard/domain/entities/dashboard_compatibility_read_model_test.dart
+============================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_compatibility_output.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_totals.dart';
+import 'package:ophir/features/dashboard/domain/entities/dashboard_compatibility_read_model.dart';
+import 'package:ophir/features/dashboard/domain/entities/dashboard_financial_summary.dart';
+
+void main() {
+  group('DashboardCompatibilityReadModel', () {
+    test('keeps legacy dashboard summary unchanged', () {
+      final legacySummary = _legacySummary();
+      final readModel = DashboardCompatibilityReadModel(
+        legacySummary: legacySummary,
+        intelligenceOutput: _output(),
+      );
+
+      expect(readModel.legacySummary, same(legacySummary));
+      expect(readModel.legacySummary.cashFlow.expenses, 1500);
+      expect(readModel.legacyExpenseTotal, 1500);
+      expect(readModel.legacySummary.cashFlow.net, 2500);
+    });
+
+    test('can hold financial behavior output next to legacy values', () {
+      final output = _output();
+      final readModel = DashboardCompatibilityReadModel(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: output,
+      );
+
+      expect(readModel.hasIntelligenceComparison, isTrue);
+      expect(readModel.intelligenceOutput, same(output));
+      expect(readModel.intelligenceOrdinarySpendingTotal, 1000);
+      expect(readModel.legacyVsIntelligenceDifference, 500);
+    });
+
+    test('exposes dashboard-safe special action totals from output totals', () {
+      final readModel = DashboardCompatibilityReadModel(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: _output(),
+      );
+
+      final totals = readModel.specialActionTotals;
+
+      expect(totals, isNotNull);
+      expect(totals!.assetBuildingTotal, 300);
+      expect(totals.debtReductionTotal, 200);
+      expect(totals.cashMovementTotal, 80);
+      expect(totals.dataAdjustmentTotal, 40);
+      expect(totals.contextRequiredTotal, 320);
+    });
+
+    test('supports legacy-only dashboard state', () {
+      final readModel = DashboardCompatibilityReadModel(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: null,
+      );
+
+      expect(readModel.hasIntelligenceComparison, isFalse);
+      expect(readModel.intelligenceOrdinarySpendingTotal, isNull);
+      expect(readModel.legacyVsIntelligenceDifference, isNull);
+      expect(readModel.specialActionTotals, isNull);
+      expect(readModel.legacyExpenseTotal, 1500);
+    });
+
+    test('does not read financial behavior snapshot facts', () {
+      final output = _output();
+      final readModel = DashboardCompatibilityReadModel(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: output,
+      );
+
+      expect(readModel.intelligenceOutput, same(output));
+      expect(readModel.specialActionTotals!.contextRequiredTotal, 320);
+    });
+  });
+}
+
+DashboardFinancialSummary _legacySummary() {
+  return const DashboardFinancialSummary(
+    currencyCode: 'CAD',
+    today: DashboardTodaySummary(
+      income: 100,
+      expenses: 50,
+      net: 50,
+      operationCount: 2,
+    ),
+    recordedBalance: 10000,
+    cashFlow: DashboardCashFlowSummary(income: 4000, expenses: 1500, net: 2500),
+    expenseGroups: [],
+    insights: [],
+    upcomingRecurring: [],
+    actions: [],
+  );
+}
+
+FinancialBehaviorCompatibilityOutput _output({
+  double legacyExpenseTotal = 1500,
+  double ordinarySpendingTotal = 1000,
+  double legacyVsIntelligenceDifference = 500,
+}) {
+  return FinancialBehaviorCompatibilityOutput(
+    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+    totals: FinancialBehaviorTotals(
+      legacyExpenseTotal: legacyExpenseTotal,
+      ordinarySpendingTotal: ordinarySpendingTotal,
+      assetBuildingTotal: 300,
+      debtReductionTotal: 200,
+      cashMovementTotal: 80,
+      dataAdjustmentTotal: 40,
+      contextRequiredTotal: 320,
+      behavioralSavingsTotal: 300,
+      legacyVsIntelligenceDifference: legacyVsIntelligenceDifference,
+      unresolvedCount: 0,
+    ),
+  );
+}
+
+
+============================================================
+FILE: test/features/dashboard/domain/services/dashboard_compatibility_assembler_test.dart
+============================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_compatibility_output.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_facts_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_behavior_totals.dart';
+import 'package:ophir/features/dashboard/domain/entities/dashboard_financial_summary.dart';
+import 'package:ophir/features/dashboard/domain/services/dashboard_compatibility_assembler.dart';
+
+void main() {
+  group('DashboardCompatibilityAssembler', () {
+    const assembler = DashboardCompatibilityAssembler();
+
+    test('returns dashboard compatibility read model', () {
+      final readModel = assembler.assemble(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: _output(),
+      );
+
+      expect(readModel.legacySummary.cashFlow.expenses, 1500);
+      expect(readModel.intelligenceOrdinarySpendingTotal, 1000);
+    });
+
+    test('keeps legacy summary unchanged', () {
+      final legacySummary = _legacySummary();
+
+      final readModel = assembler.assemble(
+        legacySummary: legacySummary,
+        intelligenceOutput: _output(),
+      );
+
+      expect(readModel.legacySummary, same(legacySummary));
+      expect(readModel.legacySummary.cashFlow.income, 4000);
+      expect(readModel.legacySummary.cashFlow.expenses, 1500);
+      expect(readModel.legacySummary.cashFlow.net, 2500);
+    });
+
+    test('supports null intelligence output', () {
+      final readModel = assembler.assemble(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: null,
+      );
+
+      expect(readModel.hasIntelligenceComparison, isFalse);
+      expect(readModel.intelligenceOutput, isNull);
+      expect(readModel.specialActionTotals, isNull);
+    });
+
+    test('keeps intelligence output unchanged', () {
+      final output = _output();
+
+      final readModel = assembler.assemble(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: output,
+      );
+
+      expect(readModel.intelligenceOutput, same(output));
+      expect(readModel.legacyVsIntelligenceDifference, 500);
+      expect(readModel.specialActionTotals!.assetBuildingTotal, 300);
+    });
+
+    test('does not recalculate output totals', () {
+      final output = _output(
+        legacyExpenseTotal: 42,
+        ordinarySpendingTotal: 7,
+        assetBuildingTotal: 3,
+        debtReductionTotal: 5,
+        cashMovementTotal: 8,
+        dataAdjustmentTotal: 13,
+        contextRequiredTotal: 21,
+        legacyVsIntelligenceDifference: 35,
+      );
+
+      final readModel = assembler.assemble(
+        legacySummary: _legacySummary(),
+        intelligenceOutput: output,
+      );
+
+      expect(readModel.legacyExpenseTotal, 1500);
+      expect(readModel.intelligenceOutput!.totals.legacyExpenseTotal, 42);
+      expect(readModel.intelligenceOrdinarySpendingTotal, 7);
+      expect(readModel.legacyVsIntelligenceDifference, 35);
+      expect(readModel.specialActionTotals!.contextRequiredTotal, 21);
+    });
+  });
+}
+
+DashboardFinancialSummary _legacySummary() {
+  return const DashboardFinancialSummary(
+    currencyCode: 'CAD',
+    today: DashboardTodaySummary(
+      income: 100,
+      expenses: 50,
+      net: 50,
+      operationCount: 2,
+    ),
+    recordedBalance: 10000,
+    cashFlow: DashboardCashFlowSummary(income: 4000, expenses: 1500, net: 2500),
+    expenseGroups: [],
+    insights: [],
+    upcomingRecurring: [],
+    actions: [],
+  );
+}
+
+FinancialBehaviorCompatibilityOutput _output({
+  double legacyExpenseTotal = 1500,
+  double ordinarySpendingTotal = 1000,
+  double assetBuildingTotal = 300,
+  double debtReductionTotal = 200,
+  double cashMovementTotal = 80,
+  double dataAdjustmentTotal = 40,
+  double contextRequiredTotal = 320,
+  double legacyVsIntelligenceDifference = 500,
+}) {
+  return FinancialBehaviorCompatibilityOutput(
+    snapshot: FinancialBehaviorFactsSnapshot(facts: []),
+    totals: FinancialBehaviorTotals(
+      legacyExpenseTotal: legacyExpenseTotal,
+      ordinarySpendingTotal: ordinarySpendingTotal,
+      assetBuildingTotal: assetBuildingTotal,
+      debtReductionTotal: debtReductionTotal,
+      cashMovementTotal: cashMovementTotal,
+      dataAdjustmentTotal: dataAdjustmentTotal,
+      contextRequiredTotal: contextRequiredTotal,
+      behavioralSavingsTotal: assetBuildingTotal,
+      legacyVsIntelligenceDifference: legacyVsIntelligenceDifference,
+      unresolvedCount: 0,
+    ),
+  );
+}
+
+
+============================================================
+FILE: test/features/dashboard/presentation/adapters/dashboard_presentation_adapter_test.dart
+============================================================
+
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/localization/generated/app_localizations_en.dart';
+import 'package:ophir/features/assistant/domain/entities/assistant_dashboard_briefing.dart';
+import 'package:ophir/features/assistant/domain/entities/assistant_dashboard_radar.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_fact.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_fact_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_fact_source.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_fact_type.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_facts_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_model_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_model_period.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_period_distribution.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_period_distribution_bucket.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_period_distribution_item.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_type.dart';
+import 'package:ophir/features/dashboard/presentation/adapters/dashboard_presentation_adapter.dart';
+import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
+import 'package:ophir/features/operations/domain/enums/operation_type.dart';
+
+void main() {
+  group('DashboardPresentationAdapter', () {
+    const adapter = DashboardPresentationAdapter();
+
+    test('filters today facts with injected now', () {
+      final now = DateTime(2030, 5, 10, 12);
+      final presentation = adapter.toPresentation(
+        briefing: _briefing(
+          now: now,
+          facts: [
+            _operationFact(
+              id: 'income-today',
+              type: FinancialFactType.incomeOperation,
+              operationType: OperationType.income,
+              amount: 100,
+              occurredAt: DateTime(2030, 5, 10, 8),
+            ),
+            _operationFact(
+              id: 'expense-yesterday',
+              type: FinancialFactType.expenseOperation,
+              operationType: OperationType.expense,
+              amount: 40,
+              occurredAt: DateTime(2030, 5, 9, 18),
+            ),
+          ],
+        ),
+        l10n: AppLocalizationsEn(),
+        now: now,
+        formatDate: _formatDate,
+        formatMoney: _formatMoney,
+      );
+
+      expect(presentation.today.income, '100.0 CAD');
+      expect(presentation.today.expenses, '0.0 CAD');
+      expect(presentation.today.net, '100.0 CAD');
+      expect(presentation.today.operationCount, contains('1'));
+    });
+
+    test('calculates upcoming recurring dates with injected now', () {
+      final now = DateTime(2030, 3, 15, 12);
+      final presentation = adapter.toPresentation(
+        briefing: _briefing(
+          now: now,
+          facts: [
+            _operationFact(
+              id: 'rent-operation',
+              operationId: 'rent',
+              type: FinancialFactType.expenseOperation,
+              operationType: OperationType.expense,
+              amount: 50,
+              occurredAt: DateTime(2030, 1, 1),
+            ),
+            _operationFact(
+              id: 'rent-recurring',
+              operationId: 'rent',
+              type: FinancialFactType.recurringOperation,
+              operationType: OperationType.expense,
+              amount: 50,
+              occurredAt: DateTime(2030, 1, 1),
+              recurrence: OperationRecurrence.monthly,
+            ),
+          ],
+        ),
+        l10n: AppLocalizationsEn(),
+        now: now,
+        formatDate: _formatDate,
+        formatMoney: _formatMoney,
+      );
+
+      expect(presentation.upcoming, hasLength(1));
+      expect(presentation.upcoming.single.date, '2030-04-01');
+      expect(presentation.upcoming.single.amount, '-50.0 CAD');
+    });
+
+    test('does not create DateTime.now inside adapter', () {
+      final source = File(
+        'lib/features/dashboard/presentation/adapters/dashboard_presentation_adapter.dart',
+      ).readAsStringSync();
+
+      expect(source, isNot(contains('DateTime.now()')));
+    });
+
+    test('formats zero distribution percent as 0%', () {
+      final now = DateTime(2030, 5, 10, 12);
+      final presentation = adapter.toPresentation(
+        briefing: _briefing(
+          now: now,
+          facts: const [],
+          distributionItems: [_distributionItem(amount: 0, percent: 0)],
+        ),
+        l10n: AppLocalizationsEn(),
+        now: now,
+        formatDate: _formatDate,
+        formatMoney: _formatMoney,
+      );
+
+      expect(
+        presentation.assistantSummary.financialState.items.single.percent,
+        '0%',
+      );
+    });
+
+    test('formats positive sub-one distribution percent as less than one', () {
+      final now = DateTime(2030, 5, 10, 12);
+      final presentation = adapter.toPresentation(
+        briefing: _briefing(
+          now: now,
+          facts: const [],
+          distributionItems: [
+            _distributionItem(amount: 10, percent: 10 / 5000),
+          ],
+        ),
+        l10n: AppLocalizationsEn(),
+        now: now,
+        formatDate: _formatDate,
+        formatMoney: _formatMoney,
+      );
+
+      expect(
+        presentation.assistantSummary.financialState.items.single.percent,
+        '<1%',
+      );
+    });
+
+    test('formats rounded distribution percent normally', () {
+      final now = DateTime(2030, 5, 10, 12);
+      final presentation = adapter.toPresentation(
+        briefing: _briefing(
+          now: now,
+          facts: const [],
+          distributionItems: [
+            _distributionItem(amount: 100, percent: 100 / 5000),
+          ],
+        ),
+        l10n: AppLocalizationsEn(),
+        now: now,
+        formatDate: _formatDate,
+        formatMoney: _formatMoney,
+      );
+
+      expect(
+        presentation.assistantSummary.financialState.items.single.percent,
+        '2%',
+      );
+    });
+  });
+}
+
+AssistantDashboardBriefing _briefing({
+  required DateTime now,
+  required List<FinancialFact> facts,
+  List<FinancialPeriodDistributionItem> distributionItems = const [],
+}) {
+  final period = FinancialModelPeriod(
+    start: DateTime(now.year, now.month),
+    end: DateTime(now.year, now.month + 1),
+  );
+
+  return AssistantDashboardBriefing(
+    factsSnapshot: FinancialFactsSnapshot(facts: facts, dataGaps: const []),
+    modelResults: const [],
+    deviations: const [],
+    problems: const [],
+    decisionOptions: const [],
+    recommendation: null,
+    explanation: null,
+    radar: const AssistantDashboardRadar(
+      axes: [],
+      isLowConfidence: false,
+      evidenceModelIds: [],
+    ),
+    primaryProblem: null,
+    financialState: FinancialState(
+      type: FinancialStateType.stable,
+      confidence: FinancialStateConfidence.high,
+      period: period,
+      currencyCode: 'CAD',
+      income: 0,
+      expenses: 0,
+      net: 0,
+      evidenceModelIds: const [],
+      limitations: const [],
+    ),
+    periodDistribution: FinancialPeriodDistribution(
+      period: period,
+      currencyCode: 'CAD',
+      incomeTotal: 0,
+      expenseTotal: 0,
+      netCashFlow: 0,
+      items: distributionItems,
+      confidence: FinancialModelConfidence.high,
+      evidenceModelIds: const [],
+      limitations: const [],
+    ),
+  );
+}
+
+FinancialFact _operationFact({
+  required String id,
+  String? operationId,
+  required FinancialFactType type,
+  required OperationType operationType,
+  required double amount,
+  required DateTime occurredAt,
+  OperationRecurrence? recurrence,
+}) {
+  return FinancialFact(
+    id: id,
+    type: type,
+    source: FinancialFactSource.manualRecorded,
+    confidence: FinancialFactConfidence.high,
+    operationId: operationId ?? id,
+    operationType: operationType,
+    amount: amount,
+    currencyCode: 'CAD',
+    occurredAt: occurredAt,
+    recurrence: recurrence,
+  );
+}
+
+FinancialPeriodDistributionItem _distributionItem({
+  required double amount,
+  required double percent,
+}) {
+  return FinancialPeriodDistributionItem(
+    bucket: FinancialPeriodDistributionBucket.flexibleExpenses,
+    amount: amount,
+    percent: percent,
+    limitations: const [],
+  );
+}
+
+String _formatDate(DateTime date) {
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
+}
+
+String _formatMoney(double amount, String currencyCode) {
+  return '$amount $currencyCode';
+}
+
+
+============================================================
+FILE: test/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter_test.dart
+============================================================
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/localization/generated/app_localizations.dart';
+import 'package:ophir/core/localization/generated/app_localizations_en.dart';
+import 'package:ophir/core/localization/generated/app_localizations_fr.dart';
+import 'package:ophir/core/localization/generated/app_localizations_ru.dart';
+import 'package:ophir/core/localization/l10n/dashboard_financial_state_l10n.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_model_limitation.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_category_contributor.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_contributor_strategy.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_type.dart';
+import 'package:ophir/features/categories/domain/entities/category_taxonomy.dart';
+import 'package:ophir/features/categories/domain/enums/category_financial_distribution_role.dart';
+import 'package:ophir/features/categories/domain/enums/category_stable_key.dart';
+import 'package:ophir/features/categories/domain/enums/spending_pattern.dart';
+import 'package:ophir/features/categories/presentation/adapters/category_definition_adapter.dart';
+import 'package:ophir/features/dashboard/presentation/adapters/financial_state_category_contributors_presentation_adapter.dart';
+
+void main() {
+  const adapter = FinancialStateCategoryContributorsPresentationAdapter();
+
+  group('FinancialStateCategoryContributorsPresentationAdapter', () {
+    test('maps state titles from l10n', () {
+      final cases = [
+        _TitleCase(
+          stateType: FinancialStateType.deficit,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorDeficitTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.fragileBalance,
+          l10n: AppLocalizationsFr(),
+          expectedTitle: (l10n) => l10n.dashboardContributorFragileTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.stable,
+          l10n: AppLocalizationsRu(),
+          expectedTitle: (l10n) => l10n.dashboardContributorStableTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.growth,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorGrowthTitle,
+        ),
+        _TitleCase(
+          stateType: FinancialStateType.strongPosition,
+          l10n: AppLocalizationsEn(),
+          expectedTitle: (l10n) => l10n.dashboardContributorStrongPositionTitle,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        final presentation = adapter.toPresentation(
+          snapshot: _snapshot(stateType: testCase.stateType),
+          l10n: testCase.l10n,
+          formatMoney: _formatMoney,
+        );
+
+        expect(
+          presentation.title,
+          testCase.expectedTitle(testCase.l10n),
+          reason: testCase.stateType.name,
+        );
+      }
+    });
+
+    test(
+      'maps all contributors preserving domain order and explanatory fields',
+      () {
+        final l10n = AppLocalizationsEn();
+        const rentKey = CategoryStableKey.expenseHousingRent;
+        final expectedRent = const CategoryDefinitionAdapter().toPresentation(
+          CategoryTaxonomy.definitionFor(rentKey)!,
+          l10n,
+        );
+
+        final presentation = adapter.toPresentation(
+          snapshot: _snapshot(
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'rent',
+                stableKey: rentKey,
+                amount: 720,
+                percentOfIncome: 12.345,
+                percentOfExpenses: 45.678,
+                distributionRole:
+                    CategoryFinancialDistributionRole.mandatoryExpenses,
+                spendingPattern: SpendingPattern.usuallyRecurring,
+              ),
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 50,
+                percentOfIncome: 1.2,
+                percentOfExpenses: 3.4,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+            ],
+          ),
+          l10n: l10n,
+          formatMoney: _formatMoney,
+        );
+
+        expect(
+          presentation.contributors.map(
+            (contributor) => contributor.categoryId,
+          ),
+          ['rent', 'restaurant'],
+        );
+
+        final rent = presentation.contributors.first;
+        expect(rent.name, expectedRent.name);
+        expect(rent.icon, expectedRent.icon);
+        expect(rent.color, expectedRent.color);
+        expect(rent.backgroundColor, expectedRent.backgroundColor);
+        expect(rent.amount, '720.0 CAD');
+        expect(rent.percentOfIncome, '12.3%');
+      },
+    );
+
+    test('nullable percent of income stays null', () {
+      final presentation = adapter.toPresentation(
+        snapshot: _snapshot(
+          contributors: const [
+            FinancialStateCategoryContributor(
+              categoryId: 'restaurant',
+              stableKey: CategoryStableKey.expenseFoodRestaurant,
+              amount: 50,
+              percentOfIncome: null,
+              percentOfExpenses: null,
+              distributionRole: CategoryFinancialDistributionRole.wants,
+              spendingPattern: SpendingPattern.usuallyVariable,
+            ),
+          ],
+        ),
+        l10n: AppLocalizationsEn(),
+        formatMoney: _formatMoney,
+      );
+
+      expect(presentation.contributors.single.percentOfIncome, isNull);
+    });
+
+    test(
+      'null currency formats contributor amount without money formatter',
+      () {
+        var formatCalls = 0;
+
+        final presentation = adapter.toPresentation(
+          snapshot: _snapshot(
+            currencyCode: null,
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 6.7,
+                percentOfIncome: null,
+                percentOfExpenses: null,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+            ],
+          ),
+          l10n: AppLocalizationsEn(),
+          formatMoney: (amount, currencyCode) {
+            formatCalls += 1;
+            return _formatMoney(amount, currencyCode);
+          },
+        );
+
+        expect(presentation.contributors.single.amount, '6.70');
+        expect(formatCalls, 0);
+      },
+    );
+
+    test('supports empty contributor list', () {
+      final presentation = adapter.toPresentation(
+        snapshot: _snapshot(contributors: const []),
+        l10n: AppLocalizationsEn(),
+        formatMoney: _formatMoney,
+      );
+
+      expect(presentation.contributors, isEmpty);
+    });
+  });
+}
+
+final class _TitleCase {
+  const _TitleCase({
+    required this.stateType,
+    required this.l10n,
+    required this.expectedTitle,
+  });
+
+  final FinancialStateType stateType;
+  final AppLocalizations l10n;
+  final String Function(AppLocalizations l10n) expectedTitle;
+}
+
+FinancialStateCategoryContributorsSnapshot _snapshot({
+  FinancialStateType stateType = FinancialStateType.deficit,
+  String? currencyCode = 'CAD',
+  List<FinancialStateCategoryContributor> contributors = const [],
+}) {
+  return FinancialStateCategoryContributorsSnapshot(
+    stateType: stateType,
+    strategy: _strategyFor(stateType),
+    requiredAmount: 100,
+    coveredAmount: 50,
+    isCoverageComplete: false,
+    currencyCode: currencyCode,
+    confidence: FinancialStateConfidence.high,
+    contributors: contributors,
+    limitations: const <FinancialModelLimitation>[],
+  );
+}
+
+FinancialStateContributorStrategy _strategyFor(FinancialStateType stateType) {
+  return switch (stateType) {
+    FinancialStateType.deficit =>
+      FinancialStateContributorStrategy.closeDeficit,
+    FinancialStateType.fragileBalance =>
+      FinancialStateContributorStrategy.buildSafetyMargin,
+    FinancialStateType.stable =>
+      FinancialStateContributorStrategy.preserveStability,
+    FinancialStateType.growth =>
+      FinancialStateContributorStrategy.supportGrowth,
+    FinancialStateType.strongPosition =>
+      FinancialStateContributorStrategy.protectStrongPosition,
+  };
+}
+
+String _formatMoney(double amount, String currencyCode) {
+  return '${amount.toStringAsFixed(1)} $currencyCode';
+}
+
+
+============================================================
+FILE: test/features/dashboard/presentation/screens/dashboard_screen_test.dart
+============================================================
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/errors/app_failure.dart';
+import 'package:ophir/core/errors/result.dart';
+import 'package:ophir/core/evaluation/evaluation_clock.dart';
+import 'package:ophir/core/evaluation/financial_evaluation_context_provider.dart';
+import 'package:ophir/core/localization/generated/app_localizations.dart';
+import 'package:ophir/core/localization/generated/app_localizations_en.dart';
+import 'package:ophir/core/localization/l10n/dashboard_financial_state_l10n.dart';
+import 'package:ophir/features/assistant/controller/assistant_dashboard_briefing_provider.dart';
+import 'package:ophir/features/assistant/controller/financial_state_category_contributors_provider.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_model_limitation.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_category_contributor.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_category_contributors_snapshot.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_confidence.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_contributor_strategy.dart';
+import 'package:ophir/features/assistant/domain/entities/financial_state_type.dart';
+import 'package:ophir/features/categories/domain/entities/category_taxonomy.dart';
+import 'package:ophir/features/categories/domain/enums/category_financial_distribution_role.dart';
+import 'package:ophir/features/categories/domain/enums/category_stable_key.dart';
+import 'package:ophir/features/categories/domain/enums/spending_pattern.dart';
+import 'package:ophir/features/categories/presentation/adapters/category_definition_adapter.dart';
+import 'package:ophir/features/dashboard/presentation/models/dashboard_presentation.dart';
+import 'package:ophir/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_plan_section_card.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_card.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_category_contributors_builder.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_financial_state_detail_content.dart';
+import 'package:ophir/features/dashboard/presentation/widgets/dashboard_v1_content.dart';
+import 'package:ophir/features/profile/controller/profile_providers.dart';
+import 'package:ophir/features/profile/domain/entities/profile.dart';
+import 'package:ophir/features/profile/domain/repositories/profile_repository.dart';
+
+void main() {
+  group('DashboardScreen', () {
+    testWidgets('uses shared clock for header date and greeting', (
+      tester,
+    ) async {
+      final fixedNow = DateTime(2030, 5, 10, 6, 30);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            evaluationClockProvider.overrideWithValue(
+              EvaluationClock(fixedNow: fixedNow),
+            ),
+            profileRepositoryProvider.overrideWithValue(
+              _FakeProfileRepository(profile: _profile()),
+            ),
+            assistantDashboardBriefingProvider.overrideWith(
+              (ref) async => const Failure(UnknownFailure()),
+            ),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: DashboardScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Fri, May 10'), findsOneWidget);
+      expect(find.text('Good morning, Ada'), findsOneWidget);
+    });
+
+    testWidgets('places financial state above income distribution', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DashboardV1Content(
+                presentation: _dashboardPresentation(),
+                onFinancialStateDetailTap: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getTopLeft(find.byType(DashboardFinancialStateCard)).dy,
+        lessThan(
+          tester.getTopLeft(find.byType(DashboardIncomeDistributionCard)).dy,
+        ),
+      );
+    });
+
+    test('does not create DateTime.now inside dashboard feature', () {
+      final dashboardFiles = Directory('lib/features/dashboard')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'));
+
+      for (final file in dashboardFiles) {
+        expect(
+          file.readAsStringSync(),
+          isNot(contains('DateTime.now()')),
+          reason: file.path,
+        );
+      }
+    });
+  });
+
+  group('Financial State Details', () {
+    testWidgets('shows exactly four expandable cards with first open', (
+      tester,
+    ) async {
+      await _pumpDashboardWidget(
+        tester,
+        DashboardFinancialStateDetailContent(
+          detail: _detail(),
+          contributors: const Text('Contributor content'),
+        ),
+      );
+
+      expect(find.byType(DashboardFinancialPlanSectionCard), findsNWidgets(4));
+      expect(find.text('Contributor content'), findsOneWidget);
+    });
+
+    testWidgets('cards two through four remain placeholder sections', (
+      tester,
+    ) async {
+      final l10n = AppLocalizationsEn();
+
+      await _pumpDashboardWidget(
+        tester,
+        DashboardFinancialStateDetailContent(
+          detail: _detail(),
+          contributors: const Text('Contributor content'),
+        ),
+      );
+
+      await tester.tap(find.text(l10n.dashboardFinancialPlanBestEffectTitle));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(l10n.dashboardFinancialPlanExpectedResultTitle),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.dashboardFinancialPlanRecoveryPlanTitle));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(l10n.dashboardFinancialPlanBestEffectPlaceholder),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.dashboardFinancialPlanExpectedResultPlaceholder),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.dashboardFinancialPlanRecoveryPlanPlaceholder),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('card one shows explanatory contributor fields', (
+      tester,
+    ) async {
+      final l10n = AppLocalizationsEn();
+      const stableKey = CategoryStableKey.expenseHousingRent;
+      final category = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(stableKey)!,
+        l10n,
+      );
+
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsResult: Success(
+          _snapshot(
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'rent',
+                stableKey: stableKey,
+                amount: 720,
+                percentOfIncome: 12.3,
+                percentOfExpenses: 45.7,
+                distributionRole:
+                    CategoryFinancialDistributionRole.mandatoryExpenses,
+                spendingPattern: SpendingPattern.usuallyRecurring,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text(category.name), findsOneWidget);
+      expect(find.text('720.00 CAD'), findsOneWidget);
+      expect(
+        find.text(l10n.dashboardContributorPercentOfIncome('12.3%')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.dashboardContributorRequiredAmountLabel),
+        findsNothing,
+      );
+      expect(
+        find.text(l10n.dashboardContributorCoveredAmountLabel),
+        findsNothing,
+      );
+    });
+
+    testWidgets('fragileBalance boundary still shows contributors', (
+      tester,
+    ) async {
+      final l10n = AppLocalizationsEn();
+      final category = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(
+          CategoryStableKey.expenseFoodRestaurant,
+        )!,
+        l10n,
+      );
+
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsResult: Success(
+          _snapshot(
+            stateType: FinancialStateType.fragileBalance,
+            requiredAmount: 0,
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 80,
+                percentOfIncome: 8,
+                percentOfExpenses: null,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text(l10n.dashboardContributorFragileTitle), findsOneWidget);
+      expect(find.text(category.name), findsOneWidget);
+      expect(find.text('80.00 CAD'), findsOneWidget);
+    });
+
+    testWidgets('positive states show positive factors when present', (
+      tester,
+    ) async {
+      final savings = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(
+          CategoryStableKey.expenseFinanceSavings,
+        )!,
+        AppLocalizationsEn(),
+      );
+
+      for (final stateType in [
+        FinancialStateType.stable,
+        FinancialStateType.growth,
+        FinancialStateType.strongPosition,
+      ]) {
+        await _pumpDashboardWidget(
+          tester,
+          const DashboardFinancialStateCategoryContributorsBuilder(),
+          contributorsResult: Success(
+            _snapshot(
+              stateType: stateType,
+              contributors: const [
+                FinancialStateCategoryContributor(
+                  categoryId: 'savings',
+                  stableKey: CategoryStableKey.expenseFinanceSavings,
+                  amount: 150,
+                  percentOfIncome: 15,
+                  percentOfExpenses: null,
+                  distributionRole:
+                      CategoryFinancialDistributionRole.assetBuilding,
+                  spendingPattern: SpendingPattern.usuallyRecurring,
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text(savings.name), findsOneWidget);
+        expect(find.text('150.00 CAD'), findsOneWidget);
+      }
+    });
+
+    testWidgets('keeps contributor order from presentation', (tester) async {
+      final l10n = AppLocalizationsEn();
+      final groceries = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(CategoryStableKey.expenseFoodGroceries)!,
+        l10n,
+      );
+      final restaurant = const CategoryDefinitionAdapter().toPresentation(
+        CategoryTaxonomy.definitionFor(
+          CategoryStableKey.expenseFoodRestaurant,
+        )!,
+        l10n,
+      );
+
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsResult: Success(
+          _snapshot(
+            contributors: const [
+              FinancialStateCategoryContributor(
+                categoryId: 'groceries',
+                stableKey: CategoryStableKey.expenseFoodGroceries,
+                amount: 100,
+                percentOfIncome: null,
+                percentOfExpenses: null,
+                distributionRole:
+                    CategoryFinancialDistributionRole.mandatoryExpenses,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+              FinancialStateCategoryContributor(
+                categoryId: 'restaurant',
+                stableKey: CategoryStableKey.expenseFoodRestaurant,
+                amount: 50,
+                percentOfIncome: null,
+                percentOfExpenses: null,
+                distributionRole: CategoryFinancialDistributionRole.wants,
+                spendingPattern: SpendingPattern.usuallyVariable,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        tester.getTopLeft(find.text(groceries.name)).dy,
+        lessThan(tester.getTopLeft(find.text(restaurant.name)).dy),
+      );
+    });
+
+    testWidgets('builder shows empty state', (tester) async {
+      final l10n = AppLocalizationsEn();
+
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsResult: Success(_snapshot(contributors: const [])),
+      );
+      await tester.pump();
+      expect(find.text(l10n.dashboardContributorEmpty), findsOneWidget);
+    });
+
+    testWidgets('builder shows loading state', (tester) async {
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsFuture:
+            Completer<Result<FinancialStateCategoryContributorsSnapshot>>()
+                .future,
+      );
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('builder handles failure state', (tester) async {
+      final l10n = AppLocalizationsEn();
+
+      await _pumpDashboardWidget(
+        tester,
+        const DashboardFinancialStateCategoryContributorsBuilder(),
+        contributorsResult:
+            const Failure<FinancialStateCategoryContributorsSnapshot>(
+              UnknownFailure(),
+            ),
+      );
+      await tester.pump();
+      expect(find.text(l10n.failureUnknown), findsOneWidget);
+    });
+  });
+}
+
+final class _FakeProfileRepository implements ProfileRepository {
+  const _FakeProfileRepository({required this.profile});
+
+  final Profile profile;
+
+  @override
+  Future<Result<Profile>> getCurrentProfile() async {
+    return Success(profile);
+  }
+
+  @override
+  Future<Result<Profile>> updateProfile(Profile profile) async {
+    return Success(profile);
+  }
+
+  @override
+  Stream<Result<Profile>> watchCurrentProfile() {
+    return Stream.value(Success(profile));
+  }
+}
+
+Profile _profile() {
+  final now = DateTime.utc(2026);
+
+  return Profile(
+    id: 'profile',
+    email: 'ada@example.com',
+    fullName: 'Ada',
+    locale: 'en',
+    currencyCode: 'CAD',
+    timezone: 'America/Toronto',
+    onboardingCompleted: true,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+Future<void> _pumpDashboardWidget(
+  WidgetTester tester,
+  Widget child, {
+  Result<FinancialStateCategoryContributorsSnapshot>? contributorsResult,
+  Future<Result<FinancialStateCategoryContributorsSnapshot>>?
+  contributorsFuture,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        financialStateCategoryContributorsProvider.overrideWith(
+          (ref) =>
+              contributorsFuture ??
+              Future.value(
+                contributorsResult ??
+                    Success(_snapshot(contributors: const [])),
+              ),
+        ),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: child),
+      ),
+    ),
+  );
+}
+
+DashboardFinancialStateDetailPresentation _detail() {
+  return const DashboardFinancialStateDetailPresentation(
+    title: 'Financial state',
+    currentStateTitle: 'Current state',
+    currentStateDescription: 'Current state description',
+    whyTitle: 'Why',
+    whyDescription: 'Why description',
+    problemsTitle: 'Problems',
+    problems: ['Problem'],
+    influenceTitle: 'Influence',
+    buckets: [],
+    recommendationTitle: 'Recommendation',
+    recommendationDescription: 'Recommendation description',
+    evidenceTitle: 'Evidence',
+    evidence: ['Evidence'],
+  );
+}
+
+FinancialStateCategoryContributorsSnapshot _snapshot({
+  FinancialStateType stateType = FinancialStateType.deficit,
+  double requiredAmount = 100,
+  List<FinancialStateCategoryContributor> contributors = const [],
+}) {
+  return FinancialStateCategoryContributorsSnapshot(
+    stateType: stateType,
+    strategy: _strategyFor(stateType),
+    requiredAmount: requiredAmount,
+    coveredAmount: 0,
+    isCoverageComplete: false,
+    currencyCode: 'CAD',
+    confidence: FinancialStateConfidence.high,
+    contributors: contributors,
+    limitations: const <FinancialModelLimitation>[],
+  );
+}
+
+FinancialStateContributorStrategy _strategyFor(FinancialStateType stateType) {
+  return switch (stateType) {
+    FinancialStateType.deficit =>
+      FinancialStateContributorStrategy.closeDeficit,
+    FinancialStateType.fragileBalance =>
+      FinancialStateContributorStrategy.buildSafetyMargin,
+    FinancialStateType.stable =>
+      FinancialStateContributorStrategy.preserveStability,
+    FinancialStateType.growth =>
+      FinancialStateContributorStrategy.supportGrowth,
+    FinancialStateType.strongPosition =>
+      FinancialStateContributorStrategy.protectStrongPosition,
+  };
+}
+
+DashboardPresentation _dashboardPresentation() {
+  const financialState = DashboardFinancialStatePresentation(
+    title: 'Income distribution',
+    subtitle: 'Distribution subtitle',
+    items: [
+      DashboardPeriodDistributionItemPresentation(
+        label: 'Income',
+        amount: '100.00 CAD',
+        percent: '100%',
+        progress: 1,
+        icon: Icons.south_west,
+        color: Colors.green,
+        backgroundColor: Colors.white,
+        hasDetail: false,
+      ),
+    ],
+    stateLabel: 'Stable',
+    stateDescription: 'State description',
+    stateIcon: Icons.check_circle,
+    stateColor: Colors.green,
+    stateBackgroundColor: Colors.white,
+    incomeTotalLabel: 'Income',
+    incomeTotalAmount: '100.00 CAD',
+    expenseTotalLabel: 'Expenses',
+    expenseTotalAmount: '80.00 CAD',
+    netCashFlowLabel: 'Net',
+    netCashFlowAmount: '20.00 CAD',
+    periodLabel: 'This month',
+    detailButtonLabel: 'Details',
+    detail: DashboardFinancialStateDetailPresentation(
+      title: 'Financial state',
+      currentStateTitle: 'Current state',
+      currentStateDescription: 'Current state description',
+      whyTitle: 'Why',
+      whyDescription: 'Why description',
+      problemsTitle: 'Problems',
+      problems: [],
+      influenceTitle: 'Influence',
+      buckets: [],
+      recommendationTitle: 'Recommendation',
+      recommendationDescription: 'Recommendation description',
+      evidenceTitle: 'Evidence',
+      evidence: [],
+    ),
+  );
+
+  const message = DashboardMessagePresentation(
+    title: 'Title',
+    description: 'Description',
+    icon: Icons.info,
+    color: Colors.blue,
+    backgroundColor: Colors.white,
+  );
+
+  return const DashboardPresentation(
+    assistantSummary: DashboardAssistantSummaryPresentation(
+      stateTitle: 'State',
+      stateDescription: 'State description',
+      financialState: financialState,
+      radar: DashboardRadarPresentation(
+        axes: [],
+        isLowConfidence: false,
+        caption: 'Caption',
+      ),
+      why: message,
+      whatNext: message,
+      recommendedAction: message,
+      detailLinks: [],
+    ),
+    today: DashboardTodayPresentation(
+      net: '20.00 CAD',
+      income: '100.00 CAD',
+      expenses: '80.00 CAD',
+      operationCount: '2',
+      summary: 'Summary',
+    ),
+    recordedBalance: DashboardRecordedBalancePresentation(
+      amount: '100.00 CAD',
+      description: 'Balance',
+    ),
+    cashFlow: DashboardCashFlowPresentation(
+      income: '100.00 CAD',
+      expenses: '80.00 CAD',
+      net: '20.00 CAD',
+      summary: 'Summary',
+      groups: [],
+    ),
+    insights: [],
+    upcoming: [],
+    actions: [],
+  );
+}
