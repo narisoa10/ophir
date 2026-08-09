@@ -3,9 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/result.dart';
 import '../../domain/entities/account.dart';
+import '../../domain/entities/institution.dart';
 import '../../domain/repositories/account_repository.dart';
 import '../dto/account_dto.dart';
+import '../dto/institution_dto.dart';
 import '../mappers/account_mapper.dart';
+import '../mappers/institution_mapper.dart';
 
 final class SupabaseAccountRepository implements AccountRepository {
   const SupabaseAccountRepository(this._client);
@@ -13,6 +16,7 @@ final class SupabaseAccountRepository implements AccountRepository {
   final SupabaseClient _client;
 
   static const _table = 'accounts';
+  static const _institutionsTable = 'institutions';
 
   String? get _currentUserId => _client.auth.currentUser?.id;
 
@@ -37,6 +41,33 @@ final class SupabaseAccountRepository implements AccountRepository {
           .toList(growable: false);
 
       return Success(accounts);
+    } on PostgrestException {
+      return const Failure(DatabaseFailure());
+    } catch (_) {
+      return const Failure(UnknownFailure());
+    }
+  }
+
+  @override
+  Future<Result<List<Institution>>> getInstitutions() async {
+    final userId = _currentUserId;
+
+    if (userId == null) {
+      return const Failure(UnauthorizedFailure());
+    }
+
+    try {
+      final data = await _client
+          .from(_institutionsTable)
+          .select()
+          .eq('user_id', userId)
+          .order('created_at');
+
+      final institutions = data
+          .map((json) => InstitutionDto.fromJson(json).toEntity())
+          .toList(growable: false);
+
+      return Success(institutions);
     } on PostgrestException {
       return const Failure(DatabaseFailure());
     } catch (_) {

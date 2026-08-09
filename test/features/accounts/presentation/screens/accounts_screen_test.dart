@@ -5,6 +5,7 @@ import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/features/accounts/controller/account_providers.dart';
 import 'package:ophir/features/accounts/domain/entities/account.dart';
+import 'package:ophir/features/accounts/domain/entities/institution.dart';
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/accounts/presentation/screens/accounts_screen.dart';
@@ -102,6 +103,11 @@ final class _FakeAccountRepository implements AccountRepository {
   }
 
   @override
+  Future<Result<List<Institution>>> getInstitutions() async {
+    return const Success(<Institution>[]);
+  }
+
+  @override
   Future<Result<Account>> updateAccount(Account account) async {
     return Success(account);
   }
@@ -116,7 +122,11 @@ Account _account({required String name}) {
     name: name,
     type: AccountType.bank,
     currencyCode: 'CAD',
-    initialBalance: 100,
+    institutionId: 'institution-1',
+    plaidItemId: 'item-1',
+    plaidAccountId: 'plaid-account-1',
+    mask: '1234',
+    currentBalance: 100,
     iconKey: 'bank',
     colorKey: 'blue',
     sortOrder: 0,

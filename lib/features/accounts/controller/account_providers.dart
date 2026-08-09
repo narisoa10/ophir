@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/errors/result.dart';
 import '../data/repositories/supabase_account_repository.dart';
 import '../domain/entities/account.dart';
+import '../domain/entities/institution.dart';
 import '../domain/repositories/account_repository.dart';
 
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
@@ -13,4 +14,11 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
 final accountsProvider = FutureProvider<Result<List<Account>>>((ref) {
   final repository = ref.watch(accountRepositoryProvider);
   return repository.getAccounts();
+});
+
+final accountInstitutionsProvider = FutureProvider<Result<List<Institution>>>((
+  ref,
+) {
+  final repository = ref.watch(accountRepositoryProvider);
+  return repository.getInstitutions();
 });

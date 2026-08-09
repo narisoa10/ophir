@@ -10,14 +10,16 @@ import '../models/account_presentation.dart';
 class AccountListTile extends StatelessWidget {
   const AccountListTile({
     required this.account,
-    this.initialBalance,
+    this.balance,
     this.currencyCode,
+    this.subtitle,
     super.key,
   });
 
   final AccountPresentation account;
-  final double? initialBalance;
+  final double? balance;
   final String? currencyCode;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,12 @@ class AccountListTile extends StatelessWidget {
         account.name,
         style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
       ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
+            ),
       trailing: trailing,
     );
   }
@@ -62,16 +70,15 @@ class AccountListTile extends StatelessWidget {
   }
 
   Widget? _buildTrailing(AppThemeColors colors) {
-    final balance = initialBalance;
-
-    if (balance == null) {
+    final displayBalance = balance;
+    if (displayBalance == null) {
       return null;
     }
 
     final currency = currencyCode;
     final text = currency == null
-        ? balance.toStringAsFixed(2)
-        : '${balance.toStringAsFixed(2)} $currency';
+        ? displayBalance.toStringAsFixed(2)
+        : '${displayBalance.toStringAsFixed(2)} $currency';
 
     return Text(
       text,
