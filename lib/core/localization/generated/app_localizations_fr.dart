@@ -1346,6 +1346,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vous n\'avez encore aucun compte.\nAppuyez sur + pour créer votre premier compte.';
 
   @override
+  String get accountsConnectBank => 'Connecter une banque';
+
+  @override
   String get accountCreateTitle => 'Créer un compte';
 
   @override

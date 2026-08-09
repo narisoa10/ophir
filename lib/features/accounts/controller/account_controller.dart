@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/result.dart';
 import '../domain/entities/account.dart';
-import '../domain/enums/account_source.dart';
 import '../domain/services/account_visual_defaults.dart';
 import 'account_providers.dart';
 import 'create_manual_account_command.dart';
@@ -30,7 +29,6 @@ final class AccountController extends AsyncNotifier<Result<List<Account>>> {
       userId: '',
       name: command.name,
       type: command.type,
-      source: AccountSource.manual,
       currencyCode: command.currencyCode,
       initialBalance: command.initialBalance,
       iconKey: visualDefaults.iconKey,

@@ -1311,6 +1311,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'You don\'t have any accounts yet.\nTap + to create your first account.';
 
   @override
+  String get accountsConnectBank => 'Connect bank';
+
+  @override
   String get accountCreateTitle => 'Create account';
 
   @override

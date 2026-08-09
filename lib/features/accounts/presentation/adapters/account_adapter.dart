@@ -6,9 +6,11 @@ final class AccountAdapter {
   const AccountAdapter();
 
   AccountPresentation toPresentation(Account account) {
+    final iconKey = account.iconKey;
+
     return AccountPresentation(
       name: account.name,
-      icon: AppAccountIcons.fromKey(account.iconKey),
+      icon: iconKey == null ? null : AppAccountIcons.fromKey(iconKey),
       colorKey: account.colorKey,
     );
   }

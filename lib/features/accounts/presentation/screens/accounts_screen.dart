@@ -1,25 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../app/router/app_routes.dart';
+import '../../../../core/errors/app_failure_localization.dart';
 import '../../../../core/errors/result.dart';
-import '../../../../core/icons/app_icons.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/theme_v1/app_colors.dart';
 import '../../../../core/theme_v1/app_spacing.dart';
 import '../../../../core/theme_v1/app_typography.dart';
 import '../../controller/account_controller.dart';
+import '../../data/plaid/plaid_connect_service.dart';
 import '../../domain/entities/account.dart';
 import '../adapters/account_adapter.dart';
 import '../widgets/account_list_tile.dart';
 import '../widgets/accounts_empty_state.dart';
 
-class AccountsScreen extends ConsumerWidget {
+class AccountsScreen extends ConsumerStatefulWidget {
   const AccountsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountsScreen> createState() => _AccountsScreenState();
+}
+
+class _AccountsScreenState extends ConsumerState<AccountsScreen> {
+  bool _isConnecting = false;
+
+  Future<void> _connectBank() async {
+    if (_isConnecting) {
+      return;
+    }
+
+    setState(() => _isConnecting = true);
+
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final outcome = await PlaidConnectService(
+      Supabase.instance.client,
+    ).connect(locale: locale);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isConnecting = false);
+
+    if (outcome case PlaidConnectFailed(:final failure)) {
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failure.localized(l10n))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final accountsState = ref.watch(accountControllerProvider);
     final l10n = AppLocalizations.of(context);
     const adapter = AccountAdapter();
@@ -29,34 +62,50 @@ class AccountsScreen extends ConsumerWidget {
       body: SafeArea(
         child: Padding(
           padding: AppSpacing.screen,
-          child: accountsState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stackTrace) => Center(
-              child: Text(
-                l10n.failureUnknown,
-                style: AppTypography.bodyMd.copyWith(
-                  color: AppColors.textSecondary,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: accountsState.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, stackTrace) => Center(
+                    child: Text(
+                      l10n.failureUnknown,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  data: (result) {
+                    return switch (result) {
+                      Success<List<Account>>(:final value) =>
+                        _buildAccountsList(
+                          l10n: l10n,
+                          accounts: value,
+                          adapter: adapter,
+                        ),
+                      Failure<List<Account>>() => const AccountsEmptyState(),
+                    };
+                  },
                 ),
               ),
-            ),
-            data: (result) {
-              return switch (result) {
-                Success<List<Account>>(:final value) => _buildAccountsList(
-                  l10n: l10n,
-                  accounts: value,
-                  adapter: adapter,
-                ),
-                Failure<List<Account>>() => const AccountsEmptyState(),
-              };
-            },
+              FilledButton(
+                onPressed: _isConnecting ? null : _connectBank,
+                child: _isConnecting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        l10n.accountsConnectBank,
+                        style: AppTypography.buttonMd,
+                      ),
+              ),
+            ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textInverse,
-        onPressed: () => context.push(AppRoutes.createAccount),
-        child: const Icon(AppIcons.actionAdd),
       ),
     );
   }

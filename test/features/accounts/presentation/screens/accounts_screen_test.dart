@@ -12,38 +12,47 @@ import 'package:ophir/features/accounts/presentation/widgets/accounts_empty_stat
 
 void main() {
   group('AccountsScreen', () {
-    testWidgets('empty accounts show title, empty state, and create action', (
-      tester,
-    ) async {
+    testWidgets(
+      'empty accounts show title, empty state, and connect bank action',
+      (tester) async {
+        final l10n = lookupAppLocalizations(const Locale('en'));
+
+        await tester.pumpWidget(
+          _TestApp(
+            repository: _FakeAccountRepository(accounts: const []),
+            child: const AccountsScreen(),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text(l10n.accountsTitle), findsOneWidget);
+        expect(find.byType(AccountsEmptyState), findsOneWidget);
+        expect(
+          find.widgetWithText(FilledButton, l10n.accountsConnectBank),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('existing account list renders', (tester) async {
       final l10n = lookupAppLocalizations(const Locale('en'));
 
       await tester.pumpWidget(
         _TestApp(
-          repository: _FakeAccountRepository(accounts: const []),
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text(l10n.accountsTitle), findsOneWidget);
-      expect(find.byType(AccountsEmptyState), findsOneWidget);
-      expect(find.byType(FloatingActionButton), findsOneWidget);
-    });
-
-    testWidgets('existing manual account list renders', (tester) async {
-      await tester.pumpWidget(
-        _TestApp(
           repository: _FakeAccountRepository(
-            accounts: [_account(name: 'Cash wallet')],
+            accounts: [_account(name: 'Checking')],
           ),
           child: const AccountsScreen(),
         ),
       );
       await tester.pump();
 
-      expect(find.text('Cash wallet'), findsOneWidget);
+      expect(find.text('Checking'), findsOneWidget);
       expect(find.byType(AccountsEmptyState), findsNothing);
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, l10n.accountsConnectBank),
+        findsOneWidget,
+      );
     });
   });
 }
@@ -105,11 +114,11 @@ Account _account({required String name}) {
     id: 'account-1',
     userId: 'user-1',
     name: name,
-    type: AccountType.cash,
+    type: AccountType.bank,
     currencyCode: 'CAD',
     initialBalance: 100,
-    iconKey: 'cash',
-    colorKey: 'green',
+    iconKey: 'bank',
+    colorKey: 'blue',
     sortOrder: 0,
     isArchived: false,
     createdAt: now,

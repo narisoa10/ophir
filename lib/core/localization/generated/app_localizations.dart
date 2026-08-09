@@ -2537,6 +2537,12 @@ abstract class AppLocalizations {
   /// **'You don\'t have any accounts yet.\nTap + to create your first account.'**
   String get accountsEmptyMessage;
 
+  /// No description provided for @accountsConnectBank.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect bank'**
+  String get accountsConnectBank;
+
   /// No description provided for @accountCreateTitle.
   ///
   /// In en, this message translates to:

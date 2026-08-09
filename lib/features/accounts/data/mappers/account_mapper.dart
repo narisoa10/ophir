@@ -1,5 +1,4 @@
 import '../../domain/entities/account.dart';
-import '../../domain/enums/account_source.dart';
 import '../../domain/enums/account_type.dart';
 import '../dto/account_dto.dart';
 
@@ -9,9 +8,9 @@ extension AccountDtoMapper on AccountDto {
       id: id,
       userId: userId,
       name: name,
-      type: AccountType.fromJson(type),
-      source: AccountSource.fromJson(source),
+      type: type == null ? null : AccountType.fromJson(type!),
       currencyCode: currencyCode,
+      unofficialCurrencyCode: unofficialCurrencyCode,
       initialBalance: initialBalance,
       iconKey: iconKey,
       colorKey: colorKey,
@@ -19,6 +18,16 @@ extension AccountDtoMapper on AccountDto {
       isArchived: isArchived,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      plaidItemId: plaidItemId,
+      institutionId: institutionId,
+      plaidAccountId: plaidAccountId,
+      officialName: officialName,
+      mask: mask,
+      plaidType: plaidType,
+      plaidSubtype: plaidSubtype,
+      currentBalance: currentBalance,
+      availableBalance: availableBalance,
+      balanceFetchedAt: balanceFetchedAt,
     );
   }
 }
@@ -29,9 +38,9 @@ extension AccountEntityMapper on Account {
       id: id,
       userId: userId,
       name: name,
-      type: type.toJson(),
-      source: source.toJson(),
+      type: type?.toJson(),
       currencyCode: currencyCode,
+      unofficialCurrencyCode: unofficialCurrencyCode,
       initialBalance: initialBalance,
       iconKey: iconKey,
       colorKey: colorKey,
@@ -39,6 +48,16 @@ extension AccountEntityMapper on Account {
       isArchived: isArchived,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      plaidItemId: plaidItemId,
+      institutionId: institutionId,
+      plaidAccountId: plaidAccountId,
+      officialName: officialName,
+      mask: mask,
+      plaidType: plaidType,
+      plaidSubtype: plaidSubtype,
+      currentBalance: currentBalance,
+      availableBalance: availableBalance,
+      balanceFetchedAt: balanceFetchedAt,
     );
   }
 }

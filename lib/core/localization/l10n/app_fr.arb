@@ -419,6 +419,7 @@
     "operationAmountRequired":  "Veuillez saisir un montant valide.",
     "operationCategoryRequired":  "Veuillez choisir une catégorie.",
     "accountsEmptyMessage":  "Vous n\u0027avez encore aucun compte.\nAppuyez sur + pour créer votre premier compte.",
+    "accountsConnectBank":  "Connecter une banque",
     "accountCreateTitle":  "Créer un compte",
     "accountNameHint":  "Nom du compte",
     "accountNameRequired":  "Le nom du compte est requis.",

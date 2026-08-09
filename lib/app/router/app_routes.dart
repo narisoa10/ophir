@@ -21,7 +21,6 @@ abstract final class AppRoutes {
   static const String settingsAbout = '/settings/about';
   static const String budgetEdit = '/settings/budget-planning';
   static const String categoryRules = '/settings/category-rules';
-  static const String createAccount = '/accounts/create';
   static const String operationRecurrencePicker = '/operations/recurrence';
   static const budgetSetup = '/budget-setup';
 

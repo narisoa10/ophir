@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/screens/accounts_screen.dart';
-import '../../features/accounts/presentation/screens/create_account_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/budget_planning/controller/budget_setup_gate_provider.dart';
 import '../../features/budget_planning/presentation/screens/budget_setup_screen.dart';
@@ -105,10 +104,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.accounts,
         builder: (context, state) => const AccountsScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.createAccount,
-        builder: (context, state) => const CreateAccountScreen(),
       ),
       GoRoute(
         path: AppRoutes.profileEdit,

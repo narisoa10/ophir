@@ -419,6 +419,7 @@
     "operationAmountRequired":  "Введите корректную сумму.",
     "operationCategoryRequired":  "Выберите категорию.",
     "accountsEmptyMessage":  "У вас пока нет ни одного счета.\nНажмите +, чтобы создать первый счет.",
+    "accountsConnectBank":  "Подключить банк",
     "accountCreateTitle":  "Создать счёт",
     "accountNameHint":  "Название счёта",
     "accountNameRequired":  "Название счёта обязательно.",
