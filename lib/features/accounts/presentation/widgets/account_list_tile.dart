@@ -28,7 +28,9 @@ class AccountListTile extends StatelessWidget {
     final trailing = _buildTrailing(colors);
 
     return ListTile(
-      contentPadding: AppSpacing.cardInsets,
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: AppSpacing.compactListTileInsets,
       leading: leading,
       title: Text(
         account.name,

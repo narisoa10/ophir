@@ -183,7 +183,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     return ListView.separated(
       itemCount: children.length,
       separatorBuilder: (context, index) {
-        return const SizedBox(height: AppSpacing.sm);
+        return const SizedBox(height: AppSpacing.hairline);
       },
       itemBuilder: (context, index) => children[index],
     );
