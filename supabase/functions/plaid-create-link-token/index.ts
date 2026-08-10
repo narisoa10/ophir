@@ -107,6 +107,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
         language,
         country_codes: PLAID_COUNTRY_CODES,
         products: PLAID_PRODUCTS,
+        transactions: {
+          days_requested: 730,
+        },
         user: {
           client_user_id: user.id,
         },
