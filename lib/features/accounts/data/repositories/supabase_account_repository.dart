@@ -5,6 +5,7 @@ import '../../../../core/errors/result.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/entities/institution.dart';
 import '../../domain/repositories/account_repository.dart';
+import '../../domain/services/account_financial_participation_policy.dart';
 import '../dto/account_dto.dart';
 import '../dto/institution_dto.dart';
 import '../mappers/account_mapper.dart';
@@ -17,6 +18,8 @@ final class SupabaseAccountRepository implements AccountRepository {
 
   static const _table = 'accounts';
   static const _institutionsTable = 'institutions';
+  static const _financialParticipationPolicy =
+      AccountFinancialParticipationPolicy();
 
   String? get _currentUserId => _client.auth.currentUser?.id;
 
@@ -49,6 +52,18 @@ final class SupabaseAccountRepository implements AccountRepository {
   }
 
   @override
+  Future<Result<List<Account>>> getFinanciallyActiveAccounts() async {
+    final result = await getAccounts();
+
+    return switch (result) {
+      Success<List<Account>>(:final value) => Success(
+        _financialParticipationPolicy.financiallyActiveAccounts(value),
+      ),
+      Failure<List<Account>>(:final failure) => Failure(failure),
+    };
+  }
+
+  @override
   Future<Result<List<Institution>>> getInstitutions() async {
     final userId = _currentUserId;
 
@@ -76,7 +91,10 @@ final class SupabaseAccountRepository implements AccountRepository {
   }
 
   @override
-  Future<Result<Account>> createAccount(Account account) async {
+  Future<Result<Account>> updateAccountFinancialParticipation({
+    required String accountId,
+    required bool isIncludedInFinances,
+  }) async {
     final userId = _currentUserId;
 
     if (userId == null) {
@@ -84,99 +102,15 @@ final class SupabaseAccountRepository implements AccountRepository {
     }
 
     try {
-      final dto = account.toDto();
-      final insertJson = dto.toInsertJson()..['user_id'] = userId;
-
       final data = await _client
           .from(_table)
-          .insert(insertJson)
-          .select()
-          .single();
-
-      return Success(AccountDto.fromJson(data).toEntity());
-    } on PostgrestException {
-      return const Failure(DatabaseFailure());
-    } catch (_) {
-      return const Failure(UnknownFailure());
-    }
-  }
-
-  @override
-  Future<Result<List<Account>>> createAccounts(List<Account> accounts) async {
-    final userId = _currentUserId;
-
-    if (userId == null) {
-      return const Failure(UnauthorizedFailure());
-    }
-
-    if (accounts.isEmpty) {
-      return const Success(<Account>[]);
-    }
-
-    try {
-      final insertJson = accounts
-          .map((account) {
-            return account.toDto().toInsertJson()..['user_id'] = userId;
-          })
-          .toList(growable: false);
-
-      final data = await _client.from(_table).insert(insertJson).select();
-
-      final createdAccounts = data
-          .map((json) => AccountDto.fromJson(json).toEntity())
-          .toList(growable: false);
-
-      return Success(createdAccounts);
-    } on PostgrestException {
-      return const Failure(DatabaseFailure());
-    } catch (_) {
-      return const Failure(UnknownFailure());
-    }
-  }
-
-  @override
-  Future<Result<Account>> updateAccount(Account account) async {
-    final userId = _currentUserId;
-
-    if (userId == null) {
-      return const Failure(UnauthorizedFailure());
-    }
-
-    try {
-      final dto = account.toDto();
-
-      final data = await _client
-          .from(_table)
-          .update(dto.toUpdateJson())
-          .eq('id', account.id)
+          .update({'is_included_in_finances': isIncludedInFinances})
+          .eq('id', accountId)
           .eq('user_id', userId)
           .select()
           .single();
 
       return Success(AccountDto.fromJson(data).toEntity());
-    } on PostgrestException {
-      return const Failure(DatabaseFailure());
-    } catch (_) {
-      return const Failure(UnknownFailure());
-    }
-  }
-
-  @override
-  Future<Result<void>> archiveAccount(String accountId) async {
-    final userId = _currentUserId;
-
-    if (userId == null) {
-      return const Failure(UnauthorizedFailure());
-    }
-
-    try {
-      await _client
-          .from(_table)
-          .update({'is_archived': true})
-          .eq('id', accountId)
-          .eq('user_id', userId);
-
-      return const Success(null);
     } on PostgrestException {
       return const Failure(DatabaseFailure());
     } catch (_) {

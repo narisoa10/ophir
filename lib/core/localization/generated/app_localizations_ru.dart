@@ -1331,61 +1331,58 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountsEmptyMessage =>
-      'У вас пока нет ни одного счета.\nНажмите +, чтобы создать первый счет.';
+      'У вас пока нет ни одного счёта.\nПодключите банк, чтобы увидеть свои счета.';
 
   @override
   String get accountsConnectBank => 'Подключить банк';
 
   @override
-  String get accountCreateTitle => 'Создать счёт';
+  String get accountsDuplicateConnectionDialogTitle => 'Счёт уже подключён';
 
   @override
-  String get accountNameHint => 'Название счёта';
+  String get accountsDuplicateConnectionDialogBody =>
+      'Plaid успешно подтвердил доступ к банку, но этот банковский счёт уже подключён к Ophir. Чтобы избежать дублирования операций и неточных расчётов, мы не добавили его повторно. Вы можете продолжить пользоваться уже подключённым счётом или подключить другой.';
 
   @override
-  String get accountNameRequired => 'Название счёта обязательно.';
+  String get accountsDuplicateConnectionDialogAction => 'Понятно';
 
   @override
-  String get accountTypeHint => 'Тип счёта';
+  String accountsInstitutionAccountCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count счёта',
+      many: '$count счетов',
+      few: '$count счёта',
+      one: '$count счёт',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get accountCurrencyHint => 'Валюта';
+  String get accountsFinancialParticipationIncludedStatus =>
+      'Учитывается в финансах';
 
   @override
-  String get accountInitialBalanceHint => 'Начальный баланс';
+  String get accountsFinancialParticipationExcludedStatus =>
+      'Не учитывается в финансах';
 
   @override
-  String get accountInitialBalanceRequired => 'Начальный баланс обязателен.';
+  String get accountsFinancialExclusionDialogTitle =>
+      'Не учитывать в финансах?';
 
   @override
-  String get accountInitialBalanceInvalid => 'Введите корректную сумму.';
+  String get accountsFinancialExclusionDialogBody =>
+      'Этот счёт останется подключённым и будет обновляться, но его баланс и операции не будут учитываться в финансовых расчётах, отчётах и советах.';
 
   @override
-  String get accountTypeCash => 'Наличные';
+  String get accountsFinancialExclusionDialogCancel => 'Отмена';
 
   @override
-  String get accountTypeBank => 'Банк';
+  String get accountsFinancialExclusionDialogConfirm => 'Не учитывать';
 
   @override
-  String get accountTypeCard => 'Карта';
-
-  @override
-  String get accountTypeCreditCard => 'Кредитная карта';
-
-  @override
-  String get accountTypeSavings => 'Сбережения';
-
-  @override
-  String get accountTypeInvestment => 'Инвестиции';
-
-  @override
-  String get accountTypeLoan => 'Кредит';
-
-  @override
-  String get accountTypeWallet => 'Кошелёк';
-
-  @override
-  String get accountTypeOther => 'Другое';
+  String get accountsBankMenuSync => 'Синхронизировать';
 
   @override
   String get dashboardTitle => 'Дашборд';

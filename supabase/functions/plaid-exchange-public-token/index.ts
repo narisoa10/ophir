@@ -11,6 +11,16 @@ import {
 const PLAID_SANDBOX_PUBLIC_TOKEN_EXCHANGE_URL =
   "https://sandbox.plaid.com/item/public_token/exchange";
 
+type IncomingSelectedAccount = {
+  name: string;
+  mask: string;
+};
+
+type IncomingDuplicateMetadata = {
+  institutionId: string;
+  selectedAccounts: IncomingSelectedAccount[];
+};
+
 function readPublicToken(body: Record<string, unknown>): string | null {
   const publicToken = body.public_token;
   if (typeof publicToken === "string" && publicToken.trim().length > 0) {
@@ -18,6 +28,112 @@ function readPublicToken(body: Record<string, unknown>): string | null {
   }
 
   return null;
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readDuplicateMetadata(
+  body: Record<string, unknown>,
+): IncomingDuplicateMetadata | null {
+  const institutionId = readNonEmptyString(body.institution_id);
+  const selectedAccounts = body.selected_accounts;
+
+  if (institutionId === null || !Array.isArray(selectedAccounts)) {
+    return null;
+  }
+
+  const accounts: IncomingSelectedAccount[] = [];
+
+  for (const selectedAccount of selectedAccounts) {
+    if (
+      !selectedAccount ||
+      typeof selectedAccount !== "object" ||
+      Array.isArray(selectedAccount)
+    ) {
+      return null;
+    }
+
+    const accountRecord = selectedAccount as Record<string, unknown>;
+    const name = readNonEmptyString(accountRecord.name);
+    const mask = readNonEmptyString(accountRecord.mask);
+
+    if (name === null || mask === null) {
+      return null;
+    }
+
+    accounts.push({ name, mask });
+  }
+
+  if (accounts.length === 0) {
+    return null;
+  }
+
+  return {
+    institutionId,
+    selectedAccounts: accounts,
+  };
+}
+
+async function hasDuplicateSelectedAccount(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+  metadata: IncomingDuplicateMetadata,
+): Promise<boolean | null> {
+  const { data: institutions, error: institutionsError } = await supabaseAdmin
+    .from("institutions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("plaid_institution_id", metadata.institutionId);
+
+  if (institutionsError !== null || !Array.isArray(institutions)) {
+    return null;
+  }
+
+  const institutionIds = institutions
+    .map((institution) => readNonEmptyString(institution.id))
+    .filter((id): id is string => id !== null);
+
+  if (institutionIds.length === 0) {
+    return false;
+  }
+
+  const { data: accounts, error: accountsError } = await supabaseAdmin
+    .from("accounts")
+    .select("name, mask")
+    .eq("user_id", userId)
+    .in("institution_id", institutionIds);
+
+  if (accountsError !== null || !Array.isArray(accounts)) {
+    return null;
+  }
+
+  const existingAccountKeys = new Set<string>();
+  for (const account of accounts) {
+    const name = readNonEmptyString(account.name);
+    const mask = readNonEmptyString(account.mask);
+    if (name === null || mask === null) {
+      continue;
+    }
+
+    existingAccountKeys.add(accountIdentityKey(name, mask));
+  }
+
+  return metadata.selectedAccounts.some((account) => {
+    return existingAccountKeys.has(
+      accountIdentityKey(account.name, account.mask),
+    );
+  });
+}
+
+function accountIdentityKey(name: string, mask: string): string {
+  return `${name}\u0000${mask}`;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -42,6 +158,41 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const publicToken = readPublicToken(body);
   if (publicToken === null) {
     return errorResponse(400, "invalid_request");
+  }
+
+  const duplicateMetadata = readDuplicateMetadata(body);
+  if (duplicateMetadata === null) {
+    return errorResponse(400, "invalid_request");
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (
+    typeof supabaseUrl !== "string" ||
+    supabaseUrl.length === 0 ||
+    typeof serviceRoleKey !== "string" ||
+    serviceRoleKey.length === 0
+  ) {
+    return errorResponse(500, "supabase_config_missing");
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+  const isDuplicate = await hasDuplicateSelectedAccount(
+    supabaseAdmin,
+    user.id,
+    duplicateMetadata,
+  );
+
+  if (isDuplicate === null) {
+    return errorResponse(500, "duplicate_check_failed");
+  }
+
+  if (isDuplicate) {
+    return jsonResponse(200, {
+      status: "duplicate",
+    });
   }
 
   const clientId = Deno.env.get("PLAID_CLIENT_ID");
@@ -101,20 +252,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
   ) {
     return errorResponse(502, "plaid_request_failed");
   }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-  if (
-    typeof supabaseUrl !== "string" ||
-    supabaseUrl.length === 0 ||
-    typeof serviceRoleKey !== "string" ||
-    serviceRoleKey.length === 0
-  ) {
-    return errorResponse(500, "supabase_config_missing");
-  }
-
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
   const { data: connectionId, error: persistError } = await supabaseAdmin.rpc(
     "plaid_persist_sandbox_item",

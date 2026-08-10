@@ -20,6 +20,10 @@ final class PlaidConnectCancelled extends PlaidConnectOutcome {
   const PlaidConnectCancelled();
 }
 
+final class PlaidConnectDuplicate extends PlaidConnectOutcome {
+  const PlaidConnectDuplicate();
+}
+
 final class PlaidConnectFailed extends PlaidConnectOutcome {
   const PlaidConnectFailed(this.failure);
 
@@ -38,22 +42,29 @@ final class PlaidConnectService {
     }
 
     final linkToken = (linkTokenResult as Success<String>).value;
-    final publicTokenResult = await _openLink(linkToken);
-    if (publicTokenResult is Failure<String>) {
-      final failure = publicTokenResult.failure;
+    final linkSuccessResult = await _openLink(linkToken);
+    if (linkSuccessResult is Failure<PlaidLinkSuccessPayload>) {
+      final failure = linkSuccessResult.failure;
       if (failure is ValidationFailure) {
         return const PlaidConnectCancelled();
       }
       return PlaidConnectFailed(failure);
     }
 
-    final publicToken = (publicTokenResult as Success<String>).value;
-    final exchangeResult = await _exchangePublicToken(publicToken);
-    if (exchangeResult is Failure<String>) {
+    final linkSuccess =
+        (linkSuccessResult as Success<PlaidLinkSuccessPayload>).value;
+    final exchangeResult = await _exchangePublicToken(linkSuccess);
+    if (exchangeResult is Failure<PlaidExchangeResult>) {
       return PlaidConnectFailed(exchangeResult.failure);
     }
 
-    return PlaidConnectCompleted((exchangeResult as Success<String>).value);
+    final exchange = (exchangeResult as Success<PlaidExchangeResult>).value;
+    return switch (exchange) {
+      PlaidExchangeCompleted(:final connectionId) => PlaidConnectCompleted(
+        connectionId,
+      ),
+      PlaidExchangeDuplicate() => const PlaidConnectDuplicate(),
+    };
   }
 
   Future<Result<String>> _createLinkToken(String locale) async {
@@ -86,11 +97,13 @@ final class PlaidConnectService {
     }
   }
 
-  Future<Result<String>> _exchangePublicToken(String publicToken) async {
+  Future<Result<PlaidExchangeResult>> _exchangePublicToken(
+    PlaidLinkSuccessPayload payload,
+  ) async {
     try {
       final response = await _client.functions.invoke(
         'plaid-exchange-public-token',
-        body: {'public_token': publicToken},
+        body: payload.toJson(),
       );
 
       final failure = _failureFromResponseStatus(response.status);
@@ -103,12 +116,16 @@ final class PlaidConnectService {
         return const Failure(UnknownFailure());
       }
 
+      if (data['status'] == 'duplicate') {
+        return const Success(PlaidExchangeDuplicate());
+      }
+
       final connectionId = data['connection_id'];
       if (connectionId is! String || connectionId.isEmpty) {
         return const Failure(UnknownFailure());
       }
 
-      return Success(connectionId);
+      return Success(PlaidExchangeCompleted(connectionId));
     } on FunctionException catch (exception) {
       return Failure(_failureFromFunctionException(exception));
     } catch (_) {
@@ -116,16 +133,16 @@ final class PlaidConnectService {
     }
   }
 
-  Future<Result<String>> _openLink(String linkToken) async {
+  Future<Result<PlaidLinkSuccessPayload>> _openLink(String linkToken) async {
     StreamSubscription<LinkSuccess>? successSubscription;
     StreamSubscription<LinkExit>? exitSubscription;
-    final completer = Completer<Result<String>>();
+    final completer = Completer<Result<PlaidLinkSuccessPayload>>();
 
     successSubscription = PlaidLink.onSuccess.listen((success) {
       if (completer.isCompleted) {
         return;
       }
-      completer.complete(Success(success.publicToken));
+      completer.complete(_payloadFromLinkSuccess(success));
     });
 
     exitSubscription = PlaidLink.onExit.listen((exit) {
@@ -180,4 +197,89 @@ final class PlaidConnectService {
     }
     return const UnknownFailure();
   }
+
+  Result<PlaidLinkSuccessPayload> _payloadFromLinkSuccess(LinkSuccess success) {
+    final publicToken = success.publicToken;
+    if (publicToken.isEmpty) {
+      return const Failure(UnknownFailure());
+    }
+
+    final institutionId = success.metadata.institution?.id.trim();
+    if (institutionId == null || institutionId.isEmpty) {
+      return const Failure(ValidationFailure());
+    }
+
+    final selectedAccounts = <PlaidSelectedAccountMetadata>[];
+    for (final account in success.metadata.accounts) {
+      final name = account.name.trim();
+      final mask = account.mask?.trim();
+
+      if (name.isEmpty || mask == null || mask.isEmpty) {
+        return const Failure(ValidationFailure());
+      }
+
+      selectedAccounts.add(
+        PlaidSelectedAccountMetadata(name: name, mask: mask),
+      );
+    }
+
+    if (selectedAccounts.isEmpty) {
+      return const Failure(ValidationFailure());
+    }
+
+    return Success(
+      PlaidLinkSuccessPayload(
+        publicToken: publicToken,
+        institutionId: institutionId,
+        selectedAccounts: selectedAccounts,
+      ),
+    );
+  }
+}
+
+final class PlaidLinkSuccessPayload {
+  const PlaidLinkSuccessPayload({
+    required this.publicToken,
+    required this.institutionId,
+    required this.selectedAccounts,
+  });
+
+  final String publicToken;
+  final String institutionId;
+  final List<PlaidSelectedAccountMetadata> selectedAccounts;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'public_token': publicToken,
+      'institution_id': institutionId,
+      'selected_accounts': selectedAccounts
+          .map((account) => account.toJson())
+          .toList(growable: false),
+    };
+  }
+}
+
+final class PlaidSelectedAccountMetadata {
+  const PlaidSelectedAccountMetadata({required this.name, required this.mask});
+
+  final String name;
+  final String mask;
+
+  Map<String, dynamic> toJson() {
+    return {'name': name, 'mask': mask};
+  }
+}
+
+sealed class PlaidExchangeResult {
+  const PlaidExchangeResult();
+}
+
+final class PlaidExchangeCompleted extends PlaidExchangeResult {
+  const PlaidExchangeCompleted(this.connectionId);
+
+  final String connectionId;
+}
+
+final class PlaidExchangeDuplicate extends PlaidExchangeResult {
+  const PlaidExchangeDuplicate();
 }

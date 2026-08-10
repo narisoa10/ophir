@@ -1343,61 +1343,56 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountsEmptyMessage =>
-      'Vous n\'avez encore aucun compte.\nAppuyez sur + pour créer votre premier compte.';
+      'Vous n\'avez encore aucun compte.\nConnectez une banque pour afficher vos comptes.';
 
   @override
   String get accountsConnectBank => 'Connecter une banque';
 
   @override
-  String get accountCreateTitle => 'Créer un compte';
+  String get accountsDuplicateConnectionDialogTitle => 'Compte déjà connecté';
 
   @override
-  String get accountNameHint => 'Nom du compte';
+  String get accountsDuplicateConnectionDialogBody =>
+      'Plaid a confirmé avec succès l\'accès à votre banque, mais ce compte bancaire est déjà connecté à Ophir. Afin d\'éviter les opérations en double et des calculs inexacts, nous ne l\'avons pas ajouté une seconde fois. Vous pouvez continuer à utiliser le compte déjà connecté ou en connecter un autre.';
 
   @override
-  String get accountNameRequired => 'Le nom du compte est requis.';
+  String get accountsDuplicateConnectionDialogAction => 'Compris';
 
   @override
-  String get accountTypeHint => 'Type de compte';
+  String accountsInstitutionAccountCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count comptes',
+      one: '1 compte',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get accountCurrencyHint => 'Devise';
+  String get accountsFinancialParticipationIncludedStatus =>
+      'Inclus dans les finances';
 
   @override
-  String get accountInitialBalanceHint => 'Solde initial';
+  String get accountsFinancialParticipationExcludedStatus =>
+      'Exclu des finances';
 
   @override
-  String get accountInitialBalanceRequired => 'Le solde initial est requis.';
+  String get accountsFinancialExclusionDialogTitle =>
+      'Ne plus inclure dans les finances ?';
 
   @override
-  String get accountInitialBalanceInvalid => 'Entrez un montant valide.';
+  String get accountsFinancialExclusionDialogBody =>
+      'Ce compte restera connecté et continuera à être mis à jour, mais son solde et ses opérations ne seront pas pris en compte dans les calculs financiers, les rapports et les conseils.';
 
   @override
-  String get accountTypeCash => 'Espèces';
+  String get accountsFinancialExclusionDialogCancel => 'Annuler';
 
   @override
-  String get accountTypeBank => 'Banque';
+  String get accountsFinancialExclusionDialogConfirm => 'Ne pas inclure';
 
   @override
-  String get accountTypeCard => 'Carte';
-
-  @override
-  String get accountTypeCreditCard => 'Carte de crédit';
-
-  @override
-  String get accountTypeSavings => 'Épargne';
-
-  @override
-  String get accountTypeInvestment => 'Investissement';
-
-  @override
-  String get accountTypeLoan => 'Prêt';
-
-  @override
-  String get accountTypeWallet => 'Portefeuille';
-
-  @override
-  String get accountTypeOther => 'Autre';
+  String get accountsBankMenuSync => 'Synchroniser';
 
   @override
   String get dashboardTitle => 'Tableau de bord';

@@ -12,6 +12,7 @@ final class Account {
     required this.isArchived,
     required this.createdAt,
     required this.updatedAt,
+    this.isIncludedInFinances = true,
     this.type,
     this.currencyCode,
     this.unofficialCurrencyCode,
@@ -45,6 +46,7 @@ final class Account {
 
   final int sortOrder;
   final bool isArchived;
+  final bool isIncludedInFinances;
 
   final DateTime createdAt;
   final DateTime updatedAt;

@@ -2534,7 +2534,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsEmptyMessage.
   ///
   /// In en, this message translates to:
-  /// **'You don\'t have any accounts yet.\nTap + to create your first account.'**
+  /// **'You don\'t have any accounts yet.\nConnect a bank to show your accounts.'**
   String get accountsEmptyMessage;
 
   /// No description provided for @accountsConnectBank.
@@ -2543,107 +2543,71 @@ abstract class AppLocalizations {
   /// **'Connect bank'**
   String get accountsConnectBank;
 
-  /// No description provided for @accountCreateTitle.
+  /// No description provided for @accountsDuplicateConnectionDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Create account'**
-  String get accountCreateTitle;
+  /// **'Account already connected'**
+  String get accountsDuplicateConnectionDialogTitle;
 
-  /// No description provided for @accountNameHint.
+  /// No description provided for @accountsDuplicateConnectionDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'Account name'**
-  String get accountNameHint;
+  /// **'Plaid successfully verified access to your bank, but this bank account is already connected to Ophir. To prevent duplicate transactions and inaccurate calculations, we didn\'t add it again. You can continue using the existing account or connect a different one.'**
+  String get accountsDuplicateConnectionDialogBody;
 
-  /// No description provided for @accountNameRequired.
+  /// No description provided for @accountsDuplicateConnectionDialogAction.
   ///
   /// In en, this message translates to:
-  /// **'Account name is required.'**
-  String get accountNameRequired;
+  /// **'Got it'**
+  String get accountsDuplicateConnectionDialogAction;
 
-  /// No description provided for @accountTypeHint.
+  /// No description provided for @accountsInstitutionAccountCount.
   ///
   /// In en, this message translates to:
-  /// **'Account type'**
-  String get accountTypeHint;
+  /// **'{count, plural, =1{1 account} other{{count} accounts}}'**
+  String accountsInstitutionAccountCount(int count);
 
-  /// No description provided for @accountCurrencyHint.
+  /// No description provided for @accountsFinancialParticipationIncludedStatus.
   ///
   /// In en, this message translates to:
-  /// **'Currency'**
-  String get accountCurrencyHint;
+  /// **'Included in finances'**
+  String get accountsFinancialParticipationIncludedStatus;
 
-  /// No description provided for @accountInitialBalanceHint.
+  /// No description provided for @accountsFinancialParticipationExcludedStatus.
   ///
   /// In en, this message translates to:
-  /// **'Initial balance'**
-  String get accountInitialBalanceHint;
+  /// **'Excluded from finances'**
+  String get accountsFinancialParticipationExcludedStatus;
 
-  /// No description provided for @accountInitialBalanceRequired.
+  /// No description provided for @accountsFinancialExclusionDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Initial balance is required.'**
-  String get accountInitialBalanceRequired;
+  /// **'Exclude from finances?'**
+  String get accountsFinancialExclusionDialogTitle;
 
-  /// No description provided for @accountInitialBalanceInvalid.
+  /// No description provided for @accountsFinancialExclusionDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'Enter a valid amount.'**
-  String get accountInitialBalanceInvalid;
+  /// **'This account will stay connected and continue updating, but its balance and transactions won\'t be included in financial calculations, reports, and advice.'**
+  String get accountsFinancialExclusionDialogBody;
 
-  /// No description provided for @accountTypeCash.
+  /// No description provided for @accountsFinancialExclusionDialogCancel.
   ///
   /// In en, this message translates to:
-  /// **'Cash'**
-  String get accountTypeCash;
+  /// **'Cancel'**
+  String get accountsFinancialExclusionDialogCancel;
 
-  /// No description provided for @accountTypeBank.
+  /// No description provided for @accountsFinancialExclusionDialogConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Bank'**
-  String get accountTypeBank;
+  /// **'Don\'t include'**
+  String get accountsFinancialExclusionDialogConfirm;
 
-  /// No description provided for @accountTypeCard.
+  /// No description provided for @accountsBankMenuSync.
   ///
   /// In en, this message translates to:
-  /// **'Card'**
-  String get accountTypeCard;
-
-  /// No description provided for @accountTypeCreditCard.
-  ///
-  /// In en, this message translates to:
-  /// **'Credit card'**
-  String get accountTypeCreditCard;
-
-  /// No description provided for @accountTypeSavings.
-  ///
-  /// In en, this message translates to:
-  /// **'Savings'**
-  String get accountTypeSavings;
-
-  /// No description provided for @accountTypeInvestment.
-  ///
-  /// In en, this message translates to:
-  /// **'Investment'**
-  String get accountTypeInvestment;
-
-  /// No description provided for @accountTypeLoan.
-  ///
-  /// In en, this message translates to:
-  /// **'Loan'**
-  String get accountTypeLoan;
-
-  /// No description provided for @accountTypeWallet.
-  ///
-  /// In en, this message translates to:
-  /// **'Wallet'**
-  String get accountTypeWallet;
-
-  /// No description provided for @accountTypeOther.
-  ///
-  /// In en, this message translates to:
-  /// **'Other'**
-  String get accountTypeOther;
+  /// **'Sync'**
+  String get accountsBankMenuSync;
 
   /// No description provided for @dashboardTitle.
   ///

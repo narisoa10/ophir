@@ -1308,61 +1308,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsEmptyMessage =>
-      'You don\'t have any accounts yet.\nTap + to create your first account.';
+      'You don\'t have any accounts yet.\nConnect a bank to show your accounts.';
 
   @override
   String get accountsConnectBank => 'Connect bank';
 
   @override
-  String get accountCreateTitle => 'Create account';
+  String get accountsDuplicateConnectionDialogTitle =>
+      'Account already connected';
 
   @override
-  String get accountNameHint => 'Account name';
+  String get accountsDuplicateConnectionDialogBody =>
+      'Plaid successfully verified access to your bank, but this bank account is already connected to Ophir. To prevent duplicate transactions and inaccurate calculations, we didn\'t add it again. You can continue using the existing account or connect a different one.';
 
   @override
-  String get accountNameRequired => 'Account name is required.';
+  String get accountsDuplicateConnectionDialogAction => 'Got it';
 
   @override
-  String get accountTypeHint => 'Account type';
+  String accountsInstitutionAccountCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count accounts',
+      one: '1 account',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get accountCurrencyHint => 'Currency';
+  String get accountsFinancialParticipationIncludedStatus =>
+      'Included in finances';
 
   @override
-  String get accountInitialBalanceHint => 'Initial balance';
+  String get accountsFinancialParticipationExcludedStatus =>
+      'Excluded from finances';
 
   @override
-  String get accountInitialBalanceRequired => 'Initial balance is required.';
+  String get accountsFinancialExclusionDialogTitle => 'Exclude from finances?';
 
   @override
-  String get accountInitialBalanceInvalid => 'Enter a valid amount.';
+  String get accountsFinancialExclusionDialogBody =>
+      'This account will stay connected and continue updating, but its balance and transactions won\'t be included in financial calculations, reports, and advice.';
 
   @override
-  String get accountTypeCash => 'Cash';
+  String get accountsFinancialExclusionDialogCancel => 'Cancel';
 
   @override
-  String get accountTypeBank => 'Bank';
+  String get accountsFinancialExclusionDialogConfirm => 'Don\'t include';
 
   @override
-  String get accountTypeCard => 'Card';
-
-  @override
-  String get accountTypeCreditCard => 'Credit card';
-
-  @override
-  String get accountTypeSavings => 'Savings';
-
-  @override
-  String get accountTypeInvestment => 'Investment';
-
-  @override
-  String get accountTypeLoan => 'Loan';
-
-  @override
-  String get accountTypeWallet => 'Wallet';
-
-  @override
-  String get accountTypeOther => 'Other';
+  String get accountsBankMenuSync => 'Sync';
 
   @override
   String get dashboardTitle => 'Dashboard';

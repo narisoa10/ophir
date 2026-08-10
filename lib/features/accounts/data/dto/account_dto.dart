@@ -7,6 +7,7 @@ final class AccountDto {
     required this.isArchived,
     required this.createdAt,
     required this.updatedAt,
+    this.isIncludedInFinances = true,
     this.type,
     this.currencyCode,
     this.unofficialCurrencyCode,
@@ -36,6 +37,7 @@ final class AccountDto {
   final String? colorKey;
   final int sortOrder;
   final bool isArchived;
+  final bool isIncludedInFinances;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? plaidItemId;
@@ -70,6 +72,7 @@ final class AccountDto {
       colorKey: json['color_key'] as String?,
       sortOrder: json['sort_order'] as int,
       isArchived: json['is_archived'] as bool,
+      isIncludedInFinances: json['is_included_in_finances'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
       plaidItemId: json['plaid_item_id'] as String?,
@@ -89,56 +92,5 @@ final class AccountDto {
           ? null
           : DateTime.parse(balanceFetchedAt as String).toLocal(),
     );
-  }
-
-  Map<String, dynamic> toInsertJson() {
-    return {
-      'user_id': userId,
-      'name': name,
-      if (type != null) 'type': type,
-      if (currencyCode != null) 'currency_code': currencyCode,
-      if (unofficialCurrencyCode != null)
-        'unofficial_currency_code': unofficialCurrencyCode,
-      if (initialBalance != null) 'initial_balance': initialBalance,
-      if (iconKey != null) 'icon_key': iconKey,
-      if (colorKey != null) 'color_key': colorKey,
-      'sort_order': sortOrder,
-      'is_archived': isArchived,
-      if (plaidItemId != null) 'plaid_item_id': plaidItemId,
-      if (institutionId != null) 'institution_id': institutionId,
-      if (plaidAccountId != null) 'plaid_account_id': plaidAccountId,
-      if (officialName != null) 'official_name': officialName,
-      if (mask != null) 'mask': mask,
-      if (plaidType != null) 'plaid_type': plaidType,
-      if (plaidSubtype != null) 'plaid_subtype': plaidSubtype,
-      if (currentBalance != null) 'current_balance': currentBalance,
-      if (availableBalance != null) 'available_balance': availableBalance,
-      if (balanceFetchedAt != null)
-        'balance_fetched_at': balanceFetchedAt!.toUtc().toIso8601String(),
-    };
-  }
-
-  Map<String, dynamic> toUpdateJson() {
-    return {
-      'name': name,
-      'type': type,
-      'currency_code': currencyCode,
-      'unofficial_currency_code': unofficialCurrencyCode,
-      'initial_balance': initialBalance,
-      'icon_key': iconKey,
-      'color_key': colorKey,
-      'sort_order': sortOrder,
-      'is_archived': isArchived,
-      'plaid_item_id': plaidItemId,
-      'institution_id': institutionId,
-      'plaid_account_id': plaidAccountId,
-      'official_name': officialName,
-      'mask': mask,
-      'plaid_type': plaidType,
-      'plaid_subtype': plaidSubtype,
-      'current_balance': currentBalance,
-      'available_balance': availableBalance,
-      'balance_fetched_at': balanceFetchedAt?.toUtc().toIso8601String(),
-    };
   }
 }

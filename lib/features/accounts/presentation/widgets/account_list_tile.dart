@@ -34,12 +34,16 @@ class AccountListTile extends StatelessWidget {
       leading: leading,
       title: Text(
         account.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
       ),
       subtitle: subtitle == null
           ? null
           : Text(
               subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
             ),
       trailing: trailing,
@@ -84,6 +88,9 @@ class AccountListTile extends StatelessWidget {
 
     return Text(
       text,
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.visible,
       style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
     );
   }
