@@ -1385,6 +1385,21 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accountsBankMenuSync => 'Синхронизировать';
 
   @override
+  String get accountsBankMenuRemoveConnection => 'Удалить подключение банка';
+
+  @override
+  String get accountsRemoveBankConnectionDialogTitle =>
+      'Удалить подключение банка?';
+
+  @override
+  String get accountsRemoveBankConnectionDialogBody =>
+      'Банк и все связанные с ним счета будут удалены из Ophir. Синхронизация прекратится, и для повторного подключения нужно будет снова пройти Plaid.';
+
+  @override
+  String get accountsRemoveBankConnectionError =>
+      'Не удалось удалить подключение банка. Попробуйте ещё раз.';
+
+  @override
   String get dashboardTitle => 'Дашборд';
 
   @override

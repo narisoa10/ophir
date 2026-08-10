@@ -2609,6 +2609,30 @@ abstract class AppLocalizations {
   /// **'Sync'**
   String get accountsBankMenuSync;
 
+  /// No description provided for @accountsBankMenuRemoveConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove bank connection'**
+  String get accountsBankMenuRemoveConnection;
+
+  /// No description provided for @accountsRemoveBankConnectionDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove bank connection?'**
+  String get accountsRemoveBankConnectionDialogTitle;
+
+  /// No description provided for @accountsRemoveBankConnectionDialogBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The bank and all related accounts will be removed from Ophir. Syncing will stop, and you\'ll need to go through Plaid again to reconnect it.'**
+  String get accountsRemoveBankConnectionDialogBody;
+
+  /// No description provided for @accountsRemoveBankConnectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to remove bank connection. Please try again.'**
+  String get accountsRemoveBankConnectionError;
+
   /// No description provided for @dashboardTitle.
   ///
   /// In en, this message translates to:

@@ -35,6 +35,7 @@ class AccountsScreen extends ConsumerStatefulWidget {
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   bool _isConnecting = false;
   final Set<String> _expandedBankGroupKeys = <String>{};
+  final Set<String> _removingConnectionIds = <String>{};
 
   Future<void> _connectBank() async {
     if (_isConnecting) {
@@ -114,6 +115,83 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     ref.invalidate(accountInstitutionsProvider);
     await ref.read(accountControllerProvider.notifier).refresh();
+  }
+
+  Future<void> _syncBankConnection(String connectionId) async {
+    if (_removingConnectionIds.contains(connectionId)) {
+      return;
+    }
+
+    await _syncConnectedAccounts(connectionId);
+  }
+
+  Future<void> _removeBankConnection(String connectionId) async {
+    if (_removingConnectionIds.contains(connectionId)) {
+      return;
+    }
+
+    final confirmed = await _confirmBankConnectionRemoval();
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _removingConnectionIds.add(connectionId);
+    });
+
+    try {
+      final removeItem = ref.read(plaidItemRemoveCallbackProvider);
+      final result = await removeItem(connectionId);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (result is Failure<void>) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.accountsRemoveBankConnectionError)),
+        );
+        return;
+      }
+
+      _expandedBankGroupKeys.remove(connectionId);
+      ref.invalidate(accountInstitutionsProvider);
+      await ref.read(accountControllerProvider.notifier).refresh();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _removingConnectionIds.remove(connectionId);
+        });
+      }
+    }
+  }
+
+  Future<bool> _confirmBankConnectionRemoval() async {
+    final l10n = AppLocalizations.of(context);
+    final colors = context.appThemeColors;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.accountsRemoveBankConnectionDialogTitle),
+          content: Text(l10n.accountsRemoveBankConnectionDialogBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.commonCancel),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: colors.error),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.commonDelete),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
   }
 
   @override
@@ -201,8 +279,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             isExpanded: _expandedBankGroupKeys.contains(group.key),
             accountAdapter: adapter,
             l10n: l10n,
+            isRemoving: _removingConnectionIds.contains(group.connectionId),
             onToggleExpanded: () => _toggleBankGroup(group.key),
-            onSync: () => _syncConnectedAccounts(group.connectionId),
+            onSync: () => _syncBankConnection(group.connectionId),
+            onRemove: () => _removeBankConnection(group.connectionId),
             onFinancialParticipationChanged: _setFinancialParticipation,
           ),
     ];
@@ -368,7 +448,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 }
 
-enum _BankMenuAction { sync }
+enum _BankMenuAction { sync, remove }
 
 final class _BankAccountGroup {
   const _BankAccountGroup({
@@ -391,8 +471,10 @@ class _BankAccountGroupView extends StatelessWidget {
     required this.isExpanded,
     required this.accountAdapter,
     required this.l10n,
+    required this.isRemoving,
     required this.onToggleExpanded,
     required this.onSync,
+    required this.onRemove,
     required this.onFinancialParticipationChanged,
   });
 
@@ -401,8 +483,10 @@ class _BankAccountGroupView extends StatelessWidget {
   final bool isExpanded;
   final AccountAdapter accountAdapter;
   final AppLocalizations l10n;
+  final bool isRemoving;
   final VoidCallback onToggleExpanded;
   final Future<void> Function() onSync;
+  final Future<void> Function() onRemove;
   final Future<void> Function(Account account, bool isIncludedInFinances)
   onFinancialParticipationChanged;
 
@@ -414,8 +498,10 @@ class _BankAccountGroupView extends StatelessWidget {
         institution: institution,
         isExpanded: isExpanded,
         l10n: l10n,
+        isRemoving: isRemoving,
         onToggleExpanded: onToggleExpanded,
         onSync: onSync,
+        onRemove: onRemove,
       ),
     ];
 
@@ -445,16 +531,20 @@ class _BankGroupHeader extends StatelessWidget {
     required this.institution,
     required this.isExpanded,
     required this.l10n,
+    required this.isRemoving,
     required this.onToggleExpanded,
     required this.onSync,
+    required this.onRemove,
   });
 
   final _BankAccountGroup group;
   final Institution? institution;
   final bool isExpanded;
   final AppLocalizations l10n;
+  final bool isRemoving;
   final VoidCallback onToggleExpanded;
   final Future<void> Function() onSync;
+  final Future<void> Function() onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -493,24 +583,45 @@ class _BankGroupHeader extends StatelessWidget {
                     SizedBox(
                       width: AppDimensions.buttonMdHeight,
                       height: AppDimensions.buttonMdHeight,
-                      child: PopupMenuButton<_BankMenuAction>(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (action) async {
-                          switch (action) {
-                            case _BankMenuAction.sync:
-                              await onSync();
-                          }
-                        },
-                        itemBuilder: (context) {
-                          return [
-                            PopupMenuItem(
-                              value: _BankMenuAction.sync,
-                              child: Text(l10n.accountsBankMenuSync),
+                      child: isRemoving
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : PopupMenuButton<_BankMenuAction>(
+                              padding: EdgeInsets.zero,
+                              icon: const Icon(Icons.more_vert),
+                              onSelected: (action) async {
+                                switch (action) {
+                                  case _BankMenuAction.sync:
+                                    await onSync();
+                                  case _BankMenuAction.remove:
+                                    await onRemove();
+                                }
+                              },
+                              itemBuilder: (context) {
+                                return [
+                                  PopupMenuItem(
+                                    value: _BankMenuAction.sync,
+                                    child: Text(l10n.accountsBankMenuSync),
+                                  ),
+                                  PopupMenuItem(
+                                    value: _BankMenuAction.remove,
+                                    child: Text(
+                                      l10n.accountsBankMenuRemoveConnection,
+                                      style: AppTypography.bodyMd.copyWith(
+                                        color: colors.error,
+                                      ),
+                                    ),
+                                  ),
+                                ];
+                              },
                             ),
-                          ];
-                        },
-                      ),
                     ),
                   ],
                 ),

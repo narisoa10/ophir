@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ophir/core/errors/app_failure.dart';
 import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/core/localization/generated/app_localizations.dart';
+import 'package:ophir/core/theme_v1/app_colors.dart';
 import 'package:ophir/features/accounts/controller/account_providers.dart';
 import 'package:ophir/features/accounts/data/plaid/plaid_accounts_sync_service.dart';
 import 'package:ophir/features/accounts/domain/entities/account.dart';
@@ -328,6 +332,191 @@ void main() {
       expect(repository.accounts.single.isIncludedInFinances, isFalse);
       expect(repository.participationUpdates, isEmpty);
     });
+
+    testWidgets('bank menu shows sync and destructive remove', (tester) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsBankMenuSync), findsOneWidget);
+      expect(find.text(l10n.accountsBankMenuRemoveConnection), findsOneWidget);
+
+      final removeText = tester.widget<Text>(
+        find.text(l10n.accountsBankMenuRemoveConnection),
+      );
+      expect(removeText.style?.color, AppColors.error);
+    });
+
+    testWidgets('remove cancel does not call backend', (tester) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final removedConnectionIds = <String>[];
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          removeItem: (connectionId) async {
+            removedConnectionIds.add(connectionId);
+            return const Success(null);
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonCancel));
+      await tester.pumpAndSettle();
+
+      expect(removedConnectionIds, isEmpty);
+      expect(find.text('Test Bank'), findsOneWidget);
+    });
+
+    testWidgets('remove confirm calls backend once', (tester) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final removedConnectionIds = <String>[];
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          removeItem: (connectionId) async {
+            removedConnectionIds.add(connectionId);
+            return const Success(null);
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonDelete));
+      await tester.pumpAndSettle();
+
+      expect(removedConnectionIds, ['item-1']);
+    });
+
+    testWidgets('successful remove refreshes accounts and bank disappears', (
+      tester,
+    ) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final repository = _FakeAccountRepository(
+        accounts: [_account(name: 'Checking')],
+        institutions: [_institution()],
+      );
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: repository,
+          removeItem: (connectionId) async {
+            repository.removeConnection(connectionId);
+            return const Success(null);
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(repository.getAccountsCalls, 1);
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonDelete));
+      await tester.pumpAndSettle();
+
+      expect(repository.getAccountsCalls, greaterThan(1));
+      expect(find.text('Test Bank'), findsNothing);
+      expect(find.byType(AccountsEmptyState), findsOneWidget);
+    });
+
+    testWidgets('remove error leaves bank visible and shows feedback', (
+      tester,
+    ) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          removeItem: (connectionId) async {
+            return const Failure(UnknownFailure());
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonDelete));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Bank'), findsOneWidget);
+      expect(find.text(l10n.accountsRemoveBankConnectionError), findsOneWidget);
+    });
+
+    testWidgets('remove double submit is prevented', (tester) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final completer = Completer<Result<void>>();
+      var removeCallCount = 0;
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          removeItem: (connectionId) {
+            removeCallCount += 1;
+            return completer.future;
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonDelete));
+      await tester.pump();
+
+      expect(removeCallCount, 1);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      completer.complete(const Success(null));
+      await tester.pumpAndSettle();
+    });
   });
 }
 
@@ -336,11 +525,13 @@ final class _TestApp extends StatelessWidget {
     required this.repository,
     required this.child,
     this.syncAccounts,
+    this.removeItem,
   });
 
   final AccountRepository repository;
   final Widget child;
   final PlaidAccountsSyncCallback? syncAccounts;
+  final PlaidItemRemoveCallback? removeItem;
 
   @override
   Widget build(BuildContext context) {
@@ -349,6 +540,8 @@ final class _TestApp extends StatelessWidget {
         accountRepositoryProvider.overrideWithValue(repository),
         if (syncAccounts != null)
           plaidAccountsSyncCallbackProvider.overrideWithValue(syncAccounts!),
+        if (removeItem != null)
+          plaidItemRemoveCallbackProvider.overrideWithValue(removeItem!),
       ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -369,9 +562,11 @@ final class _FakeAccountRepository implements AccountRepository {
   final List<Institution> institutions;
   final List<_ParticipationUpdate> participationUpdates =
       <_ParticipationUpdate>[];
+  int getAccountsCalls = 0;
 
   @override
   Future<Result<List<Account>>> getAccounts() async {
+    getAccountsCalls += 1;
     return Success(accounts);
   }
 
@@ -416,6 +611,10 @@ final class _FakeAccountRepository implements AccountRepository {
     accounts[index] = updated;
 
     return Success(updated);
+  }
+
+  void removeConnection(String connectionId) {
+    accounts.removeWhere((account) => account.plaidItemId == connectionId);
   }
 }
 
