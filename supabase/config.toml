@@ -380,6 +380,18 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+[functions.plaid-webhook]
+verify_jwt = false
+
+[functions.plaid-process-transaction-sync-jobs]
+verify_jwt = false
+
+[functions.plaid-update-item-webhooks]
+verify_jwt = false
+
+[functions.plaid-sandbox-fire-transaction-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
