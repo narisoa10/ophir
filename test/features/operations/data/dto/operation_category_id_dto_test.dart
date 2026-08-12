@@ -150,6 +150,36 @@ void main() {
       expect(dto.isPending, isFalse);
       expect(dto.categoryOverridden, isFalse);
     });
+
+    test('deserializes Plaid source without requiring a category', () {
+      final dto = OperationDto.fromJson(
+        _operationJson(
+          categoryId: null,
+          source: 'plaid',
+          categoryOverridden: false,
+        ),
+      );
+
+      expect(dto.source, OperationSource.plaid);
+      expect(dto.categoryId, isNull);
+    });
+
+    test('serializes Plaid source using canonical operation fields only', () {
+      final dto = _operationDto(source: OperationSource.plaid);
+
+      final insertJson = dto.toInsertJson();
+      final updateJson = dto.toUpdateJson();
+
+      expect(insertJson['source'], 'plaid');
+      expect(updateJson['source'], 'plaid');
+    });
+
+    test('rejects unknown source values', () {
+      expect(
+        () => OperationDto.fromJson(_operationJson(source: 'future-source')),
+        throwsArgumentError,
+      );
+    });
   });
 }
 

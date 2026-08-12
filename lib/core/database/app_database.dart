@@ -121,6 +121,10 @@ final class AppDatabase extends _$AppDatabase {
     return _saveOperation(operation, syncStatus: syncPending);
   }
 
+  Future<void> saveSyncedOperation(Operation operation) {
+    return _saveOperation(operation, syncStatus: syncSynced);
+  }
+
   Future<void> deleteOperation(String id) {
     return (delete(
       operationsTable,

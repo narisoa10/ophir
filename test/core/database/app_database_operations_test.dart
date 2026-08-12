@@ -143,6 +143,20 @@ void main() {
 
       expect(retrieved?.source, OperationSource.manual);
     });
+
+    test('round-trip for Plaid source', () async {
+      final op = _operation(
+        id: 'operation-plaid-roundtrip',
+        source: OperationSource.plaid,
+      );
+      await database.saveOperation(op);
+
+      final retrieved = await database.getOperationById(
+        'operation-plaid-roundtrip',
+      );
+
+      expect(retrieved?.source, OperationSource.plaid);
+    });
   });
 }
 

@@ -8,6 +8,7 @@ import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/core/widgets/app_editor_bottom_sheet.dart';
 import 'package:ophir/features/operations/domain/entities/operation.dart';
 import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
+import 'package:ophir/features/operations/domain/enums/operation_source.dart';
 import 'package:ophir/features/operations/domain/enums/operation_type.dart';
 import 'package:ophir/features/operations/presentation/widgets/operation_editor_sheet.dart';
 import 'package:ophir/features/operations/presentation/widgets/operation_editor_result.dart';
@@ -285,6 +286,62 @@ void main() {
       expect(result?.isArchived, isTrue);
     });
 
+    testWidgets('Plaid editor exposes only category controls', (tester) async {
+      await tester.pumpWidget(
+        _editorApp(
+          category: _rentCategory(),
+          operation: _operation(source: OperationSource.plaid),
+        ),
+      );
+
+      expect(find.byType(OperationEditorSheet), findsOneWidget);
+      expect(find.byType(AppCategoryPickerField), findsOneWidget);
+      expect(find.text(_l10n.operationExpense), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('operation-amount-field')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('operation-frequency-field')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('operation-next-date-field')),
+        findsNothing,
+      );
+      expect(find.widgetWithText(TextButton, _l10n.commonDelete), findsNothing);
+    });
+
+    testWidgets('Plaid editor can save explicit uncategorized override', (
+      tester,
+    ) async {
+      OperationEditorResult? result;
+
+      await tester.pumpWidget(
+        _modalEditorApp(
+          category: _rentCategory(),
+          operation: _operation(source: OperationSource.plaid),
+          onResult: (value) {
+            result = value;
+          },
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey<String>('open-editor')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(_l10n.categoryTaxonomyExpenseOtherUncategorizedName),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, _l10n.commonSave));
+      await tester.pumpAndSettle();
+
+      expect(result?.isArchived, isFalse);
+      expect(result?.categoryId, isNull);
+      expect(result?.type, OperationType.expense);
+      expect(result?.amount, 100);
+    });
+
     test('source uses appFormFieldDecoration and no old grouped contract', () {
       final source = File(
         'lib/features/operations/presentation/widgets/operation_editor_sheet.dart',
@@ -373,12 +430,16 @@ Widget _modalEditorApp({
   );
 }
 
-Operation _operation({double amount = 100}) {
+Operation _operation({
+  double amount = 100,
+  OperationSource source = OperationSource.manual,
+}) {
   final now = DateTime.utc(2026);
 
   return Operation(
     id: 'operation-1',
     userId: 'user-1',
+    source: source,
     fromAccountId: null,
     toAccountId: null,
     categoryId: AppCategoryId.expenseHousingRent.name,

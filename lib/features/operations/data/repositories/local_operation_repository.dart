@@ -76,6 +76,61 @@ base class LocalOperationRepository implements OperationRepository {
   }
 
   @override
+  Future<Result<void>> overridePlaidOperationCategory({
+    required String operationId,
+    required String? categoryId,
+  }) async {
+    try {
+      final operation = await _database.getOperationById(operationId);
+      if (operation == null) {
+        return const Failure(DatabaseFailure());
+      }
+
+      await _database.saveSyncedOperation(
+        Operation(
+          id: operation.id,
+          userId: operation.userId,
+          source: operation.source,
+          externalId: operation.externalId,
+          isPending: operation.isPending,
+          fromAccountId: operation.fromAccountId,
+          toAccountId: operation.toAccountId,
+          categoryId: categoryId,
+          categoryOverridden: true,
+          type: operation.type,
+          amount: operation.amount,
+          currencyCode: operation.currencyCode,
+          occurredAt: operation.occurredAt,
+          recurrence: operation.recurrence,
+          isRecurring: operation.isRecurring,
+          note: operation.note,
+          createdAt: operation.createdAt,
+          updatedAt: DateTime.now().toUtc(),
+        ),
+      );
+      return const Success(null);
+    } catch (_) {
+      return const Failure(DatabaseFailure());
+    }
+  }
+
+  @override
+  Future<Result<void>> resetPlaidOperationCategoryOverride({
+    required String operationId,
+  }) async {
+    return const Failure(DatabaseFailure());
+  }
+
+  Future<Result<Operation>> saveSyncedOperation(Operation operation) async {
+    try {
+      await _database.saveSyncedOperation(operation);
+      return Success(operation);
+    } catch (_) {
+      return const Failure(DatabaseFailure());
+    }
+  }
+
+  @override
   Future<Result<void>> archiveOperation(String operationId) async {
     try {
       await _database.deleteOperation(operationId);

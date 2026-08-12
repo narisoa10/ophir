@@ -10,5 +10,14 @@ abstract interface class OperationRepository {
 
   Future<Result<Operation>> updateOperation(Operation operation);
 
+  Future<Result<void>> overridePlaidOperationCategory({
+    required String operationId,
+    required String? categoryId,
+  });
+
+  Future<Result<void>> resetPlaidOperationCategoryOverride({
+    required String operationId,
+  });
+
   Future<Result<void>> archiveOperation(String operationId);
 }

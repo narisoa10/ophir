@@ -14,6 +14,7 @@ import '../../../category_rules/presentation/widgets/remember_category_rule_dial
 import '../../controller/operation_controller.dart';
 import '../../controller/operation_providers.dart';
 import '../../domain/entities/operation.dart';
+import '../../domain/enums/operation_source.dart';
 import '../../domain/enums/operation_type.dart';
 import '../../domain/utils/operation_needs_categorization.dart';
 import '../filters/operation_month_filter.dart';
@@ -103,7 +104,7 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     }
 
     final category = AppCategories.byIdName(operation.categoryId);
-    if (category == null) {
+    if (category == null && operation.source != OperationSource.plaid) {
       return;
     }
 
@@ -181,7 +182,12 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
       existingOperation: existingOperation,
     );
     final controller = ref.read(operationControllerProvider.notifier);
-    final result = existingOperation == null
+    final result = existingOperation?.source == OperationSource.plaid
+        ? await controller.overridePlaidOperationCategory(
+            operation: existingOperation!,
+            categoryId: editorResult.categoryId,
+          )
+        : existingOperation == null
         ? await controller.createOperation(operation)
         : await controller.updateOperation(operation);
 
@@ -201,11 +207,13 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
       return;
     }
 
-    if (result case Success<Operation>(:final value)) {
-      await _maybeRememberCategoryRule(
-        savedOperation: value,
-        previousOperation: existingOperation,
-      );
+    if (existingOperation?.source != OperationSource.plaid) {
+      if (result case Success<Operation>(:final value)) {
+        await _maybeRememberCategoryRule(
+          savedOperation: value,
+          previousOperation: existingOperation,
+        );
+      }
     }
   }
 
@@ -298,6 +306,20 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     };
   }
 
+  Future<void> _refreshOperationsFromRemote() async {
+    final result = await ref.read(operationRemoteSyncProvider)();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result is Failure<void>) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).failureUnknown)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bootstrapState = ref.watch(operationBootstrapProvider);
@@ -326,7 +348,20 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                 Failure<List<Operation>>() =>
                   isRefreshingOperations
                       ? _buildRefreshingOperationsState()
-                      : const OperationsEmptyState(),
+                      : RefreshIndicator(
+                          onRefresh: _refreshOperationsFromRemote,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: SizedBox(
+                                  height: constraints.maxHeight,
+                                  child: const OperationsEmptyState(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
               };
             },
           ),
@@ -365,61 +400,78 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     }
 
     if (!monthFilter.hasAnyOperations(operations)) {
-      return const OperationsEmptyState();
+      return RefreshIndicator(
+        onRefresh: _refreshOperationsFromRemote,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: constraints.maxHeight,
+                child: const OperationsEmptyState(),
+              ),
+            );
+          },
+        ),
+      );
     }
 
-    return OperationDateSectionList(
-      title: l10n.operationsTitle,
-      hint: l10n.operationsInteractionHint,
-      periodHeader: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          OperationMonthNavigator(
-            monthLabel: monthLabel,
-            canGoBack: monthFilter.canGoBack(operations),
-            canGoForward: monthFilter.canGoForward,
-            onPreviousMonth: () {
-              setState(() {
-                _selectedMonth = monthFilter.previousMonth();
-              });
-            },
-            onNextMonth: () {
-              setState(() {
-                _selectedMonth = monthFilter.nextMonth();
-              });
-            },
-            onMonthTap: () => _pickMonth(context, monthFilter, operations),
-          ),
-          OperationReviewBanner(
-            count: reviewCount,
-            label: l10n.operationsReviewBanner(reviewCount),
-            filterActive: _reviewFilterEnabled,
-            onToggleFilter: () {
-              setState(() {
-                _reviewFilterEnabled = !_reviewFilterEnabled;
-              });
-            },
-          ),
-          if (isRefreshingOperations) ...[
-            const SizedBox(height: AppSpacing.xs),
-            const LinearProgressIndicator(),
+    return RefreshIndicator(
+      onRefresh: _refreshOperationsFromRemote,
+      child: OperationDateSectionList(
+        physics: const AlwaysScrollableScrollPhysics(),
+        title: l10n.operationsTitle,
+        hint: l10n.operationsInteractionHint,
+        periodHeader: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OperationMonthNavigator(
+              monthLabel: monthLabel,
+              canGoBack: monthFilter.canGoBack(operations),
+              canGoForward: monthFilter.canGoForward,
+              onPreviousMonth: () {
+                setState(() {
+                  _selectedMonth = monthFilter.previousMonth();
+                });
+              },
+              onNextMonth: () {
+                setState(() {
+                  _selectedMonth = monthFilter.nextMonth();
+                });
+              },
+              onMonthTap: () => _pickMonth(context, monthFilter, operations),
+            ),
+            OperationReviewBanner(
+              count: reviewCount,
+              label: l10n.operationsReviewBanner(reviewCount),
+              filterActive: _reviewFilterEnabled,
+              onToggleFilter: () {
+                setState(() {
+                  _reviewFilterEnabled = !_reviewFilterEnabled;
+                });
+              },
+            ),
+            if (isRefreshingOperations) ...[
+              const SizedBox(height: AppSpacing.xs),
+              const LinearProgressIndicator(),
+            ],
           ],
-        ],
+        ),
+        sections: visibleOperations.isEmpty
+            ? const []
+            : operationDateSectionsFor(visibleOperations),
+        onOperationTap: (operation) {
+          _openEditOperationEditor(operation, allOperations: operations);
+        },
+        onOperationArchive: (operation) {
+          return _confirmArchiveOperation(context, ref, operation);
+        },
+        emptyMessage: visibleOperations.isEmpty
+            ? (_reviewFilterEnabled
+                  ? l10n.operationsReviewFilterEmpty
+                  : l10n.operationsEmptyMonthMessage(monthLabel))
+            : null,
       ),
-      sections: visibleOperations.isEmpty
-          ? const []
-          : operationDateSectionsFor(visibleOperations),
-      onOperationTap: (operation) {
-        _openEditOperationEditor(operation, allOperations: operations);
-      },
-      onOperationArchive: (operation) {
-        return _confirmArchiveOperation(context, ref, operation);
-      },
-      emptyMessage: visibleOperations.isEmpty
-          ? (_reviewFilterEnabled
-                ? l10n.operationsReviewFilterEmpty
-                : l10n.operationsEmptyMonthMessage(monthLabel))
-          : null,
     );
   }
 

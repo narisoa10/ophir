@@ -1,9 +1,11 @@
 enum OperationSource {
-  manual;
+  manual,
+  plaid;
 
   static OperationSource fromJson(String value) {
     return switch (value) {
       'manual' => OperationSource.manual,
+      'plaid' => OperationSource.plaid,
       _ => throw ArgumentError.value(
         value,
         'value',
@@ -15,6 +17,7 @@ enum OperationSource {
   String toJson() {
     return switch (this) {
       OperationSource.manual => 'manual',
+      OperationSource.plaid => 'plaid',
     };
   }
 }

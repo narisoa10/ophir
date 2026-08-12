@@ -12,6 +12,7 @@ import '../../../../core/widgets/app_editor_bottom_sheet.dart';
 import '../../../../core/widgets/app_form_field_decoration.dart';
 import '../../domain/entities/operation.dart';
 import '../../domain/enums/operation_recurrence.dart';
+import '../../domain/enums/operation_source.dart';
 import '../../domain/enums/operation_type.dart';
 import '../../domain/utils/operation_calendar_date.dart';
 import 'operation_editor_result.dart';
@@ -59,7 +60,10 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
   late _OperationEditorFrequency _frequency;
   late DateTime? _nextDate;
   late OperationType _type;
-  late AppCategory _category;
+  late AppCategory? _category;
+
+  bool get _isPlaidCategoryOnly =>
+      widget.operation?.source == OperationSource.plaid;
 
   @override
   void initState() {
@@ -69,7 +73,7 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
     _type = _initialTypeFor(operation: operation, category: widget.category);
     _category =
         _categoryForType(categoryId: widget.category?.id.name, type: _type) ??
-        _categoriesFor(_type).first;
+        (_isPlaidCategoryOnly ? null : _categoriesFor(_type).first);
     _currencyCode = operation?.currencyCode ?? 'CAD';
     _frequency = operation == null
         ? _OperationEditorFrequency.monthly
@@ -103,7 +107,7 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
       formKey: _formKey,
       onSave: _save,
       saveLabel: l10n.commonSave,
-      onDelete: widget.operation == null
+      onDelete: widget.operation == null || _isPlaidCategoryOnly
           ? null
           : () {
               Navigator.of(context).pop(const OperationEditorResult.archived());
@@ -113,14 +117,15 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          OperationTypeToggle(
-            isExpense: _type == OperationType.expense,
-            expenseLabel: l10n.operationExpense,
-            incomeLabel: l10n.operationIncome,
-            onExpenseSelected: () => _selectType(OperationType.expense),
-            onIncomeSelected: () => _selectType(OperationType.income),
-          ),
-          if (_type == OperationType.income) ...[
+          if (!_isPlaidCategoryOnly)
+            OperationTypeToggle(
+              isExpense: _type == OperationType.expense,
+              expenseLabel: l10n.operationExpense,
+              incomeLabel: l10n.operationIncome,
+              onExpenseSelected: () => _selectType(OperationType.expense),
+              onIncomeSelected: () => _selectType(OperationType.income),
+            ),
+          if (!_isPlaidCategoryOnly && _type == OperationType.income) ...[
             const SizedBox(height: AppSpacing.itemGap),
             TextFormField(
               key: const ValueKey<String>('operation-name-field'),
@@ -147,6 +152,10 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
                 });
               },
               validator: (value) {
+                if (_isPlaidCategoryOnly) {
+                  return null;
+                }
+
                 if (value == null) {
                   return l10n.operationCategoryRequired;
                 }
@@ -155,6 +164,21 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
               },
             ),
           ),
+          if (_isPlaidCategoryOnly) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    _category = null;
+                  });
+                },
+                child: Text(l10n.categoryTaxonomyExpenseOtherUncategorizedName),
+              ),
+            ),
+          ],
+          if (_isPlaidCategoryOnly) const SizedBox.shrink() else ...[
           const SizedBox(height: AppSpacing.itemGap),
           TextFormField(
             key: const ValueKey<String>('operation-amount-field'),
@@ -260,6 +284,7 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
               );
             },
           ),
+          ],
         ],
       ),
     );
@@ -294,6 +319,22 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
       return;
     }
 
+    if (_isPlaidCategoryOnly) {
+      final operation = widget.operation!;
+      Navigator.of(context).pop(
+        OperationEditorResult.saved(
+          type: operation.type,
+          amount: operation.amount,
+          currencyCode: operation.currencyCode,
+          occurredAt: operation.occurredAt,
+          categoryId: _category?.id.name,
+          recurrence: operation.recurrence,
+          note: operation.note,
+        ),
+      );
+      return;
+    }
+
     final amount = double.parse(
       _amountController.text.trim().replaceAll(',', '.'),
     );
@@ -307,7 +348,7 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
         amount: amount,
         currencyCode: _currencyCode,
         occurredAt: operationCalendarDateValue(_nextDate ?? DateTime.now()),
-        categoryId: _category.id.name,
+        categoryId: _category!.id.name,
         recurrence: _operationRecurrenceFor(_frequency),
         note: nameText.isEmpty ? null : nameText,
       ),

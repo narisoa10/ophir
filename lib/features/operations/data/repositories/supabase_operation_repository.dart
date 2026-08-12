@@ -127,6 +127,58 @@ final class SupabaseOperationRepository implements OperationRepository {
   }
 
   @override
+  Future<Result<void>> overridePlaidOperationCategory({
+    required String operationId,
+    required String? categoryId,
+  }) async {
+    if (_currentUserId == null) {
+      return const Failure(UnauthorizedFailure());
+    }
+
+    try {
+      final data = await _client.rpc(
+        'plaid_override_operation_category',
+        params: {
+          'p_operation_id': operationId,
+          'p_category_id': categoryId,
+        },
+      ) as Map<String, dynamic>;
+
+      return data['status'] == 'updated'
+          ? const Success(null)
+          : const Failure(DatabaseFailure());
+    } on PostgrestException {
+      return const Failure(DatabaseFailure());
+    } catch (_) {
+      return const Failure(UnknownFailure());
+    }
+  }
+
+  @override
+  Future<Result<void>> resetPlaidOperationCategoryOverride({
+    required String operationId,
+  }) async {
+    if (_currentUserId == null) {
+      return const Failure(UnauthorizedFailure());
+    }
+
+    try {
+      final data = await _client.rpc(
+        'plaid_reset_operation_category_override',
+        params: {'p_operation_id': operationId},
+      ) as Map<String, dynamic>;
+
+      return data['status'] == 'reset'
+          ? const Success(null)
+          : const Failure(DatabaseFailure());
+    } on PostgrestException {
+      return const Failure(DatabaseFailure());
+    } catch (_) {
+      return const Failure(UnknownFailure());
+    }
+  }
+
+  @override
   Future<Result<void>> archiveOperation(String operationId) async {
     final userId = _currentUserId;
 

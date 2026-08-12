@@ -98,6 +98,39 @@ void main() {
       },
     );
 
+    testWidgets('pull-to-refresh uses centralized remote sync', (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database.saveSyncedOperation(_operation(id: 'op-1', amount: 4.33));
+      final local = _TrackingLocalOperationRepository(database: database);
+      final remote = _FakeRemoteOperationRepository(
+        getResult: Success([_operation(id: 'op-1', amount: 4.33)]),
+      );
+
+      await tester.pumpWidget(
+        _OperationsTestApp(
+          database: database,
+          localRepository: local,
+          remoteRepository: remote,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(remote.getCalls, 1);
+
+      remote.getResult = Success([_operation(id: 'op-1', amount: 4.34)]);
+
+      await tester.fling(
+        find.byType(RefreshIndicator),
+        const Offset(0, 400),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(remote.getCalls, 2);
+      expect((await database.getOperationById('op-1'))?.amount, 4.34);
+    });
+
     testWidgets('cancel from create editor does not call persistence', (
       tester,
     ) async {
@@ -553,6 +586,7 @@ final class _OperationsTestApp extends StatelessWidget {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         operationUserIdProvider.overrideWithValue(userId),
+        operationAuthUserIdReaderProvider.overrideWithValue(() => userId),
         localOperationRepositoryProvider.overrideWithValue(localRepository),
         remoteOperationRepositoryProvider.overrideWithValue(
           remoteRepository ?? _FakeRemoteOperationRepository(),
@@ -617,7 +651,7 @@ final class _FakeRemoteOperationRepository implements OperationRepository {
     this.getStarted,
   }) : getResult = getResult ?? const Success(<Operation>[]);
 
-  final Result<List<Operation>> getResult;
+  Result<List<Operation>> getResult;
   final Completer<Result<List<Operation>>>? getCompleter;
   final Completer<void>? getStarted;
   int getCalls = 0;
@@ -630,6 +664,21 @@ final class _FakeRemoteOperationRepository implements OperationRepository {
   @override
   Future<Result<Operation>> updateOperation(Operation operation) async {
     return Success(operation);
+  }
+
+  @override
+  Future<Result<void>> overridePlaidOperationCategory({
+    required String operationId,
+    required String? categoryId,
+  }) async {
+    return const Success(null);
+  }
+
+  @override
+  Future<Result<void>> resetPlaidOperationCategoryOverride({
+    required String operationId,
+  }) async {
+    return const Success(null);
   }
 
   @override

@@ -15,6 +15,7 @@ class OperationDateSectionList extends StatelessWidget {
     required this.onOperationArchive,
     this.periodHeader,
     this.emptyMessage,
+    this.physics,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class OperationDateSectionList extends StatelessWidget {
   final String hint;
   final Widget? periodHeader;
   final String? emptyMessage;
+  final ScrollPhysics? physics;
   final List<OperationDateSectionPresentation> sections;
   final ValueChanged<Operation> onOperationTap;
   final Future<bool> Function(Operation operation) onOperationArchive;
@@ -29,6 +31,7 @@ class OperationDateSectionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
+      physics: physics,
       itemCount: sections.isEmpty ? 2 : sections.length + 1,
       separatorBuilder: (context, index) {
         return const SizedBox(height: AppSpacing.sectionGap);

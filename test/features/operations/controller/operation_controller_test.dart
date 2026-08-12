@@ -12,6 +12,7 @@ import 'package:ophir/features/operations/controller/operation_controller.dart';
 import 'package:ophir/features/operations/controller/operation_providers.dart';
 import 'package:ophir/features/operations/domain/entities/operation.dart';
 import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
+import 'package:ophir/features/operations/domain/enums/operation_source.dart';
 import 'package:ophir/features/operations/domain/enums/operation_type.dart';
 import 'package:ophir/features/operations/domain/repositories/operation_repository.dart';
 
@@ -71,6 +72,7 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           operationUserIdProvider.overrideWithValue('user-1'),
+          operationAuthUserIdReaderProvider.overrideWithValue(() => 'user-1'),
           remoteOperationRepositoryProvider.overrideWith((ref) {
             throw StateError('Remote unavailable');
           }),
@@ -297,6 +299,65 @@ void main() {
 
       expect(_operationsFrom(result).single.categoryId, isNull);
     });
+
+    test(
+      'Plaid category override is remote-first and stores synced local row',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final existing = _operation(
+          id: 'plaid-1',
+          source: OperationSource.plaid,
+          categoryId: AppCategoryId.expenseFoodGroceries.name,
+        );
+        await database.saveSyncedOperation(existing);
+        final remote = _FakeRemoteOperationRepository();
+        final container = _container(database: database, remote: remote);
+        addTearDown(container.dispose);
+
+        final result = await container
+            .read(operationControllerProvider.notifier)
+            .overridePlaidOperationCategory(
+              operation: existing,
+              categoryId: AppCategoryId.expenseFoodRestaurant.name,
+            );
+        final stored = await database.getOperationById('plaid-1');
+
+        expect(result, isA<Success<Operation>>());
+        expect(remote.plaidOverrideCalls, 1);
+        expect(remote.updateCalls, 0);
+        expect(stored?.categoryId, AppCategoryId.expenseFoodRestaurant.name);
+        expect(stored?.categoryOverridden, isTrue);
+        expect(stored?.source, OperationSource.plaid);
+      },
+    );
+
+    test('Plaid category override can intentionally clear category', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final existing = _operation(
+        id: 'plaid-1',
+        source: OperationSource.plaid,
+        categoryId: AppCategoryId.expenseFoodGroceries.name,
+      );
+      await database.saveSyncedOperation(existing);
+      final remote = _FakeRemoteOperationRepository();
+      final container = _container(database: database, remote: remote);
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(operationControllerProvider.notifier)
+          .overridePlaidOperationCategory(
+            operation: existing,
+            categoryId: null,
+          );
+      final stored = await database.getOperationById('plaid-1');
+
+      expect(result, isA<Success<Operation>>());
+      expect(remote.plaidOverrideCategoryId, isNull);
+      expect(stored?.categoryId, isNull);
+      expect(stored?.categoryOverridden, isTrue);
+    });
   });
 }
 
@@ -308,6 +369,7 @@ ProviderContainer _container({
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       operationUserIdProvider.overrideWithValue('user-1'),
+      operationAuthUserIdReaderProvider.overrideWithValue(() => 'user-1'),
       remoteOperationRepositoryProvider.overrideWithValue(remote),
     ],
   );
@@ -356,6 +418,9 @@ final class _FakeRemoteOperationRepository implements OperationRepository {
   final Completer<Result<Operation>>? createCompleter;
   int getCalls = 0;
   int createCalls = 0;
+  int updateCalls = 0;
+  int plaidOverrideCalls = 0;
+  String? plaidOverrideCategoryId;
 
   @override
   Future<Result<List<Operation>>> getOperations() async {
@@ -389,7 +454,25 @@ final class _FakeRemoteOperationRepository implements OperationRepository {
 
   @override
   Future<Result<Operation>> updateOperation(Operation operation) async {
+    updateCalls += 1;
     return Success(operation);
+  }
+
+  @override
+  Future<Result<void>> overridePlaidOperationCategory({
+    required String operationId,
+    required String? categoryId,
+  }) async {
+    plaidOverrideCalls += 1;
+    plaidOverrideCategoryId = categoryId;
+    return const Success(null);
+  }
+
+  @override
+  Future<Result<void>> resetPlaidOperationCategoryOverride({
+    required String operationId,
+  }) async {
+    return const Success(null);
   }
 
   @override
@@ -409,6 +492,7 @@ Operation _operation({
   required String id,
   double amount = 100,
   OperationType type = OperationType.expense,
+  OperationSource source = OperationSource.manual,
   String? categoryId,
   String? toAccountId,
 }) {
@@ -417,6 +501,7 @@ Operation _operation({
   return Operation(
     id: id,
     userId: 'user-1',
+    source: source,
     fromAccountId: 'account-1',
     toAccountId: toAccountId,
     categoryId: type == OperationType.transfer
