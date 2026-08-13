@@ -74,6 +74,15 @@ type CategoryEnrichmentResult =
   }
   | { status: "lease_lost" | "missing" | "missing_item" };
 
+type InternalTransferReconcileResult = {
+  status: "processed";
+  candidatesActive: number;
+  candidatesCreated: number;
+  candidatesReactivated: number;
+  candidatesInvalidated: number;
+  candidatesUnchanged: number;
+};
+
 type HandlerDependencies = {
   createDatabase: () => ProjectionJobWorkerDatabase | null;
   getEnv: (name: string) => string | undefined;
@@ -98,6 +107,9 @@ export type ProjectionJobWorkerDatabase = {
     job: ClaimedProjectionJob,
     chunkSize: number,
   ): Promise<SourceSyncResult | null>;
+  reconcileInternalTransferCandidatesForUser(
+    userId: string,
+  ): Promise<InternalTransferReconcileResult | null>;
   applyCategoryMappingForProjectionJob(
     job: ClaimedProjectionJob,
     batchSize: number,
@@ -323,6 +335,35 @@ function normalizeSourceSyncResult(value: unknown): SourceSyncResult | null {
   };
 }
 
+function normalizeInternalTransferReconcileResult(
+  value: unknown,
+): InternalTransferReconcileResult | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const row = value as Record<string, unknown>;
+  if (
+    row.status !== "processed" ||
+    typeof row.candidates_active !== "number" ||
+    typeof row.candidates_created !== "number" ||
+    typeof row.candidates_reactivated !== "number" ||
+    typeof row.candidates_invalidated !== "number" ||
+    typeof row.candidates_unchanged !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    status: "processed",
+    candidatesActive: row.candidates_active,
+    candidatesCreated: row.candidates_created,
+    candidatesReactivated: row.candidates_reactivated,
+    candidatesInvalidated: row.candidates_invalidated,
+    candidatesUnchanged: row.candidates_unchanged,
+  };
+}
+
 function normalizeCategoryEnrichmentResult(
   value: unknown,
 ): CategoryEnrichmentResult | null {
@@ -451,6 +492,19 @@ function createDefaultDatabase(
       );
 
       return error === null ? normalizeSourceSyncResult(data) : null;
+    },
+
+    async reconcileInternalTransferCandidatesForUser(userId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_reconcile_internal_transfer_candidates_for_user",
+        {
+          p_user_id: userId,
+        },
+      );
+
+      return error === null
+        ? normalizeInternalTransferReconcileResult(data)
+        : null;
     },
 
     async applyCategoryMappingForProjectionJob(job, batchSize) {
@@ -673,6 +727,13 @@ export function createPlaidProcessTransactionProjectionJobsHandler(
     let sourceUnchanged = 0;
     let overridePreserved = 0;
     let overrideInvalidated = 0;
+    let internalTransferReconcileAttempted = 0;
+    let internalTransferReconcileFailed = 0;
+    let internalTransferCandidatesActive = 0;
+    let internalTransferCandidatesCreated = 0;
+    let internalTransferCandidatesReactivated = 0;
+    let internalTransferCandidatesInvalidated = 0;
+    let internalTransferCandidatesUnchanged = 0;
     let categoryScanned = 0;
     let categoryMapped = 0;
     let categoryUpdated = 0;
@@ -901,6 +962,38 @@ export function createPlaidProcessTransactionProjectionJobsHandler(
           }
         }
 
+        // Stage F: candidate-only. Non-fatal for financial projection pipeline.
+        if (!leaseLost && !jobHasMore) {
+          internalTransferReconcileAttempted += 1;
+          try {
+            const transferReconcile = await database
+              .reconcileInternalTransferCandidatesForUser(job.userId);
+
+            if (transferReconcile === null) {
+              internalTransferReconcileFailed += 1;
+              deps.log("internal_transfer_reconcile_failed", {
+                error_code: "internal_transfer_reconcile_failed",
+              });
+            } else {
+              internalTransferCandidatesActive +=
+                transferReconcile.candidatesActive;
+              internalTransferCandidatesCreated +=
+                transferReconcile.candidatesCreated;
+              internalTransferCandidatesReactivated +=
+                transferReconcile.candidatesReactivated;
+              internalTransferCandidatesInvalidated +=
+                transferReconcile.candidatesInvalidated;
+              internalTransferCandidatesUnchanged +=
+                transferReconcile.candidatesUnchanged;
+            }
+          } catch (_) {
+            internalTransferReconcileFailed += 1;
+            deps.log("internal_transfer_reconcile_failed", {
+              error_code: "internal_transfer_reconcile_failed",
+            });
+          }
+        }
+
         if (!leaseLost && !jobHasMore) {
           for (
             let chunkIndex = 0;
@@ -1054,6 +1147,16 @@ export function createPlaidProcessTransactionProjectionJobsHandler(
       source_unchanged: sourceUnchanged,
       override_preserved: overridePreserved,
       override_invalidated: overrideInvalidated,
+      internal_transfer_reconcile_attempted: internalTransferReconcileAttempted,
+      internal_transfer_reconcile_failed: internalTransferReconcileFailed,
+      internal_transfer_candidates_active: internalTransferCandidatesActive,
+      internal_transfer_candidates_created: internalTransferCandidatesCreated,
+      internal_transfer_candidates_reactivated:
+        internalTransferCandidatesReactivated,
+      internal_transfer_candidates_invalidated:
+        internalTransferCandidatesInvalidated,
+      internal_transfer_candidates_unchanged:
+        internalTransferCandidatesUnchanged,
       category_scanned: categoryScanned,
       category_mapped: categoryMapped,
       category_updated: categoryUpdated,
