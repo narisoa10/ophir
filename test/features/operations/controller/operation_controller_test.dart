@@ -358,6 +358,53 @@ void main() {
       expect(stored?.categoryId, isNull);
       expect(stored?.categoryOverridden, isTrue);
     });
+    test('rejects update and archive for plaid_internal_transfer', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final remote = _FakeRemoteOperationRepository();
+      final container = _container(database: database, remote: remote);
+      addTearDown(container.dispose);
+
+      final created = await container
+          .read(operationControllerProvider.notifier)
+          .createOperation(
+            _operation(
+              id: '',
+              type: OperationType.transfer,
+              source: OperationSource.plaidInternalTransfer,
+              toAccountId: 'account-2',
+              categoryId: null,
+            ),
+          );
+      expect(created, isA<Success<Operation>>());
+      final synthetic = (created as Success<Operation>).value;
+      final mutated = Operation(
+        id: synthetic.id,
+        userId: synthetic.userId,
+        source: synthetic.source,
+        fromAccountId: synthetic.fromAccountId,
+        toAccountId: synthetic.toAccountId,
+        categoryId: synthetic.categoryId,
+        type: synthetic.type,
+        amount: 1,
+        currencyCode: synthetic.currencyCode,
+        occurredAt: synthetic.occurredAt,
+        recurrence: synthetic.recurrence,
+        isRecurring: synthetic.isRecurring,
+        createdAt: synthetic.createdAt,
+        updatedAt: synthetic.updatedAt,
+      );
+
+      final updateResult = await container
+          .read(operationControllerProvider.notifier)
+          .updateOperation(mutated);
+      expect(updateResult, isA<Failure<Operation>>());
+
+      final archiveResult = await container
+          .read(operationControllerProvider.notifier)
+          .archiveOperation(synthetic.id);
+      expect(archiveResult, isA<Failure<void>>());
+    });
   });
 }
 

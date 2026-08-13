@@ -312,6 +312,20 @@ void main() {
       expect(find.widgetWithText(TextButton, _l10n.commonDelete), findsNothing);
     });
 
+    test('operations_screen blocks editor/archive for synthetic source', () {
+      final source = File(
+        'lib/features/operations/presentation/screens/operations_screen.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('OperationSource.plaidInternalTransfer'));
+      expect(
+        source,
+        contains(
+          'if (operation.source == OperationSource.plaidInternalTransfer)',
+        ),
+      );
+    });
+
     testWidgets('Plaid editor can save explicit uncategorized override', (
       tester,
     ) async {

@@ -103,6 +103,11 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
       return;
     }
 
+    // Stage G synthetic internal transfers are read-only in the ordinary editor.
+    if (operation.source == OperationSource.plaidInternalTransfer) {
+      return;
+    }
+
     final category = AppCategories.byIdName(operation.categoryId);
     if (category == null && operation.source != OperationSource.plaid) {
       return;
@@ -262,6 +267,10 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     WidgetRef ref,
     Operation operation,
   ) async {
+    if (operation.source == OperationSource.plaidInternalTransfer) {
+      return false;
+    }
+
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
