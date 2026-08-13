@@ -13,8 +13,7 @@ import {
   syncPlaidTransactionsForConnection,
 } from "../plaid-sync-transactions/handler.ts";
 
-const PLAID_SANDBOX_ACCOUNTS_GET_URL =
-  "https://sandbox.plaid.com/accounts/get";
+const PLAID_SANDBOX_ACCOUNTS_GET_URL = "https://sandbox.plaid.com/accounts/get";
 const PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL =
   "https://sandbox.plaid.com/institutions/get_by_id";
 
@@ -29,6 +28,7 @@ type PlaidAccountPayload = {
   unofficial_currency_code: string | null;
   current_balance: number | null;
   available_balance: number | null;
+  persistent_account_id: string | null;
 };
 
 type AccountSyncDatabase = {
@@ -148,7 +148,9 @@ async function callPlaid(
   return payload;
 }
 
-function normalizePlaidAccounts(accounts: unknown): PlaidAccountPayload[] | null {
+function normalizePlaidAccounts(
+  accounts: unknown,
+): PlaidAccountPayload[] | null {
   if (!Array.isArray(accounts)) {
     return null;
   }
@@ -200,6 +202,7 @@ function normalizePlaidAccounts(accounts: unknown): PlaidAccountPayload[] | null
       unofficial_currency_code: unofficialCurrencyCode,
       current_balance: currentBalance,
       available_balance: availableBalance,
+      persistent_account_id: readNonEmptyString(record.persistent_account_id),
     });
   }
 
@@ -268,7 +271,10 @@ function createDefaultDatabase(
 function createDefaultTransactionBootstrap(
   fetchImpl: typeof fetch,
   getEnv: (name: string) => string | undefined,
-): (userId: string, connectionId: string) => Promise<TransactionBootstrapStatus> {
+): (
+  userId: string,
+  connectionId: string,
+) => Promise<TransactionBootstrapStatus> {
   return async (userId, connectionId) => {
     const database = createPlaidTransactionsSyncDatabase(getEnv);
     if (database === null) {

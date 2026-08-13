@@ -283,7 +283,9 @@ function normalizePlaidTransaction(
   };
 }
 
-function normalizeRemovedTransaction(value: unknown): RemovedTransaction | null {
+function normalizeRemovedTransaction(
+  value: unknown,
+): RemovedTransaction | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }

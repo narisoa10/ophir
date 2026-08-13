@@ -395,6 +395,9 @@ verify_jwt = false
 [functions.plaid-sandbox-fire-transaction-webhook]
 verify_jwt = false
 
+[functions.plaid-sandbox-transactions-refresh]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

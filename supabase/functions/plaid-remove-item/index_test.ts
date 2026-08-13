@@ -201,7 +201,10 @@ Deno.test("successful item remove performs local cleanup after Plaid", async () 
   const response = await handler(request);
 
   assertEquals(response.status, 200);
-  assertEquals(calls.join(","), "get_item,get_access_token,plaid_remove,cleanup");
+  assertEquals(
+    calls.join(","),
+    "get_item,get_access_token,plaid_remove,cleanup",
+  );
   assertEquals(fetchBodies.length, 1);
   assertEquals(fetchBodies[0].access_token, accessToken);
   assertEquals(cleanupCalls.length, 1);
@@ -232,7 +235,10 @@ Deno.test("Plaid ITEM_NOT_FOUND performs local cleanup", async () => {
   const response = await handler(request);
 
   assertEquals(response.status, 200);
-  assertEquals(calls.join(","), "get_item,get_access_token,plaid_remove,cleanup");
+  assertEquals(
+    calls.join(","),
+    "get_item,get_access_token,plaid_remove,cleanup",
+  );
   assertEquals(cleanupCalls.length, 1);
 });
 

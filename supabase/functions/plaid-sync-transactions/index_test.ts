@@ -321,15 +321,18 @@ Deno.test("first single-page sync applies batch after final page", async () => {
   const response = await handler(request);
 
   assertEquals(response.status, 200);
-  assertEquals(calls.join(","), [
-    "acquire_lease",
-    "get_access_token",
-    "renew_lease",
-    "plaid_sync",
-    "renew_lease",
-    "apply_batch",
-    "release_lease",
-  ].join(","));
+  assertEquals(
+    calls.join(","),
+    [
+      "acquire_lease",
+      "get_access_token",
+      "renew_lease",
+      "plaid_sync",
+      "renew_lease",
+      "apply_batch",
+      "release_lease",
+    ].join(","),
+  );
   assertEquals(applyCalls.length, 1);
   assertEquals(applyCalls[0].added.length, 1);
 });

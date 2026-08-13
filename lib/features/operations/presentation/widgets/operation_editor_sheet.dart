@@ -178,112 +178,116 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
               ),
             ),
           ],
-          if (_isPlaidCategoryOnly) const SizedBox.shrink() else ...[
-          const SizedBox(height: AppSpacing.itemGap),
-          TextFormField(
-            key: const ValueKey<String>('operation-amount-field'),
-            controller: _amountController,
-            decoration: appFormFieldDecoration(
-              context,
-              labelText: '${l10n.operationAmountHint} ($_currencyCode)',
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [_decimalFormatter],
-            textInputAction: TextInputAction.next,
-            validator: _amountValidator,
-          ),
-          const SizedBox(height: AppSpacing.itemGap),
-          DropdownButtonFormField<_OperationEditorFrequency>(
-            key: const ValueKey<String>('operation-frequency-field'),
-            initialValue: _frequency,
-            decoration: appFormFieldDecoration(
-              context,
-              labelText: l10n.budgetIncomeFrequency,
-            ),
-            items: [
-              for (final frequency in _OperationEditorFrequency.values)
-                DropdownMenuItem(
-                  value: frequency,
-                  child: Text(_frequencyLabel(frequency, l10n)),
-                ),
-            ],
-            onChanged: (value) {
-              if (value == null) {
-                return;
-              }
-
-              setState(() {
-                _frequency = value;
-              });
-            },
-          ),
-          if (_frequency == _OperationEditorFrequency.everyNMonths) ...[
+          if (_isPlaidCategoryOnly)
+            const SizedBox.shrink()
+          else ...[
             const SizedBox(height: AppSpacing.itemGap),
             TextFormField(
-              controller: _frequencyIntervalController,
+              key: const ValueKey<String>('operation-amount-field'),
+              controller: _amountController,
               decoration: appFormFieldDecoration(
                 context,
-                labelText: l10n.budgetFrequencyInterval,
+                labelText: '${l10n.operationAmountHint} ($_currencyCode)',
               ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [_decimalFormatter],
               textInputAction: TextInputAction.next,
-              validator: _requiredPositiveIntValidator,
+              validator: _amountValidator,
             ),
-          ],
-          if (_frequency == _OperationEditorFrequency.timesPerYear) ...[
             const SizedBox(height: AppSpacing.itemGap),
-            TextFormField(
-              controller: _timesPerYearController,
+            DropdownButtonFormField<_OperationEditorFrequency>(
+              key: const ValueKey<String>('operation-frequency-field'),
+              initialValue: _frequency,
               decoration: appFormFieldDecoration(
                 context,
-                labelText: l10n.budgetTimesPerYear,
+                labelText: l10n.budgetIncomeFrequency,
               ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              textInputAction: TextInputAction.next,
-              validator: _requiredPositiveIntValidator,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.itemGap),
-          FormField<DateTime>(
-            key: const ValueKey<String>('operation-next-date-field'),
-            initialValue: _nextDate,
-            validator: (value) {
-              if (_frequency == _OperationEditorFrequency.irregular ||
-                  _nextDate != null) {
-                return null;
-              }
-
-              return l10n.budgetRequiredField;
-            },
-            builder: (field) {
-              final dateText = _nextDate == null
-                  ? l10n.operationNextDate
-                  : MaterialLocalizations.of(
-                      context,
-                    ).formatMediumDate(_nextDate!);
-
-              return InkWell(
-                borderRadius: AppRadius.inputRadius,
-                onTap: _pickNextDate,
-                child: InputDecorator(
-                  decoration: appFormFieldDecoration(
-                    context,
-                    labelText: l10n.operationNextDate,
-                  ).copyWith(errorText: field.errorText),
-                  child: Text(
-                    dateText,
-                    style: _nextDate == null
-                        ? AppTypography.body.copyWith(
-                            color: context.appThemeColors.textSecondary,
-                          )
-                        : AppTypography.body,
+              items: [
+                for (final frequency in _OperationEditorFrequency.values)
+                  DropdownMenuItem(
+                    value: frequency,
+                    child: Text(_frequencyLabel(frequency, l10n)),
                   ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
+                setState(() {
+                  _frequency = value;
+                });
+              },
+            ),
+            if (_frequency == _OperationEditorFrequency.everyNMonths) ...[
+              const SizedBox(height: AppSpacing.itemGap),
+              TextFormField(
+                controller: _frequencyIntervalController,
+                decoration: appFormFieldDecoration(
+                  context,
+                  labelText: l10n.budgetFrequencyInterval,
                 ),
-              );
-            },
-          ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textInputAction: TextInputAction.next,
+                validator: _requiredPositiveIntValidator,
+              ),
+            ],
+            if (_frequency == _OperationEditorFrequency.timesPerYear) ...[
+              const SizedBox(height: AppSpacing.itemGap),
+              TextFormField(
+                controller: _timesPerYearController,
+                decoration: appFormFieldDecoration(
+                  context,
+                  labelText: l10n.budgetTimesPerYear,
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textInputAction: TextInputAction.next,
+                validator: _requiredPositiveIntValidator,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.itemGap),
+            FormField<DateTime>(
+              key: const ValueKey<String>('operation-next-date-field'),
+              initialValue: _nextDate,
+              validator: (value) {
+                if (_frequency == _OperationEditorFrequency.irregular ||
+                    _nextDate != null) {
+                  return null;
+                }
+
+                return l10n.budgetRequiredField;
+              },
+              builder: (field) {
+                final dateText = _nextDate == null
+                    ? l10n.operationNextDate
+                    : MaterialLocalizations.of(
+                        context,
+                      ).formatMediumDate(_nextDate!);
+
+                return InkWell(
+                  borderRadius: AppRadius.inputRadius,
+                  onTap: _pickNextDate,
+                  child: InputDecorator(
+                    decoration: appFormFieldDecoration(
+                      context,
+                      labelText: l10n.operationNextDate,
+                    ).copyWith(errorText: field.errorText),
+                    child: Text(
+                      dateText,
+                      style: _nextDate == null
+                          ? AppTypography.body.copyWith(
+                              color: context.appThemeColors.textSecondary,
+                            )
+                          : AppTypography.body,
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
         ],
       ),

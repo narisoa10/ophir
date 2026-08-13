@@ -136,13 +136,15 @@ final class SupabaseOperationRepository implements OperationRepository {
     }
 
     try {
-      final data = await _client.rpc(
-        'plaid_override_operation_category',
-        params: {
-          'p_operation_id': operationId,
-          'p_category_id': categoryId,
-        },
-      ) as Map<String, dynamic>;
+      final data =
+          await _client.rpc(
+                'plaid_override_operation_category',
+                params: {
+                  'p_operation_id': operationId,
+                  'p_category_id': categoryId,
+                },
+              )
+              as Map<String, dynamic>;
 
       return data['status'] == 'updated'
           ? const Success(null)
@@ -163,10 +165,12 @@ final class SupabaseOperationRepository implements OperationRepository {
     }
 
     try {
-      final data = await _client.rpc(
-        'plaid_reset_operation_category_override',
-        params: {'p_operation_id': operationId},
-      ) as Map<String, dynamic>;
+      final data =
+          await _client.rpc(
+                'plaid_reset_operation_category_override',
+                params: {'p_operation_id': operationId},
+              )
+              as Map<String, dynamic>;
 
       return data['status'] == 'reset'
           ? const Success(null)

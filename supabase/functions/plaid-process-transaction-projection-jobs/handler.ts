@@ -918,10 +918,11 @@ export function createPlaidProcessTransactionProjectionJobsHandler(
               break;
             }
 
-            const category = await database.applyCategoryMappingForProjectionJob(
-              job,
-              categoryChunkSize,
-            );
+            const category = await database
+              .applyCategoryMappingForProjectionJob(
+                job,
+                categoryChunkSize,
+              );
 
             if (category === null) {
               const failResult = await failJob({
