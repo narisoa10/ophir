@@ -1629,4 +1629,76 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get dashboardCategorizationActionTitle => 'Разобрать операции';
+
+  @override
+  String internalTransferReviewBanner(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count возможных переводов для проверки',
+      many: '$count возможных переводов для проверки',
+      few: '$count возможных перевода для проверки',
+      one: '$count возможный перевод для проверки',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get internalTransferReviewSheetTitle => 'Возможные переводы';
+
+  @override
+  String get internalTransferReviewFrom => 'Откуда';
+
+  @override
+  String get internalTransferReviewTo => 'Куда';
+
+  @override
+  String get internalTransferReviewConfirm => 'Подтвердить перевод';
+
+  @override
+  String get internalTransferReviewExplanation =>
+      'После подтверждения это будет считаться переводом между вашими счетами, а не доходом или расходом.';
+
+  @override
+  String get internalTransferReviewClose => 'Закрыть';
+
+  @override
+  String get internalTransferReviewUnavailableAccount => 'Счёт недоступен';
+
+  @override
+  String get internalTransferReviewOutgoingDate => 'Дата списания';
+
+  @override
+  String get internalTransferReviewIncomingDate => 'Дата зачисления';
+
+  @override
+  String get internalTransferReviewSourceOperations => 'Связанные операции';
+
+  @override
+  String get internalTransferReviewConfirmed => 'Перевод подтверждён';
+
+  @override
+  String get internalTransferReviewSuggestionOutdated =>
+      'Это предложение перевода устарело. Список обновлён.';
+
+  @override
+  String get internalTransferReviewSuggestionUnavailable =>
+      'Это предложение перевода больше недоступно.';
+
+  @override
+  String get internalTransferReviewRetry =>
+      'Что-то пошло не так. Попробуйте снова.';
+
+  @override
+  String internalTransferReviewBannerSemantics(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count возможных переводов для проверки',
+      many: '$count возможных переводов для проверки',
+      few: '$count возможных перевода для проверки',
+      one: '$count возможный перевод для проверки',
+    );
+    return '$_temp0';
+  }
 }

@@ -522,5 +522,35 @@
     "categoryRulesTitle":  "Правила категорий",
     "categoryRulesSettingsSubtitle":  "Запомненные категории магазинов",
     "categoryRulesEmpty":  "Правил пока нет. Категоризируйте банковскую операцию и выберите «Запомнить».",
-    "dashboardCategorizationActionTitle":  "Разобрать операции"
+    "dashboardCategorizationActionTitle":  "Разобрать операции",
+    "internalTransferReviewBanner":  "{count, plural, one{{count} возможный перевод для проверки} few{{count} возможных перевода для проверки} many{{count} возможных переводов для проверки} other{{count} возможных переводов для проверки}}",
+    "@internalTransferReviewBanner":  {
+        "placeholders":  {
+            "count":  {
+                "type":  "int"
+            }
+        }
+    },
+    "internalTransferReviewSheetTitle":  "Возможные переводы",
+    "internalTransferReviewFrom":  "Откуда",
+    "internalTransferReviewTo":  "Куда",
+    "internalTransferReviewConfirm":  "Подтвердить перевод",
+    "internalTransferReviewExplanation":  "После подтверждения это будет считаться переводом между вашими счетами, а не доходом или расходом.",
+    "internalTransferReviewClose":  "Закрыть",
+    "internalTransferReviewUnavailableAccount":  "Счёт недоступен",
+    "internalTransferReviewOutgoingDate":  "Дата списания",
+    "internalTransferReviewIncomingDate":  "Дата зачисления",
+    "internalTransferReviewSourceOperations":  "Связанные операции",
+    "internalTransferReviewConfirmed":  "Перевод подтверждён",
+    "internalTransferReviewSuggestionOutdated":  "Это предложение перевода устарело. Список обновлён.",
+    "internalTransferReviewSuggestionUnavailable":  "Это предложение перевода больше недоступно.",
+    "internalTransferReviewRetry":  "Что-то пошло не так. Попробуйте снова.",
+    "internalTransferReviewBannerSemantics":  "{count, plural, one{{count} возможный перевод для проверки} few{{count} возможных перевода для проверки} many{{count} возможных переводов для проверки} other{{count} возможных переводов для проверки}}",
+    "@internalTransferReviewBannerSemantics":  {
+        "placeholders":  {
+            "count":  {
+                "type":  "int"
+            }
+        }
+    }
 }

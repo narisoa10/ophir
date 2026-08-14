@@ -539,5 +539,35 @@
     "categoryRulesTitle":  "Category rules",
     "categoryRulesSettingsSubtitle":  "Saved merchant categories",
     "categoryRulesEmpty":  "No saved rules yet. Categorize a bank transaction and choose Remember.",
-    "dashboardCategorizationActionTitle":  "Review transactions"
+    "dashboardCategorizationActionTitle":  "Review transactions",
+    "internalTransferReviewBanner":  "{count, plural, =1{1 possible transfer to review} other{{count} possible transfers to review}}",
+    "@internalTransferReviewBanner":  {
+        "placeholders":  {
+            "count":  {
+                "type":  "int"
+            }
+        }
+    },
+    "internalTransferReviewSheetTitle":  "Possible transfers",
+    "internalTransferReviewFrom":  "From",
+    "internalTransferReviewTo":  "To",
+    "internalTransferReviewConfirm":  "Confirm transfer",
+    "internalTransferReviewExplanation":  "After confirmation this will be treated as a transfer between your accounts, not income or expense.",
+    "internalTransferReviewClose":  "Close",
+    "internalTransferReviewUnavailableAccount":  "Unavailable account",
+    "internalTransferReviewOutgoingDate":  "Outgoing date",
+    "internalTransferReviewIncomingDate":  "Incoming date",
+    "internalTransferReviewSourceOperations":  "Related operations",
+    "internalTransferReviewConfirmed":  "Transfer confirmed",
+    "internalTransferReviewSuggestionOutdated":  "This transfer suggestion is outdated. The list was refreshed.",
+    "internalTransferReviewSuggestionUnavailable":  "This transfer suggestion is no longer available.",
+    "internalTransferReviewRetry":  "Something went wrong. Try again.",
+    "internalTransferReviewBannerSemantics":  "{count, plural, =1{1 possible transfer to review} other{{count} possible transfers to review}}",
+    "@internalTransferReviewBannerSemantics":  {
+        "placeholders":  {
+            "count":  {
+                "type":  "int"
+            }
+        }
+    }
 }

@@ -9,11 +9,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ophir/app/router/app_router.dart';
 import 'package:ophir/app/router/app_routes.dart';
 import 'package:ophir/app/router/app_startup_gate_provider.dart';
+import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/features/auth/controller/auth_providers.dart';
 import 'package:ophir/features/auth/data/auth_repository.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_gate_provider.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_gate_status.dart';
+import 'package:ophir/features/operations/controller/internal_transfer_review_providers.dart';
+import 'package:ophir/features/operations/domain/entities/internal_transfer_review_item.dart';
+import 'package:ophir/features/operations/domain/internal_transfer_confirm_outcome.dart';
+import 'package:ophir/features/operations/domain/repositories/internal_transfer_review_repository.dart';
 
 final class _FakeUser implements User {
   _FakeUser({required this.id});
@@ -98,6 +103,10 @@ void main() {
             }
             return gateFuture();
           }),
+          // Additive H2 on OperationsScreen; isolate router tests from Supabase.instance.
+          internalTransferReviewRepositoryProvider.overrideWithValue(
+            const _EmptyInternalTransferReviewRepository(),
+          ),
         ],
       );
     }
@@ -453,6 +462,28 @@ class _TestApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
+    );
+  }
+}
+
+/// Empty H2 review dependency for router harness (no network / Supabase).
+class _EmptyInternalTransferReviewRepository
+    implements InternalTransferReviewRepository {
+  const _EmptyInternalTransferReviewRepository();
+
+  @override
+  Future<Result<List<InternalTransferReviewItem>>> listCandidates() async {
+    return const Success(<InternalTransferReviewItem>[]);
+  }
+
+  @override
+  Future<InternalTransferConfirmOutcome> confirm(
+    String reconciliationId,
+  ) async {
+    return const InternalTransferConfirmSucceeded(
+      status: 'confirmed',
+      reconciliationId: 'unused',
+      transferOperationId: 'unused',
     );
   }
 }
