@@ -32,10 +32,6 @@ final class OperationController extends AsyncNotifier<Result<List<Operation>>> {
   }
 
   Future<Result<Operation>> updateOperation(Operation operation) async {
-    if (operation.source == OperationSource.plaidInternalTransfer) {
-      return const Failure(DatabaseFailure());
-    }
-
     final localRepository = ref.read(localOperationRepositoryProvider);
     final result = await localRepository.updateOperation(operation);
 
@@ -92,15 +88,6 @@ final class OperationController extends AsyncNotifier<Result<List<Operation>>> {
 
   Future<Result<void>> archiveOperation(String operationId) async {
     final localRepository = ref.read(localOperationRepositoryProvider);
-    final existing = await localRepository.getOperations();
-    if (existing case Success<List<Operation>>(:final value)) {
-      final matches = value.where((op) => op.id == operationId);
-      if (matches.isNotEmpty &&
-          matches.first.source == OperationSource.plaidInternalTransfer) {
-        return const Failure(DatabaseFailure());
-      }
-    }
-
     final remoteRepository = ref.read(remoteOperationRepositoryProvider);
     final result = await localRepository.archiveOperation(operationId);
 

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,7 +13,6 @@ import '../../../category_rules/domain/utils/merchant_key.dart';
 import '../../../category_rules/presentation/widgets/remember_category_rule_dialog.dart';
 import '../../controller/operation_controller.dart';
 import '../../controller/operation_providers.dart';
-import '../../controller/internal_transfer_review_providers.dart';
 import '../../domain/entities/operation.dart';
 import '../../domain/enums/operation_source.dart';
 import '../../domain/enums/operation_type.dart';
@@ -23,8 +20,6 @@ import '../../domain/utils/operation_needs_categorization.dart';
 import '../filters/operation_month_filter.dart';
 import '../filters/operation_review_filter.dart';
 import '../models/operation_date_section_presentation.dart';
-import '../widgets/internal_transfer_review_banner.dart';
-import '../widgets/internal_transfer_review_sheet.dart';
 import '../widgets/operation_date_section_list.dart';
 import '../widgets/operation_editor_mapper.dart';
 import '../widgets/operation_editor_result.dart';
@@ -105,11 +100,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     required List<Operation> allOperations,
   }) async {
     if (_isEditorOpen || _isSavingOperation) {
-      return;
-    }
-
-    // Stage G synthetic internal transfers are read-only in the ordinary editor.
-    if (operation.source == OperationSource.plaidInternalTransfer) {
       return;
     }
 
@@ -272,10 +262,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     WidgetRef ref,
     Operation operation,
   ) async {
-    if (operation.source == OperationSource.plaidInternalTransfer) {
-      return false;
-    }
-
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -322,7 +308,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
 
   Future<void> _refreshOperationsFromRemote() async {
     final result = await ref.read(operationRemoteSyncProvider)();
-    await ref.read(internalTransferReviewProvider.notifier).refresh();
 
     if (!mounted) {
       return;
@@ -335,15 +320,10 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     }
   }
 
-  void _openInternalTransferReview() {
-    unawaited(showInternalTransferReviewSheet(context: context));
-  }
-
   @override
   Widget build(BuildContext context) {
     final bootstrapState = ref.watch(operationBootstrapProvider);
     final operationsState = ref.watch(operationsProvider);
-    final transferReviewState = ref.watch(internalTransferReviewProvider);
     final l10n = AppLocalizations.of(context);
     final isRefreshingOperations = bootstrapState.isLoading;
 
@@ -364,7 +344,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                   operations: value,
                   l10n: l10n,
                   isRefreshingOperations: isRefreshingOperations,
-                  transferReviewState: transferReviewState,
                 ),
                 Failure<List<Operation>>() =>
                   isRefreshingOperations
@@ -402,7 +381,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     required List<Operation> operations,
     required AppLocalizations l10n,
     required bool isRefreshingOperations,
-    required InternalTransferReviewState transferReviewState,
   }) {
     final now = DateTime.now();
     final monthFilter = OperationMonthFilter(
@@ -413,9 +391,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
     final reviewFilter = OperationReviewFilter(enabled: _reviewFilterEnabled);
     final visibleOperations = reviewFilter.apply(monthOperations);
     final reviewCount = countOperationsNeedingCategorization(monthOperations);
-    final transferCount = transferReviewState.showBanner
-        ? transferReviewState.candidates.length
-        : 0;
     final monthLabel = MaterialLocalizations.of(
       context,
     ).formatMonthYear(_selectedMonth);
@@ -475,14 +450,6 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> {
                   _reviewFilterEnabled = !_reviewFilterEnabled;
                 });
               },
-            ),
-            InternalTransferReviewBanner(
-              count: transferCount,
-              label: l10n.internalTransferReviewBanner(transferCount),
-              semanticsLabel: l10n.internalTransferReviewBannerSemantics(
-                transferCount,
-              ),
-              onTap: _openInternalTransferReview,
             ),
             if (isRefreshingOperations) ...[
               const SizedBox(height: AppSpacing.xs),

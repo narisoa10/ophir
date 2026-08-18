@@ -68,15 +68,6 @@ type CategoryEnrichmentResult =
   }
   | { status: "lease_lost" | "missing" | "missing_item" };
 
-type InternalTransferReconcileResult = {
-  status: "processed";
-  candidatesActive: number;
-  candidatesCreated: number;
-  candidatesReactivated: number;
-  candidatesInvalidated: number;
-  candidatesUnchanged: number;
-};
-
 type HarnessOptions = {
   secretHeader?: string | null;
   envSecret?: string | null;
@@ -87,8 +78,6 @@ type HarnessOptions = {
   materializeThrows?: boolean;
   sourceSyncResults?: Array<SourceSyncResult | null>;
   sourceSyncThrows?: boolean;
-  internalTransferResults?: Array<InternalTransferReconcileResult | null>;
-  internalTransferThrows?: boolean;
   categoryResults?: Array<CategoryEnrichmentResult | null>;
   categoryThrows?: boolean;
   completeResults?: Array<
@@ -199,23 +188,8 @@ function categoryEnriched(overrides: Partial<
   };
 }
 
-function internalTransferReconciled(
-  overrides: Partial<InternalTransferReconcileResult> = {},
-): InternalTransferReconcileResult {
-  return {
-    status: "processed",
-    candidatesActive: 0,
-    candidatesCreated: 0,
-    candidatesReactivated: 0,
-    candidatesInvalidated: 0,
-    candidatesUnchanged: 0,
-    ...overrides,
-  };
-}
-
 function createHarness(options: HarnessOptions = {}) {
   const calls: string[] = [];
-  const logs: Array<{ message: string; fields: Record<string, unknown> }> = [];
   const failCodes: string[] = [];
   const failBackoffs: number[] = [];
   const reconcileJobs: ClaimedJob[] = [];
@@ -230,11 +204,6 @@ function createHarness(options: HarnessOptions = {}) {
   const sourceSyncResults: Array<SourceSyncResult | null> = [
     ...(options.sourceSyncResults ?? [sourceSynced()]),
   ];
-  const internalTransferResults: Array<
-    InternalTransferReconcileResult | null
-  > = [
-    ...(options.internalTransferResults ?? [internalTransferReconciled()]),
-  ];
   const categoryResults: Array<CategoryEnrichmentResult | null> = [
     ...(options.categoryResults ?? [categoryEnriched()]),
   ];
@@ -242,7 +211,7 @@ function createHarness(options: HarnessOptions = {}) {
   const continueResults = [...(options.continueResults ?? ["continued"])];
   const dropResults = [...(options.dropResults ?? ["dropped"])];
   const failResults = [...(options.failResults ?? ["rescheduled"])];
-  const renewResults = [...(options.renewResults ?? [true, true, true, true])];
+  const renewResults = [...(options.renewResults ?? [true, true, true])];
 
   const database: ProjectionJobWorkerDatabase = {
     async claimProjectionJobs(batchSize, leaseSeconds) {
@@ -282,17 +251,6 @@ function createHarness(options: HarnessOptions = {}) {
       }
       const next = sourceSyncResults.shift();
       return next === undefined ? sourceSynced() : next;
-    },
-    async reconcileInternalTransferCandidatesForUser(receivedUserId) {
-      // Call marker intentionally omits user id from the recorded token list
-      // used by privacy assertions; order is still observable via phase tags.
-      calls.push("internal_transfer");
-      void receivedUserId;
-      if (options.internalTransferThrows) {
-        throw new Error("internal transfer crashed");
-      }
-      const next = internalTransferResults.shift();
-      return next === undefined ? internalTransferReconciled() : next;
     },
     async applyCategoryMappingForProjectionJob(claimedJob, batchSize) {
       calls.push(
@@ -354,10 +312,7 @@ function createHarness(options: HarnessOptions = {}) {
       return undefined;
     },
     randomUUID: () => "44444444-4444-4444-8444-444444444444",
-    log: (message, fields) => {
-      logs.push({ message, fields });
-      options.log?.(message, fields);
-    },
+    log: options.log ?? (() => {}),
   });
 
   const headers = new Headers();
@@ -377,7 +332,6 @@ function createHarness(options: HarnessOptions = {}) {
     handler,
     request,
     calls,
-    logs,
     failCodes,
     failBackoffs,
     reconcileJobs,
@@ -612,13 +566,8 @@ Deno.test("category phase runs after materialization through fenced RPC", async 
   );
   assert(
     calls.findIndex((call) => call.startsWith("source:")) <
-      calls.findIndex((call) => call === "internal_transfer"),
-    "Stage F must run after source sync",
-  );
-  assert(
-    calls.findIndex((call) => call === "internal_transfer") <
       calls.findIndex((call) => call.startsWith("category:")),
-    "category enrichment must run after Stage F",
+    "category enrichment must run after source sync",
   );
   assert(
     calls.includes(`category:${connectionId}:${leaseToken}:250`),
@@ -653,13 +602,8 @@ Deno.test("source sync runs after materialization before category enrichment", a
   );
   assert(
     calls.findIndex((call) => call.startsWith("source:")) <
-      calls.findIndex((call) => call === "internal_transfer"),
-    "Stage F must run after source sync",
-  );
-  assert(
-    calls.findIndex((call) => call === "internal_transfer") <
       calls.findIndex((call) => call.startsWith("category:")),
-    "category enrichment must run after Stage F",
+    "category enrichment must run after source sync",
   );
   assertEquals(body.source_scanned, 1);
   assertEquals(body.source_updated, 1);
@@ -741,7 +685,6 @@ Deno.test("bounded source sync has_more continues job instead of completing", as
   );
   assertEquals(calls.includes(`complete:${connectionId}:${leaseToken}`), false);
   assertEquals(calls.some((call) => call.startsWith("category:")), false);
-  assertEquals(calls.includes("internal_transfer"), false);
 });
 
 Deno.test("bounded category has_more continues job instead of completing", async () => {
@@ -1121,140 +1064,6 @@ Deno.test("missing item drops current projection job lease", async () => {
   assert(calls.includes(`drop:${connectionId}:${leaseToken}`), "missing drop");
 });
 
-Deno.test("Stage F runs after source-sync drained and before category", async () => {
-  const { handler, request, calls } = createHarness({
-    claimedJobs: [job()],
-    internalTransferResults: [
-      internalTransferReconciled({
-        candidatesActive: 1,
-        candidatesCreated: 1,
-      }),
-    ],
-  });
-
-  const response = await handler(request);
-  const body = await response.json();
-
-  assertEquals(response.status, 200);
-  assert(
-    calls.findIndex((call) => call.startsWith("source:")) <
-      calls.findIndex((call) => call === "internal_transfer"),
-    "Stage F must run after source sync",
-  );
-  assert(
-    calls.findIndex((call) => call === "internal_transfer") <
-      calls.findIndex((call) => call.startsWith("category:")),
-    "Stage F must run before category",
-  );
-  assertEquals(body.internal_transfer_reconcile_attempted, 1);
-  assertEquals(body.internal_transfer_reconcile_failed, 0);
-  assertEquals(body.internal_transfer_candidates_created, 1);
-  assertEquals(body.internal_transfer_candidates_active, 1);
-  assert(
-    calls.includes(`complete:${connectionId}:${leaseToken}`),
-    "missing complete",
-  );
-});
-
-Deno.test("Stage F is skipped when source-sync still has_more", async () => {
-  const { handler, request, calls } = createHarness({
-    claimedJobs: [job()],
-    reconcileResults: [processed({ hasMore: false })],
-    materializeResults: [materialized({ hasMore: false })],
-    sourceSyncResults: [
-      sourceSynced({ sourceUpdated: 250, hasMore: true }),
-      sourceSynced({ sourceUpdated: 250, hasMore: true }),
-      sourceSynced({ sourceUpdated: 250, hasMore: true }),
-      sourceSynced({ sourceUpdated: 250, hasMore: true }),
-    ],
-  });
-
-  const response = await handler(request);
-
-  assertEquals(response.status, 200);
-  assertEquals(calls.includes("internal_transfer"), false);
-  assertEquals(calls.some((call) => call.startsWith("category:")), false);
-});
-
-Deno.test("Stage F success continues category and complete", async () => {
-  const { handler, request, calls } = createHarness({
-    claimedJobs: [job()],
-    internalTransferResults: [
-      internalTransferReconciled({ candidatesUnchanged: 2 }),
-    ],
-  });
-
-  const response = await handler(request);
-  const body = await response.json();
-
-  assertEquals(response.status, 200);
-  assert(calls.includes("internal_transfer"), "missing Stage F call");
-  assert(
-    calls.some((call) => call.startsWith("category:")),
-    "missing category",
-  );
-  assert(
-    calls.includes(`complete:${connectionId}:${leaseToken}`),
-    "missing complete",
-  );
-  assertEquals(body.internal_transfer_candidates_unchanged, 2);
-  assertEquals(body.succeeded, 1);
-});
-
-Deno.test("Stage F RPC null failure is non-fatal for category/complete", async () => {
-  const { handler, request, calls, logs, failCodes } = createHarness({
-    claimedJobs: [job()],
-    internalTransferResults: [null],
-  });
-
-  const response = await handler(request);
-  const body = await response.json();
-
-  assertEquals(response.status, 200);
-  assertEquals(body.internal_transfer_reconcile_attempted, 1);
-  assertEquals(body.internal_transfer_reconcile_failed, 1);
-  assert(
-    calls.some((call) => call.startsWith("category:")),
-    "category must continue",
-  );
-  assert(
-    calls.includes(`complete:${connectionId}:${leaseToken}`),
-    "complete must continue",
-  );
-  assertEquals(failCodes.length, 0);
-  assertEquals(body.succeeded, 1);
-  assertEquals(
-    logs.some((entry) =>
-      entry.message === "internal_transfer_reconcile_failed" &&
-      entry.fields.error_code === "internal_transfer_reconcile_failed"
-    ),
-    true,
-  );
-});
-
-Deno.test("Stage F thrown failure is non-fatal for category/complete", async () => {
-  const { handler, request, calls, failCodes } = createHarness({
-    claimedJobs: [job()],
-    internalTransferThrows: true,
-  });
-
-  const response = await handler(request);
-  const body = await response.json();
-
-  assertEquals(response.status, 200);
-  assertEquals(body.internal_transfer_reconcile_failed, 1);
-  assert(
-    calls.some((call) => call.startsWith("category:")),
-    "category must continue",
-  );
-  assert(
-    calls.includes(`complete:${connectionId}:${leaseToken}`),
-    "complete must continue",
-  );
-  assertEquals(failCodes.length, 0);
-  assertEquals(body.succeeded, 1);
-});
-
 Deno.test("response and logs contain no financial or identity data", async () => {
   const logs: string[] = [];
   const secret = "secret-value";
@@ -1288,25 +1097,4 @@ Deno.test("response and logs contain no financial or identity data", async () =>
   ) {
     assertNotIncludes(combined, forbidden);
   }
-});
-
-Deno.test("Stage F failure logs omit user/projection/operation/amount identity", async () => {
-  const { handler, request, logs } = createHarness({
-    claimedJobs: [job()],
-    internalTransferResults: [null],
-  });
-
-  const response = await handler(request);
-  assertEquals(response.status, 200);
-
-  const failureLogs = logs.filter((entry) =>
-    entry.message === "internal_transfer_reconcile_failed"
-  );
-  assertEquals(failureLogs.length, 1);
-  const serialized = JSON.stringify(failureLogs[0]);
-  assertNotIncludes(serialized, userId);
-  assertNotIncludes(serialized, connectionId);
-  assertNotIncludes(serialized, "projection");
-  assertNotIncludes(serialized, "operation");
-  assertNotIncludes(serialized, "amount");
 });

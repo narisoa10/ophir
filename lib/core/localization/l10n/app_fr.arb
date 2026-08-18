@@ -522,35 +522,5 @@
     "categoryRulesTitle":  "Règles de catégories",
     "categoryRulesSettingsSubtitle":  "Catégories mémorisées par commerçant",
     "categoryRulesEmpty":  "Aucune règle enregistrée. Catégorisez une transaction bancaire et choisissez Se souvenir.",
-    "dashboardCategorizationActionTitle":  "Revoir les transactions",
-    "internalTransferReviewBanner":  "{count, plural, =1{1 virement possible à revoir} other{{count} virements possibles à revoir}}",
-    "@internalTransferReviewBanner":  {
-        "placeholders":  {
-            "count":  {
-                "type":  "int"
-            }
-        }
-    },
-    "internalTransferReviewSheetTitle":  "Virements possibles",
-    "internalTransferReviewFrom":  "De",
-    "internalTransferReviewTo":  "Vers",
-    "internalTransferReviewConfirm":  "Confirmer le virement",
-    "internalTransferReviewExplanation":  "Après confirmation, cela sera traité comme un virement entre vos comptes, et non comme un revenu ou une dépense.",
-    "internalTransferReviewClose":  "Fermer",
-    "internalTransferReviewUnavailableAccount":  "Compte indisponible",
-    "internalTransferReviewOutgoingDate":  "Date sortante",
-    "internalTransferReviewIncomingDate":  "Date entrante",
-    "internalTransferReviewSourceOperations":  "Opérations liées",
-    "internalTransferReviewConfirmed":  "Virement confirmé",
-    "internalTransferReviewSuggestionOutdated":  "Cette suggestion de virement est obsolète. La liste a été actualisée.",
-    "internalTransferReviewSuggestionUnavailable":  "Cette suggestion de virement n’est plus disponible.",
-    "internalTransferReviewRetry":  "Une erreur s’est produite. Réessayez.",
-    "internalTransferReviewBannerSemantics":  "{count, plural, =1{1 virement possible à revoir} other{{count} virements possibles à revoir}}",
-    "@internalTransferReviewBannerSemantics":  {
-        "placeholders":  {
-            "count":  {
-                "type":  "int"
-            }
-        }
-    }
+    "dashboardCategorizationActionTitle":  "Revoir les transactions"
 }

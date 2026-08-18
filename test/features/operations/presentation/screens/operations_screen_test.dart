@@ -15,15 +15,11 @@ import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/core/widgets/app_editor_bottom_sheet.dart';
 import 'package:ophir/features/operations/controller/operation_providers.dart';
-import 'package:ophir/features/operations/controller/internal_transfer_review_providers.dart';
 import 'package:ophir/features/operations/data/repositories/local_operation_repository.dart';
 import 'package:ophir/features/operations/domain/entities/operation.dart';
-import 'package:ophir/features/operations/domain/entities/internal_transfer_review_item.dart';
 import 'package:ophir/features/operations/domain/enums/operation_recurrence.dart';
 import 'package:ophir/features/operations/domain/enums/operation_type.dart';
-import 'package:ophir/features/operations/domain/internal_transfer_confirm_outcome.dart';
 import 'package:ophir/features/operations/domain/repositories/operation_repository.dart';
-import 'package:ophir/features/operations/domain/repositories/internal_transfer_review_repository.dart';
 import 'package:ophir/features/operations/presentation/screens/operation_recurrence_picker_screen.dart';
 import 'package:ophir/features/operations/presentation/screens/operations_screen.dart';
 import 'package:ophir/features/operations/presentation/widgets/operation_editor_sheet.dart';
@@ -595,10 +591,6 @@ final class _OperationsTestApp extends StatelessWidget {
         remoteOperationRepositoryProvider.overrideWithValue(
           remoteRepository ?? _FakeRemoteOperationRepository(),
         ),
-        // H2 review is additive on OperationsScreen; isolate from Supabase.instance.
-        internalTransferReviewRepositoryProvider.overrideWithValue(
-          const _EmptyInternalTransferReviewRepository(),
-        ),
       ],
       child: MaterialApp.router(
         routerConfig: router,
@@ -712,28 +704,6 @@ final class _FakeRemoteOperationRepository implements OperationRepository {
   @override
   Stream<Result<List<Operation>>> watchOperations() {
     return Stream.value(getResult);
-  }
-}
-
-/// Empty H2 review dependency for OperationsScreen harness (no network / Supabase).
-class _EmptyInternalTransferReviewRepository
-    implements InternalTransferReviewRepository {
-  const _EmptyInternalTransferReviewRepository();
-
-  @override
-  Future<Result<List<InternalTransferReviewItem>>> listCandidates() async {
-    return const Success(<InternalTransferReviewItem>[]);
-  }
-
-  @override
-  Future<InternalTransferConfirmOutcome> confirm(
-    String reconciliationId,
-  ) async {
-    return const InternalTransferConfirmSucceeded(
-      status: 'confirmed',
-      reconciliationId: 'unused',
-      transferOperationId: 'unused',
-    );
   }
 }
 
