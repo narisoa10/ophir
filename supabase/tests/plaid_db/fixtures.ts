@@ -70,6 +70,7 @@ export interface TransactionInput {
   date: string;
   name: string;
   pending?: boolean;
+  pendingTransactionId?: string;
   pfcPrimary?: string;
   pfcDetailed?: string;
 }
@@ -81,6 +82,9 @@ function transactionPayload(transaction: TransactionInput) {
     amount: transaction.amount.toFixed(2),
     date: transaction.date,
     pending: transaction.pending ?? false,
+    ...(transaction.pendingTransactionId === undefined
+      ? {}
+      : { pending_transaction_id: transaction.pendingTransactionId }),
     iso_currency_code: "CAD",
     name: transaction.name,
     merchant_name: transaction.name,

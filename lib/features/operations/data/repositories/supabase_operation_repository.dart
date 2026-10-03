@@ -4,6 +4,7 @@ import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/result.dart';
 import '../../domain/entities/operation.dart';
 import '../../domain/repositories/operation_repository.dart';
+import '../../domain/utils/operation_write_rules.dart';
 import '../dto/operation_dto.dart';
 import '../mappers/operation_mapper.dart';
 
@@ -75,6 +76,10 @@ final class SupabaseOperationRepository implements OperationRepository {
 
   @override
   Future<Result<Operation>> createOperation(Operation operation) async {
+    if (!isUserWritableOperation(operation)) {
+      return const Failure(ValidationFailure());
+    }
+
     final userId = _currentUserId;
 
     if (userId == null) {
@@ -101,6 +106,10 @@ final class SupabaseOperationRepository implements OperationRepository {
 
   @override
   Future<Result<Operation>> updateOperation(Operation operation) async {
+    if (!isUserWritableOperation(operation)) {
+      return const Failure(ValidationFailure());
+    }
+
     final userId = _currentUserId;
 
     if (userId == null) {

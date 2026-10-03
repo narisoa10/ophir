@@ -1,6 +1,7 @@
 import {
   type AccountsRefreshDatabase,
   type InstitutionMetadataSource,
+  isPlaidItemDisconnectedRpcError,
   normalizePlaidAccounts,
   type PersistAccountsSyncArgs,
   type PlaidAccountsRefreshResult,
@@ -130,7 +131,7 @@ type FakeDatabaseState = {
 function fakeDatabase(options: {
   accessToken?: string | null;
   stored?: StoredInstitution | null | "failed" | "throw";
-  persistResult?: number | null;
+  persistResult?: number | "disconnected" | null;
   observationResult?: "applied" | "not_found" | null;
   withoutInstitutionLookup?: boolean;
 } = {}): { database: AccountsRefreshDatabase; state: FakeDatabaseState } {
@@ -516,6 +517,39 @@ Deno.test("persist failure is reported, not masked", async () => {
 
   assertJsonEquals(result, { kind: "persist_failed" });
   assertEquals(state.persisted.length, 1);
+});
+
+Deno.test("snapshot refused for a disconnected Item is connection_disconnected", async () => {
+  const calls: FetchCall[] = [];
+  const { database, state } = fakeDatabase({ persistResult: "disconnected" });
+  const result = await refresh({
+    responder: accountsOk([account("a1")]),
+    database,
+    calls,
+  });
+
+  assertJsonEquals(result, { kind: "connection_disconnected" });
+  assertEquals(state.persisted.length, 1);
+  assertEquals(state.observations.length, 0);
+  assertEquals(calls.filter((c) => c.url.includes("/accounts/get")).length, 1);
+  assertNoSecrets(result);
+});
+
+Deno.test("only the plaid_item_disconnected RPC error is classified as disconnected", () => {
+  assertEquals(
+    isPlaidItemDisconnectedRpcError({ message: "plaid_item_disconnected" }),
+    true,
+  );
+  assertEquals(
+    isPlaidItemDisconnectedRpcError({ message: "plaid_item_not_found" }),
+    false,
+  );
+  assertEquals(
+    isPlaidItemDisconnectedRpcError({ message: "invalid_plaid_account_payload" }),
+    false,
+  );
+  assertEquals(isPlaidItemDisconnectedRpcError({}), false);
+  assertEquals(isPlaidItemDisconnectedRpcError(null), false);
 });
 
 Deno.test("access token and Plaid credentials never appear in results or persist args", async () => {

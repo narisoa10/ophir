@@ -6,6 +6,7 @@ import '../../../../core/errors/result.dart';
 import '../../domain/entities/operation.dart';
 import '../../domain/repositories/operation_repository.dart';
 import '../../domain/utils/operation_calendar_date.dart';
+import '../../domain/utils/operation_write_rules.dart';
 
 base class LocalOperationRepository implements OperationRepository {
   const LocalOperationRepository({
@@ -42,6 +43,10 @@ base class LocalOperationRepository implements OperationRepository {
 
   @override
   Future<Result<Operation>> createOperation(Operation operation) async {
+    if (!isUserWritableOperation(operation)) {
+      return const Failure(ValidationFailure());
+    }
+
     final now = DateTime.now().toUtc();
     final localOperation = _operationForCurrentUser(
       operation,
@@ -60,6 +65,10 @@ base class LocalOperationRepository implements OperationRepository {
 
   @override
   Future<Result<Operation>> updateOperation(Operation operation) async {
+    if (!isUserWritableOperation(operation)) {
+      return const Failure(ValidationFailure());
+    }
+
     final localOperation = _operationForCurrentUser(
       operation,
       id: operation.id,

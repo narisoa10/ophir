@@ -25,6 +25,7 @@ type HarnessOptions = {
   plaidAccountsStatus?: number;
   malformedAccounts?: boolean;
   persistSucceeds?: boolean;
+  persistDisconnected?: boolean;
   bootstrapStatus?: "synced" | "deferred";
   bootstrapThrows?: boolean;
   accountsOverride?: Record<string, unknown>[];
@@ -153,6 +154,9 @@ function createHarness(options: HarnessOptions = {}) {
           institutionUrl: args.institutionUrl,
           balanceFetchedAt: args.balanceFetchedAt,
         };
+        if (options.persistDisconnected) {
+          return "disconnected";
+        }
         return persistSucceeds ? args.accounts.length : null;
       },
       async recordItemHealthObservation(observation) {
@@ -740,6 +744,23 @@ Deno.test("persist failure keeps the 500 persist_failed contract", async () => {
 
   assertEquals(response.status, 500);
   assertEquals((await response.json()).error.code, "persist_failed");
+});
+
+Deno.test("manual Sync of an Item disconnected mid-refresh fails closed with 409 connection_disconnected", async () => {
+  const { handler, request, calls, bootstrapCalls } = createHarness({
+    persistDisconnected: true,
+  });
+
+  const response = await handler(request);
+  const text = await response.text();
+
+  assertEquals(response.status, 409);
+  assertEquals(JSON.parse(text).error.code, "connection_disconnected");
+  assertEquals(calls.includes("bootstrap_transactions"), false);
+  assertEquals(bootstrapCalls.length, 0);
+  assertEquals(calls.includes("record_observation"), false);
+  assert(!text.includes(accessToken), "response exposed access token");
+  assert(!text.includes("sandbox-secret"), "response exposed Plaid secret");
 });
 
 Deno.test("malformed accounts payload keeps the 502 plaid_payload_invalid contract", async () => {

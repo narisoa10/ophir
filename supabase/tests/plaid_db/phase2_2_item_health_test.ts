@@ -22,6 +22,7 @@ const HEALTH_COLUMNS = [
   "status_changed_at",
   "consent_expires_at",
   "pending_disconnect_at",
+  "disconnected_at",
 ];
 
 type Role = "anon" | "authenticated" | "service_role";

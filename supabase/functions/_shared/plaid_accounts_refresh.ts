@@ -50,7 +50,10 @@ export type AccountsRefreshDatabase = {
     userId: string,
     connectionId: string,
   ): Promise<string | null>;
-  persistAccountsSync(args: PersistAccountsSyncArgs): Promise<number | null>;
+  // "disconnected": the Item was disconnected before the snapshot was written.
+  persistAccountsSync(
+    args: PersistAccountsSyncArgs,
+  ): Promise<number | "disconnected" | null>;
   recordItemHealthObservation: RecordItemHealthObservation;
   // null: the Item has no stored institution row yet.
   getStoredInstitution?(
@@ -71,12 +74,20 @@ export type PlaidAccountsRefreshResult =
     institutionName: string | null;
   }
   | { kind: "connection_not_found" }
+  | { kind: "connection_disconnected" }
   | { kind: "item_login_required" }
   | { kind: "item_unavailable" }
   | { kind: "plaid_request_failed" }
   | { kind: "plaid_payload_invalid" }
   | { kind: "institution_lookup_failed" }
   | { kind: "persist_failed" };
+
+// plaid_persist_accounts_sync refuses a disconnected Item under the Item lock.
+export function isPlaidItemDisconnectedRpcError(
+  error: { message?: string } | null,
+): boolean {
+  return error?.message?.includes("plaid_item_disconnected") === true;
+}
 
 export type PlaidCallResult =
   | { kind: "ok"; payload: Record<string, unknown> }
@@ -426,6 +437,10 @@ export async function refreshPlaidAccountsForItem(params: {
     balanceFetchedAt: new Date().toISOString(),
     accounts,
   });
+
+  if (syncedAccountCount === "disconnected") {
+    return { kind: "connection_disconnected" };
+  }
 
   if (syncedAccountCount === null) {
     return { kind: "persist_failed" };

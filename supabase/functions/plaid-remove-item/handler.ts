@@ -40,9 +40,34 @@ type RemoveItemDatabase = {
   ): Promise<LocalCleanupResult | null>;
 };
 
+type LifecycleItemRow = {
+  plaid_environment: string;
+  disconnected_at: string | null;
+};
+
+type ItemLifecycleDatabase = {
+  getItemLifecycleState(
+    userId: string,
+    connectionId: string,
+  ): Promise<LifecycleItemRow | null | "failed">;
+  getAccessTokenForItem(
+    userId: string,
+    connectionId: string,
+  ): Promise<string | null>;
+  disconnectItemLocal(
+    userId: string,
+    connectionId: string,
+  ): Promise<"disconnected" | "already_disconnected" | "not_found" | null>;
+  deleteItemLocal(
+    userId: string,
+    connectionId: string,
+  ): Promise<"deleted" | "not_found" | null>;
+};
+
 type HandlerDependencies = {
   authenticateRequest: (request: Request) => Promise<AuthenticatedUser | null>;
   createDatabase: () => RemoveItemDatabase | null;
+  createLifecycleDatabase: () => ItemLifecycleDatabase | null;
   fetch: typeof fetch;
   getEnv: (name: string) => string | undefined;
 };
@@ -52,7 +77,12 @@ type PlaidEnvironmentConfig = {
   secretEnvName: string;
 };
 
-type PlaidRemoveOutcome = "removed" | "already_removed" | "failed";
+// "unknown": no Plaid answer was read (network error, unreadable body), so the
+// Item may or may not have been removed.
+type PlaidRemoveOutcome = "removed" | "already_removed" | "failed" | "unknown";
+
+// Absent action: the original remove contract (plaid_remove_item_local_cleanup).
+type RequestAction = "legacy_remove" | "disconnect" | "delete";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -80,6 +110,15 @@ function readConnectionId(body: Record<string, unknown>): string | null {
 
   const trimmed = connectionId.trim();
   return uuidPattern.test(trimmed) ? trimmed : null;
+}
+
+function readAction(body: Record<string, unknown>): RequestAction | null {
+  const action = body.action;
+  if (action === undefined) {
+    return "legacy_remove";
+  }
+
+  return action === "disconnect" || action === "delete" ? action : null;
 }
 
 function readPlaidEnvironment(value: string): PlaidEnvironment | null {
@@ -116,7 +155,7 @@ async function callPlaidItemRemove(
       }),
     });
   } catch (_) {
-    return "failed";
+    return "unknown";
   }
 
   let payload: Record<string, unknown>;
@@ -124,11 +163,11 @@ async function callPlaidItemRemove(
   try {
     const parsed = await response.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return "failed";
+      return "unknown";
     }
     payload = parsed as Record<string, unknown>;
   } catch (_) {
-    return "failed";
+    return "unknown";
   }
 
   if (response.ok) {
@@ -228,6 +267,262 @@ function defaultCreateDatabase(): RemoveItemDatabase | null {
   };
 }
 
+function defaultCreateLifecycleDatabase(): ItemLifecycleDatabase | null {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (
+    typeof supabaseUrl !== "string" ||
+    supabaseUrl.length === 0 ||
+    typeof serviceRoleKey !== "string" ||
+    serviceRoleKey.length === 0
+  ) {
+    return null;
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+  return {
+    async getItemLifecycleState(userId, connectionId) {
+      const { data, error } = await supabaseAdmin
+        .from("plaid_items")
+        .select("plaid_environment, disconnected_at")
+        .eq("id", connectionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error !== null) {
+        return "failed";
+      }
+      if (data === null) {
+        return null;
+      }
+
+      const row = data as Record<string, unknown>;
+      if (
+        typeof row.plaid_environment !== "string" ||
+        (row.disconnected_at !== null &&
+          typeof row.disconnected_at !== "string")
+      ) {
+        return "failed";
+      }
+
+      return {
+        plaid_environment: row.plaid_environment,
+        disconnected_at: row.disconnected_at,
+      };
+    },
+
+    async getAccessTokenForItem(userId, connectionId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_get_access_token_for_item",
+        {
+          p_user_id: userId,
+          p_connection_id: connectionId,
+        },
+      );
+
+      if (error !== null || typeof data !== "string" || data.length === 0) {
+        return null;
+      }
+
+      return data;
+    },
+
+    async disconnectItemLocal(userId, connectionId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_disconnect_item_local",
+        {
+          p_user_id: userId,
+          p_connection_id: connectionId,
+        },
+      );
+
+      const status = error === null && data && typeof data === "object"
+        ? (data as Record<string, unknown>).status
+        : null;
+      return status === "disconnected" ||
+          status === "already_disconnected" ||
+          status === "not_found"
+        ? status
+        : null;
+    },
+
+    async deleteItemLocal(userId, connectionId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_delete_item_local",
+        {
+          p_user_id: userId,
+          p_connection_id: connectionId,
+        },
+      );
+
+      const status = error === null && data && typeof data === "object"
+        ? (data as Record<string, unknown>).status
+        : null;
+      return status === "deleted" || status === "not_found" ? status : null;
+    },
+  };
+}
+
+type RemoteRemoval =
+  | { kind: "removed" }
+  | { kind: "disconnected_meanwhile" }
+  | { kind: "response"; response: Response };
+
+// The Plaid Item must be removed before the local transition: the local
+// Disconnect deletes the only access token, after which /item/remove is
+// impossible. Without a confirmed Plaid answer nothing local changes.
+async function removePlaidItemForLifecycle(
+  deps: HandlerDependencies,
+  database: ItemLifecycleDatabase,
+  userId: string,
+  connectionId: string,
+  plaidEnvironment: string,
+): Promise<RemoteRemoval> {
+  const environment = readPlaidEnvironment(plaidEnvironment);
+  if (environment === null) {
+    return {
+      kind: "response",
+      response: errorResponse(500, "plaid_environment_unsupported"),
+    };
+  }
+
+  const clientId = deps.getEnv("PLAID_CLIENT_ID");
+  const config = plaidEnvironments[environment];
+  const secret = deps.getEnv(config.secretEnvName);
+  if (
+    typeof clientId !== "string" ||
+    clientId.length === 0 ||
+    typeof secret !== "string" ||
+    secret.length === 0
+  ) {
+    return {
+      kind: "response",
+      response: errorResponse(500, "plaid_config_missing"),
+    };
+  }
+
+  const accessToken = await database.getAccessTokenForItem(
+    userId,
+    connectionId,
+  );
+  if (accessToken === null) {
+    // A concurrent Disconnect deletes the token; anything else is unexpected.
+    const current = await database.getItemLifecycleState(userId, connectionId);
+    if (current === null) {
+      return {
+        kind: "response",
+        response: errorResponse(404, "connection_not_found"),
+      };
+    }
+    if (current !== "failed" && current.disconnected_at !== null) {
+      return { kind: "disconnected_meanwhile" };
+    }
+    return {
+      kind: "response",
+      response: errorResponse(500, "local_lifecycle_failed"),
+    };
+  }
+
+  const outcome = await callPlaidItemRemove(
+    deps.fetch,
+    config,
+    clientId,
+    secret,
+    accessToken,
+  );
+
+  if (outcome === "failed") {
+    return {
+      kind: "response",
+      response: errorResponse(502, "plaid_request_failed"),
+    };
+  }
+  if (outcome === "unknown") {
+    return {
+      kind: "response",
+      response: errorResponse(502, "plaid_outcome_unknown"),
+    };
+  }
+
+  return { kind: "removed" };
+}
+
+async function deleteItemLocally(
+  database: ItemLifecycleDatabase,
+  userId: string,
+  connectionId: string,
+): Promise<Response> {
+  const deleted = await database.deleteItemLocal(userId, connectionId);
+  switch (deleted) {
+    case "deleted":
+      return jsonResponse(200, { status: "deleted" });
+    case "not_found":
+      return errorResponse(404, "connection_not_found");
+    case null:
+      return errorResponse(500, "local_lifecycle_failed");
+  }
+}
+
+// Disconnect: Plaid Item removed, local history kept (plaid_disconnect_item_local).
+// Delete: an active Item is first disconnected the same way, then
+// plaid_delete_item_local removes it; an already disconnected Item has no token
+// and no Plaid Item left, so only the local Delete runs.
+async function handleItemLifecycle(
+  deps: HandlerDependencies,
+  action: "disconnect" | "delete",
+  userId: string,
+  connectionId: string,
+): Promise<Response> {
+  const database = deps.createLifecycleDatabase();
+  if (database === null) {
+    return errorResponse(500, "supabase_config_missing");
+  }
+
+  const item = await database.getItemLifecycleState(userId, connectionId);
+  if (item === "failed") {
+    return errorResponse(500, "local_lifecycle_failed");
+  }
+  if (item === null) {
+    return errorResponse(404, "connection_not_found");
+  }
+
+  if (item.disconnected_at !== null) {
+    return action === "disconnect"
+      ? jsonResponse(200, { status: "already_disconnected" })
+      : await deleteItemLocally(database, userId, connectionId);
+  }
+
+  const removal = await removePlaidItemForLifecycle(
+    deps,
+    database,
+    userId,
+    connectionId,
+    item.plaid_environment,
+  );
+  if (removal.kind === "response") {
+    return removal.response;
+  }
+  if (removal.kind === "disconnected_meanwhile") {
+    return action === "disconnect"
+      ? jsonResponse(200, { status: "already_disconnected" })
+      : await deleteItemLocally(database, userId, connectionId);
+  }
+
+  const disconnected = await database.disconnectItemLocal(userId, connectionId);
+  if (disconnected === null) {
+    return errorResponse(500, "local_lifecycle_failed");
+  }
+  if (disconnected === "not_found") {
+    return errorResponse(404, "connection_not_found");
+  }
+
+  return action === "disconnect"
+    ? jsonResponse(200, { status: disconnected })
+    : await deleteItemLocally(database, userId, connectionId);
+}
+
 export function createPlaidRemoveItemHandler(
   dependencies: Partial<HandlerDependencies> = {},
 ): (request: Request) => Promise<Response> {
@@ -235,6 +530,8 @@ export function createPlaidRemoveItemHandler(
     authenticateRequest: dependencies.authenticateRequest ??
       defaultAuthenticateRequest,
     createDatabase: dependencies.createDatabase ?? defaultCreateDatabase,
+    createLifecycleDatabase: dependencies.createLifecycleDatabase ??
+      defaultCreateLifecycleDatabase,
     fetch: dependencies.fetch ?? fetch,
     getEnv: dependencies.getEnv ?? ((name) => Deno.env.get(name) ?? undefined),
   };
@@ -259,8 +556,13 @@ export function createPlaidRemoveItemHandler(
     }
 
     const connectionId = readConnectionId(body);
-    if (connectionId === null) {
+    const action = readAction(body);
+    if (connectionId === null || action === null) {
       return errorResponse(400, "invalid_request");
+    }
+
+    if (action !== "legacy_remove") {
+      return await handleItemLifecycle(deps, action, user.id, connectionId);
     }
 
     const database = deps.createDatabase();
@@ -312,7 +614,7 @@ export function createPlaidRemoveItemHandler(
       accessToken,
     );
 
-    if (plaidRemoveOutcome === "failed") {
+    if (plaidRemoveOutcome === "failed" || plaidRemoveOutcome === "unknown") {
       return errorResponse(502, "plaid_request_failed");
     }
 

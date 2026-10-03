@@ -15,6 +15,7 @@ import {
 import { recordItemHealthObservationRpc } from "../_shared/plaid_item_health.ts";
 import {
   type AccountsRefreshDatabase,
+  isPlaidItemDisconnectedRpcError,
   type PlaidAccountsRefreshResult,
   refreshPlaidAccountsForItem,
 } from "../_shared/plaid_accounts_refresh.ts";
@@ -92,11 +93,11 @@ function createDefaultDatabase(
         },
       );
 
-      if (error !== null || typeof data !== "number") {
-        return null;
+      if (error !== null) {
+        return isPlaidItemDisconnectedRpcError(error) ? "disconnected" : null;
       }
 
-      return data;
+      return typeof data === "number" ? data : null;
     },
 
     recordItemHealthObservation(observation) {
@@ -137,6 +138,8 @@ function refreshFailureResponse(
   switch (result.kind) {
     case "connection_not_found":
       return errorResponse(404, "connection_not_found");
+    case "connection_disconnected":
+      return errorResponse(409, "connection_disconnected");
     case "item_login_required":
       return errorResponse(409, "item_login_required");
     case "persist_failed":

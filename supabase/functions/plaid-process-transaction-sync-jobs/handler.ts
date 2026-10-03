@@ -13,6 +13,7 @@ import {
 } from "../_shared/http.ts";
 import {
   type AccountsRefreshDatabase,
+  isPlaidItemDisconnectedRpcError,
   type PlaidAccountsRefreshResult,
   readStoredInstitutionRow,
   refreshPlaidAccountsForItem,
@@ -428,11 +429,11 @@ function createDefaultAccountsRefreshDatabase(
         },
       );
 
-      if (error !== null || typeof data !== "number") {
-        return null;
+      if (error !== null) {
+        return isPlaidItemDisconnectedRpcError(error) ? "disconnected" : null;
       }
 
-      return data;
+      return typeof data === "number" ? data : null;
     },
 
     recordItemHealthObservation(observation) {
