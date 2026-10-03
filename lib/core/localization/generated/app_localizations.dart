@@ -2552,7 +2552,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsDuplicateConnectionDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'Plaid successfully verified access to your bank, but this bank account is already connected to Ophir. To prevent duplicate transactions and inaccurate calculations, we didn\'t add it again. You can continue using the existing account or connect a different one.'**
+  /// **'This bank account is already connected to Ophir, so we didn\'t add it again. You can keep using the existing account or connect a different one.'**
   String get accountsDuplicateConnectionDialogBody;
 
   /// No description provided for @accountsDuplicateConnectionDialogAction.
@@ -2560,6 +2560,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Got it'**
   String get accountsDuplicateConnectionDialogAction;
+
+  /// No description provided for @accountsPartialDuplicateDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Some accounts are already connected'**
+  String get accountsPartialDuplicateDialogTitle;
+
+  /// No description provided for @accountsPartialDuplicateDialogBody.
+  ///
+  /// In en, this message translates to:
+  /// **'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only them.'**
+  String get accountsPartialDuplicateDialogBody;
+
+  /// No description provided for @accountsPartialDuplicateDialogSelectAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose again'**
+  String get accountsPartialDuplicateDialogSelectAgain;
+
+  /// No description provided for @accountsPartialDuplicateDialogClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get accountsPartialDuplicateDialogClose;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Is this a different account?'**
+  String get accountsAmbiguousConnectionDialogTitle;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogBody.
+  ///
+  /// In en, this message translates to:
+  /// **'We can\'t tell for sure whether this account is already connected. If it\'s a different account, you can connect it. If it\'s the same one, its transactions will appear twice.'**
+  String get accountsAmbiguousConnectionDialogBody;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'It\'s a different account'**
+  String get accountsAmbiguousConnectionDialogConfirm;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get accountsAmbiguousConnectionDialogCancel;
+
+  /// No description provided for @accountsDisconnectedExistingDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account was disconnected'**
+  String get accountsDisconnectedExistingDialogTitle;
+
+  /// No description provided for @accountsDisconnectedExistingDialogBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This account is already in Ophir, but its bank connection was disconnected. To connect it again, first delete the disconnected connection. Deleting it also removes its saved history.'**
+  String get accountsDisconnectedExistingDialogBody;
+
+  /// No description provided for @accountsDisconnectedExistingDialogAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get accountsDisconnectedExistingDialogAction;
+
+  /// No description provided for @accountsLinkAccountDisconnectedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'disconnected'**
+  String get accountsLinkAccountDisconnectedLabel;
 
   /// No description provided for @accountsInstitutionAccountCount.
   ///

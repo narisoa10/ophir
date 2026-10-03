@@ -1353,10 +1353,53 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountsDuplicateConnectionDialogBody =>
-      'Plaid a confirmé avec succès l\'accès à votre banque, mais ce compte bancaire est déjà connecté à Ophir. Afin d\'éviter les opérations en double et des calculs inexacts, nous ne l\'avons pas ajouté une seconde fois. Vous pouvez continuer à utiliser le compte déjà connecté ou en connecter un autre.';
+      'Ce compte bancaire est déjà connecté à Ophir, nous ne l\'avons donc pas ajouté une seconde fois. Vous pouvez continuer à utiliser le compte existant ou en connecter un autre.';
 
   @override
   String get accountsDuplicateConnectionDialogAction => 'Compris';
+
+  @override
+  String get accountsPartialDuplicateDialogTitle =>
+      'Certains comptes sont déjà connectés';
+
+  @override
+  String get accountsPartialDuplicateDialogBody =>
+      'Ces comptes sélectionnés sont déjà dans Ophir, donc rien n\'a été ajouté. Pour connecter vos nouveaux comptes, recommencez en sélectionnant uniquement ceux-ci.';
+
+  @override
+  String get accountsPartialDuplicateDialogSelectAgain =>
+      'Sélectionner à nouveau';
+
+  @override
+  String get accountsPartialDuplicateDialogClose => 'Fermer';
+
+  @override
+  String get accountsAmbiguousConnectionDialogTitle =>
+      'S\'agit-il d\'un autre compte ?';
+
+  @override
+  String get accountsAmbiguousConnectionDialogBody =>
+      'Nous ne pouvons pas déterminer avec certitude si ce compte est déjà connecté. S\'il s\'agit d\'un autre compte, vous pouvez le connecter. S\'il s\'agit du même, ses opérations apparaîtront en double.';
+
+  @override
+  String get accountsAmbiguousConnectionDialogConfirm =>
+      'C\'est un autre compte';
+
+  @override
+  String get accountsAmbiguousConnectionDialogCancel => 'Annuler';
+
+  @override
+  String get accountsDisconnectedExistingDialogTitle => 'Connexion désactivée';
+
+  @override
+  String get accountsDisconnectedExistingDialogBody =>
+      'Ce compte est déjà dans Ophir, mais sa connexion bancaire a été désactivée. Pour le connecter à nouveau, supprimez d\'abord la connexion désactivée. La suppression efface aussi son historique enregistré.';
+
+  @override
+  String get accountsDisconnectedExistingDialogAction => 'Compris';
+
+  @override
+  String get accountsLinkAccountDisconnectedLabel => 'désactivé';
 
   @override
   String accountsInstitutionAccountCount(int count) {

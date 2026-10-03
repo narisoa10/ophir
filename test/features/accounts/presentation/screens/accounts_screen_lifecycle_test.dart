@@ -225,6 +225,42 @@ void main() {
       expect(find.text(l10n.accountsConnectBank), findsOneWidget);
     });
 
+    testWidgets('resume while ambiguous confirmation is open is ignored', (
+      tester,
+    ) async {
+      functions.handlers['plaid-exchange-public-token'] = (_) => okResponse({
+        'status': 'confirmation_required',
+        'accounts': [
+          {'index': 0, 'decision': 'ambiguous'},
+        ],
+      });
+      await pumpApp(tester);
+      await openAccounts(tester);
+      final before = reads();
+
+      await tester.tap(find.text(l10n.accountsConnectBank));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogTitle),
+        findsOneWidget,
+      );
+
+      await backgroundAndResume(tester);
+      expect(reads(), before);
+
+      await tester.tap(find.text(l10n.accountsAmbiguousConnectionDialogCancel));
+      await tester.pumpAndSettle();
+
+      expect(reads(), before);
+      expect(syncCalls, isEmpty);
+      expect(functions.functionNames, [
+        'plaid-create-link-token',
+        'plaid-exchange-public-token',
+      ]);
+    });
+
     testWidgets('resume then cancel during reconnect keeps warning', (
       tester,
     ) async {

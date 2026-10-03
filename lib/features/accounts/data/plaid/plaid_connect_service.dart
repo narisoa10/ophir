@@ -72,8 +72,40 @@ final class PlaidConnectCancelled extends PlaidConnectOutcome {
   const PlaidConnectCancelled();
 }
 
+/// Every selected account is already in Ophir; nothing was exchanged.
 final class PlaidConnectDuplicate extends PlaidConnectOutcome {
-  const PlaidConnectDuplicate();
+  const PlaidConnectDuplicate([this.accounts = const <PlaidLinkAccountReview>[]]);
+
+  /// Empty when an older server answered without per-account detail.
+  final List<PlaidLinkAccountReview> accounts;
+}
+
+/// Some selected accounts are already in Ophir and others are not; nothing was
+/// exchanged, so the user has to choose only the new accounts again.
+final class PlaidConnectPartialDuplicate extends PlaidConnectOutcome {
+  const PlaidConnectPartialDuplicate(this.accounts);
+
+  final List<PlaidLinkAccountReview> accounts;
+}
+
+/// The server could not tell whether some accounts are already connected.
+/// [pendingLink] is resent unchanged by [PlaidConnectService.confirmAmbiguous].
+final class PlaidConnectConfirmationRequired extends PlaidConnectOutcome {
+  const PlaidConnectConfirmationRequired({
+    required this.accounts,
+    required this.pendingLink,
+  });
+
+  final List<PlaidLinkAccountReview> accounts;
+  final PlaidLinkSuccessPayload pendingLink;
+}
+
+/// Every selected account belongs to a disconnected connection, which has to
+/// be deleted before the account can be connected again.
+final class PlaidConnectDisconnectedExisting extends PlaidConnectOutcome {
+  const PlaidConnectDisconnectedExisting(this.accounts);
+
+  final List<PlaidLinkAccountReview> accounts;
 }
 
 final class PlaidConnectFailed extends PlaidConnectOutcome {
@@ -106,28 +138,58 @@ final class PlaidConnectService {
     }
 
     final linkToken = (linkTokenResult as Success<String>).value;
-    final linkSuccessResult = await _openLink(linkToken);
-    if (linkSuccessResult is Failure<PlaidLinkSuccessPayload>) {
-      final failure = linkSuccessResult.failure;
-      if (failure is ValidationFailure) {
+    final PlaidLinkSessionResult session;
+    try {
+      session = await _launchLink(linkToken);
+    } catch (_) {
+      return const PlaidConnectFailed(UnknownFailure());
+    }
+
+    final LinkSuccess success;
+    switch (session) {
+      case PlaidLinkSessionExited():
         return const PlaidConnectCancelled();
-      }
-      return PlaidConnectFailed(failure);
+      case PlaidLinkSessionFailed():
+        return const PlaidConnectFailed(UnknownFailure());
+      case PlaidLinkSessionSucceeded():
+        success = session.success;
     }
 
-    final linkSuccess =
-        (linkSuccessResult as Success<PlaidLinkSuccessPayload>).value;
-    final exchangeResult = await _exchangePublicToken(linkSuccess);
-    if (exchangeResult is Failure<PlaidExchangeResult>) {
-      return PlaidConnectFailed(exchangeResult.failure);
+    final payloadResult = _payloadFromLinkSuccess(success);
+    if (payloadResult is Failure<PlaidLinkSuccessPayload>) {
+      return PlaidConnectFailed(payloadResult.failure);
     }
 
-    final exchange = (exchangeResult as Success<PlaidExchangeResult>).value;
-    return switch (exchange) {
-      PlaidExchangeCompleted(:final connectionId) => PlaidConnectCompleted(
-        connectionId,
+    final payload = (payloadResult as Success<PlaidLinkSuccessPayload>).value;
+    return _exchange(payload, confirmAmbiguous: false);
+  }
+
+  /// Resends the same Link result after the user said the ambiguous accounts
+  /// are different ones. The server classifies everything again, so a
+  /// confirmation never overrides an account that is already connected.
+  Future<PlaidConnectOutcome> confirmAmbiguous(
+    PlaidLinkSuccessPayload pendingLink,
+  ) async {
+    final outcome = await _exchange(pendingLink, confirmAmbiguous: true);
+    if (outcome is PlaidConnectConfirmationRequired) {
+      return const PlaidConnectFailed(UnknownFailure());
+    }
+    return outcome;
+  }
+
+  Future<PlaidConnectOutcome> _exchange(
+    PlaidLinkSuccessPayload payload, {
+    required bool confirmAmbiguous,
+  }) async {
+    final exchangeResult = await _exchangePublicToken(
+      payload,
+      confirmAmbiguous: confirmAmbiguous,
+    );
+    return switch (exchangeResult) {
+      Success<PlaidConnectOutcome>(:final value) => value,
+      Failure<PlaidConnectOutcome>(:final failure) => PlaidConnectFailed(
+        failure,
       ),
-      PlaidExchangeDuplicate() => const PlaidConnectDuplicate(),
     };
   }
 
@@ -274,56 +336,114 @@ final class PlaidConnectService {
     }
   }
 
-  Future<Result<PlaidExchangeResult>> _exchangePublicToken(
-    PlaidLinkSuccessPayload payload,
-  ) async {
+  Future<Result<PlaidConnectOutcome>> _exchangePublicToken(
+    PlaidLinkSuccessPayload payload, {
+    required bool confirmAmbiguous,
+  }) async {
+    final FunctionResponse response;
     try {
-      final response = await _invokeFunction(
+      response = await _invokeFunction(
         'plaid-exchange-public-token',
-        body: payload.toJson(),
+        body: payload.toJson(confirmAmbiguous: confirmAmbiguous),
       );
-
-      final failure = _failureFromResponseStatus(response.status);
-      if (failure != null) {
-        return Failure(failure);
-      }
-
-      final data = response.data;
-      if (data is! Map<String, dynamic>) {
-        return const Failure(UnknownFailure());
-      }
-
-      if (data['status'] == 'duplicate') {
-        return const Success(PlaidExchangeDuplicate());
-      }
-
-      final connectionId = data['connection_id'];
-      if (connectionId is! String || connectionId.isEmpty) {
-        return const Failure(UnknownFailure());
-      }
-
-      return Success(PlaidExchangeCompleted(connectionId));
     } on FunctionException catch (exception) {
       return Failure(_failureFromFunctionException(exception));
     } catch (_) {
       return const Failure(NetworkFailure());
     }
-  }
 
-  Future<Result<PlaidLinkSuccessPayload>> _openLink(String linkToken) async {
-    final PlaidLinkSessionResult session;
-    try {
-      session = await _launchLink(linkToken);
-    } catch (_) {
+    final failure = _failureFromResponseStatus(response.status);
+    if (failure != null) {
+      return Failure(failure);
+    }
+
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
       return const Failure(UnknownFailure());
     }
 
-    return switch (session) {
-      PlaidLinkSessionSucceeded(:final success) => _payloadFromLinkSuccess(
-        success,
+    final status = data['status'];
+    if (status == null || status == 'connected') {
+      final connectionId = data['connection_id'];
+      if (connectionId is! String || connectionId.isEmpty) {
+        return const Failure(UnknownFailure());
+      }
+      return Success(PlaidConnectCompleted(connectionId));
+    }
+
+    final reviews = _accountReviews(data, payload);
+    return switch (status) {
+      'duplicate' when !data.containsKey('accounts') => const Success(
+        PlaidConnectDuplicate(),
       ),
-      PlaidLinkSessionExited() => const Failure(ValidationFailure()),
-      PlaidLinkSessionFailed() => const Failure(UnknownFailure()),
+      'duplicate' when reviews != null => Success(
+        PlaidConnectDuplicate(reviews),
+      ),
+      'partial_duplicate' when reviews != null => Success(
+        PlaidConnectPartialDuplicate(reviews),
+      ),
+      'confirmation_required' when reviews != null => Success(
+        PlaidConnectConfirmationRequired(
+          accounts: reviews,
+          pendingLink: payload,
+        ),
+      ),
+      'disconnected_existing' when reviews != null => Success(
+        PlaidConnectDisconnectedExisting(reviews),
+      ),
+      _ => const Failure(UnknownFailure()),
+    };
+  }
+
+  /// Pairs the server's per-account decisions with the names Link showed.
+  /// Returns null unless every selected account has exactly one decision.
+  List<PlaidLinkAccountReview>? _accountReviews(
+    Map<String, dynamic> data,
+    PlaidLinkSuccessPayload payload,
+  ) {
+    final accounts = data['accounts'];
+    final selected = payload.selectedAccounts;
+    if (accounts is! List || accounts.length != selected.length) {
+      return null;
+    }
+
+    final decisions = List<PlaidLinkAccountDecision?>.filled(
+      selected.length,
+      null,
+    );
+    for (final entry in accounts) {
+      if (entry is! Map) {
+        return null;
+      }
+      final index = entry['index'];
+      final decision = _parseAccountDecision(entry['decision']);
+      if (index is! int ||
+          index < 0 ||
+          index >= selected.length ||
+          decisions[index] != null ||
+          decision == null) {
+        return null;
+      }
+      decisions[index] = decision;
+    }
+
+    return [
+      for (var i = 0; i < selected.length; i++)
+        PlaidLinkAccountReview(
+          name: selected[i].name,
+          mask: selected[i].mask,
+          decision: decisions[i]!,
+        ),
+    ];
+  }
+
+  static PlaidLinkAccountDecision? _parseAccountDecision(Object? value) {
+    return switch (value) {
+      'new' => PlaidLinkAccountDecision.newAccount,
+      'duplicate' => PlaidLinkAccountDecision.duplicate,
+      'ambiguous' => PlaidLinkAccountDecision.ambiguous,
+      'disconnected_existing' => PlaidLinkAccountDecision.disconnectedExisting,
+      _ => null,
     };
   }
 
@@ -364,15 +484,21 @@ final class PlaidConnectService {
 
     final selectedAccounts = <PlaidSelectedAccountMetadata>[];
     for (final account in success.metadata.accounts) {
+      final accountId = account.id.trim();
       final name = account.name.trim();
-      final mask = account.mask?.trim();
 
-      if (name.isEmpty || mask == null || mask.isEmpty) {
+      if (accountId.isEmpty || name.isEmpty) {
         return const Failure(ValidationFailure());
       }
 
       selectedAccounts.add(
-        PlaidSelectedAccountMetadata(name: name, mask: mask),
+        PlaidSelectedAccountMetadata(
+          accountId: accountId,
+          name: name,
+          mask: _blankToNull(account.mask),
+          type: _blankToNull(account.type),
+          subtype: _blankToNull(account.subtype),
+        ),
       );
     }
 
@@ -387,6 +513,11 @@ final class PlaidConnectService {
         selectedAccounts: selectedAccounts,
       ),
     );
+  }
+
+  static String? _blankToNull(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 }
 
@@ -439,38 +570,61 @@ final class PlaidLinkSuccessPayload {
   final String institutionId;
   final List<PlaidSelectedAccountMetadata> selectedAccounts;
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({bool confirmAmbiguous = false}) {
     return {
+      'contract_version': 2,
       'public_token': publicToken,
       'institution_id': institutionId,
       'selected_accounts': selectedAccounts
           .map((account) => account.toJson())
           .toList(growable: false),
+      'confirm_ambiguous': confirmAmbiguous,
     };
   }
 }
 
 final class PlaidSelectedAccountMetadata {
-  const PlaidSelectedAccountMetadata({required this.name, required this.mask});
+  const PlaidSelectedAccountMetadata({
+    required this.accountId,
+    required this.name,
+    required this.mask,
+    required this.type,
+    required this.subtype,
+  });
 
+  final String accountId;
   final String name;
-  final String mask;
+  final String? mask;
+  final String? type;
+  final String? subtype;
 
   Map<String, dynamic> toJson() {
-    return {'name': name, 'mask': mask};
+    return {
+      'account_id': accountId,
+      'name': name,
+      'mask': mask,
+      'type': type,
+      'subtype': subtype,
+    };
   }
 }
 
-sealed class PlaidExchangeResult {
-  const PlaidExchangeResult();
+enum PlaidLinkAccountDecision {
+  newAccount,
+  duplicate,
+  ambiguous,
+  disconnectedExisting,
 }
 
-final class PlaidExchangeCompleted extends PlaidExchangeResult {
-  const PlaidExchangeCompleted(this.connectionId);
+/// One account the user selected in Link, with the server's decision for it.
+final class PlaidLinkAccountReview {
+  const PlaidLinkAccountReview({
+    required this.name,
+    required this.mask,
+    required this.decision,
+  });
 
-  final String connectionId;
-}
-
-final class PlaidExchangeDuplicate extends PlaidExchangeResult {
-  const PlaidExchangeDuplicate();
+  final String name;
+  final String? mask;
+  final PlaidLinkAccountDecision decision;
 }

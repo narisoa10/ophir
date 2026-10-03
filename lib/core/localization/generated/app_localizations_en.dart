@@ -1319,10 +1319,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsDuplicateConnectionDialogBody =>
-      'Plaid successfully verified access to your bank, but this bank account is already connected to Ophir. To prevent duplicate transactions and inaccurate calculations, we didn\'t add it again. You can continue using the existing account or connect a different one.';
+      'This bank account is already connected to Ophir, so we didn\'t add it again. You can keep using the existing account or connect a different one.';
 
   @override
   String get accountsDuplicateConnectionDialogAction => 'Got it';
+
+  @override
+  String get accountsPartialDuplicateDialogTitle =>
+      'Some accounts are already connected';
+
+  @override
+  String get accountsPartialDuplicateDialogBody =>
+      'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only them.';
+
+  @override
+  String get accountsPartialDuplicateDialogSelectAgain => 'Choose again';
+
+  @override
+  String get accountsPartialDuplicateDialogClose => 'Close';
+
+  @override
+  String get accountsAmbiguousConnectionDialogTitle =>
+      'Is this a different account?';
+
+  @override
+  String get accountsAmbiguousConnectionDialogBody =>
+      'We can\'t tell for sure whether this account is already connected. If it\'s a different account, you can connect it. If it\'s the same one, its transactions will appear twice.';
+
+  @override
+  String get accountsAmbiguousConnectionDialogConfirm =>
+      'It\'s a different account';
+
+  @override
+  String get accountsAmbiguousConnectionDialogCancel => 'Cancel';
+
+  @override
+  String get accountsDisconnectedExistingDialogTitle =>
+      'Account was disconnected';
+
+  @override
+  String get accountsDisconnectedExistingDialogBody =>
+      'This account is already in Ophir, but its bank connection was disconnected. To connect it again, first delete the disconnected connection. Deleting it also removes its saved history.';
+
+  @override
+  String get accountsDisconnectedExistingDialogAction => 'Got it';
+
+  @override
+  String get accountsLinkAccountDisconnectedLabel => 'disconnected';
 
   @override
   String accountsInstitutionAccountCount(int count) {

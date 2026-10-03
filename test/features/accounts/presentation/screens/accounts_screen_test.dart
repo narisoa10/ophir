@@ -18,6 +18,7 @@ import 'package:ophir/features/accounts/domain/repositories/account_repository.d
 import 'package:ophir/features/accounts/presentation/screens/accounts_screen.dart';
 import 'package:ophir/features/accounts/presentation/widgets/accounts_empty_state.dart';
 import 'package:ophir/core/widgets/app_compact_switch.dart';
+import 'package:plaid_flutter/plaid_flutter.dart';
 
 import '../../support/plaid_test_fakes.dart';
 
@@ -1508,6 +1509,397 @@ void main() {
       expect(repository.getAccountsCalls, greaterThan(accountLoadsBefore));
       expect(store.loadCalls, greaterThan(healthLoadsBefore));
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('AccountsScreen connect duplicate protection', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    final connectButton = find.widgetWithText(
+      FilledButton,
+      l10n.accountsConnectBank,
+    );
+    final checking = LinkAccount(
+      id: 'plaid-account-1',
+      mask: '0000',
+      name: 'Checking',
+      type: 'depository',
+      subtype: 'checking',
+      verificationStatus: null,
+    );
+    final savings = LinkAccount(
+      id: 'plaid-account-2',
+      mask: '1111',
+      name: 'Savings',
+      type: 'depository',
+      subtype: 'savings',
+      verificationStatus: null,
+    );
+
+    FakePlaidFunctions backend(FakeFunctionHandler exchange) {
+      return FakePlaidFunctions({
+        'plaid-create-link-token': (_) =>
+            okResponse({'link_token': 'link-initial-token'}),
+        'plaid-exchange-public-token': exchange,
+      });
+    }
+
+    List<Map<String, dynamic>> exchangeBodies(FakePlaidFunctions functions) {
+      return [
+        for (final call in functions.calls)
+          if (call.functionName == 'plaid-exchange-public-token') call.body,
+      ];
+    }
+
+    Future<List<String>> pumpConnect(
+      WidgetTester tester, {
+      required FakePlaidFunctions functions,
+      FakePlaidLink? link,
+      List<LinkAccount>? accounts,
+    }) async {
+      final syncedConnectionIds = <String>[];
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(accounts: []),
+          connectService: fakeConnectService(
+            functions,
+            link ??
+                FakePlaidLink(
+                  result: PlaidLinkSessionSucceeded(
+                    linkSuccess(accounts: accounts ?? [checking]),
+                  ),
+                ),
+          ),
+          syncAccounts: (connectionId) async {
+            syncedConnectionIds.add(connectionId);
+            return const Success(
+              PlaidAccountsSyncSummary(syncedAccountCount: 1),
+            );
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return syncedConnectionIds;
+    }
+
+    // The connect button spinner keeps animating while a review dialog is open,
+    // so pumpAndSettle would never settle.
+    Future<void> tapConnect(WidgetTester tester) async {
+      await tester.tap(connectButton);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    Map<String, dynamic> decisionBody(String status, List<String> decisions) {
+      return {
+        'status': status,
+        'accounts': [
+          for (var i = 0; i < decisions.length; i++)
+            {'index': i, 'decision': decisions[i]},
+        ],
+      };
+    }
+
+    testWidgets('duplicate shows the already connected dialog', (tester) async {
+      final functions = backend(
+        (_) => okResponse(decisionBody('duplicate', ['duplicate'])),
+      );
+      final synced = await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsDuplicateConnectionDialogTitle),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Checking \u2022\u2022\u2022\u20220000'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(l10n.accountsDuplicateConnectionDialogAction));
+      await tester.pumpAndSettle();
+
+      expect(exchangeBodies(functions), hasLength(1));
+      expect(synced, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('partial duplicate lists existing accounts and close stops', (
+      tester,
+    ) async {
+      final link = FakePlaidLink(
+        result: PlaidLinkSessionSucceeded(
+          linkSuccess(accounts: [checking, savings]),
+        ),
+      );
+      final functions = backend(
+        (_) =>
+            okResponse(decisionBody('partial_duplicate', ['duplicate', 'new'])),
+      );
+      final synced = await pumpConnect(
+        tester,
+        functions: functions,
+        link: link,
+      );
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsPartialDuplicateDialogTitle),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Checking \u2022\u2022\u2022\u20220000'),
+        findsOneWidget,
+      );
+      expect(find.text('Savings \u2022\u2022\u2022\u20221111'), findsNothing);
+
+      await tester.tap(find.text(l10n.accountsPartialDuplicateDialogClose));
+      await tester.pumpAndSettle();
+
+      expect(link.openedTokens, hasLength(1));
+      expect(exchangeBodies(functions), hasLength(1));
+      expect(synced, isEmpty);
+      expect(connectButton, findsOneWidget);
+    });
+
+    testWidgets('partial duplicate choose again reopens Link once', (
+      tester,
+    ) async {
+      final link = FakePlaidLink(
+        result: PlaidLinkSessionSucceeded(
+          linkSuccess(accounts: [checking, savings]),
+        ),
+      );
+      var exchanges = 0;
+      final functions = backend((_) {
+        exchanges += 1;
+        if (exchanges == 1) {
+          return okResponse(
+            decisionBody('partial_duplicate', ['disconnected_existing', 'new']),
+          );
+        }
+        return okResponse({'connection_id': 'item-new'});
+      });
+      final synced = await pumpConnect(
+        tester,
+        functions: functions,
+        link: link,
+      );
+
+      await tapConnect(tester);
+      expect(
+        find.text(
+          'Checking \u2022\u2022\u2022\u20220000 \u2014 '
+          '${l10n.accountsLinkAccountDisconnectedLabel}',
+        ),
+        findsOneWidget,
+      );
+
+      link.result = PlaidLinkSessionSucceeded(linkSuccess(accounts: [savings]));
+      await tester.tap(
+        find.text(l10n.accountsPartialDuplicateDialogSelectAgain),
+      );
+      await tester.pumpAndSettle();
+
+      expect(link.openedTokens, hasLength(2));
+      expect(exchangeBodies(functions), hasLength(2));
+      final second = exchangeBodies(functions).last;
+      expect(
+        (second['selected_accounts'] as List).map((a) => (a as Map)['name']),
+        ['Savings'],
+      );
+      expect(synced, ['item-new']);
+    });
+
+    testWidgets('ambiguous confirm resends once with confirm_ambiguous', (
+      tester,
+    ) async {
+      final functions = backend((body) {
+        if (body['confirm_ambiguous'] == true) {
+          return okResponse({'connection_id': 'item-new'});
+        }
+        return okResponse(decisionBody('confirmation_required', ['ambiguous']));
+      });
+      final link = FakePlaidLink(
+        result: PlaidLinkSessionSucceeded(
+          linkSuccess(
+            accounts: [
+              LinkAccount(
+                id: 'plaid-account-1',
+                mask: null,
+                name: 'Checking',
+                type: 'depository',
+                subtype: 'checking',
+                verificationStatus: null,
+              ),
+            ],
+          ),
+        ),
+      );
+      final synced = await pumpConnect(
+        tester,
+        functions: functions,
+        link: link,
+      );
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogTitle),
+        findsOneWidget,
+      );
+      expect(find.text('Checking'), findsOneWidget);
+
+      await tester.tap(
+        find.text(l10n.accountsAmbiguousConnectionDialogConfirm),
+      );
+      await tester.pumpAndSettle();
+
+      final bodies = exchangeBodies(functions);
+      expect(bodies.map((b) => b['confirm_ambiguous']), [false, true]);
+      expect(bodies.last['public_token'], bodies.first['public_token']);
+      expect(link.openedTokens, hasLength(1));
+      expect(synced, ['item-new']);
+    });
+
+    testWidgets('ambiguous cancel exchanges nothing more', (tester) async {
+      final functions = backend(
+        (_) => okResponse(decisionBody('confirmation_required', ['ambiguous'])),
+      );
+      final synced = await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+      await tester.tap(find.text(l10n.accountsAmbiguousConnectionDialogCancel));
+      await tester.pumpAndSettle();
+
+      expect(exchangeBodies(functions), hasLength(1));
+      expect(exchangeBodies(functions).single['confirm_ambiguous'], isFalse);
+      expect(synced, isEmpty);
+      expect(connectButton, findsOneWidget);
+    });
+
+    testWidgets('disconnected existing explains that deletion comes first', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => okResponse(
+          decisionBody('disconnected_existing', ['disconnected_existing']),
+        ),
+      );
+      final synced = await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsDisconnectedExistingDialogTitle),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.accountsDisconnectedExistingDialogBody),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.text(l10n.accountsDisconnectedExistingDialogAction),
+      );
+      await tester.pumpAndSettle();
+
+      expect(exchangeBodies(functions), hasLength(1));
+      expect(synced, isEmpty);
+    });
+
+    testWidgets('null mask new account connects instead of cancelling', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => okResponse({'connection_id': 'item-new'}),
+      );
+      final link = FakePlaidLink(
+        result: PlaidLinkSessionSucceeded(
+          linkSuccess(
+            accounts: [
+              LinkAccount(
+                id: 'plaid-account-1',
+                mask: null,
+                name: 'Checking',
+                type: 'depository',
+                subtype: 'checking',
+                verificationStatus: null,
+              ),
+            ],
+          ),
+        ),
+      );
+      final synced = await pumpConnect(
+        tester,
+        functions: functions,
+        link: link,
+      );
+
+      await tapConnect(tester);
+
+      expect(synced, ['item-new']);
+      final sent = exchangeBodies(functions).single;
+      expect(
+        ((sent['selected_accounts'] as List).single as Map)['mask'],
+        isNull,
+      );
+    });
+
+    testWidgets('system failure shows the generic error, not a duplicate', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => throw edgeError(500, 'duplicate_check_failed'),
+      );
+      final synced = await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      expect(find.text(l10n.failureUnknown), findsOneWidget);
+      expect(
+        find.text(l10n.accountsDuplicateConnectionDialogTitle),
+        findsNothing,
+      );
+      expect(synced, isEmpty);
+    });
+
+    testWidgets('unknown server status fails closed with the generic error', (
+      tester,
+    ) async {
+      final functions = backend((_) => okResponse({'status': 'merged'}));
+      final synced = await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      expect(find.text(l10n.failureUnknown), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(synced, isEmpty);
+    });
+
+    testWidgets('double tap on connect opens Link only once', (tester) async {
+      final functions = backend(
+        (_) => okResponse({'connection_id': 'item-new'}),
+      );
+      final link = FakePlaidLink()
+        ..pending = Completer<PlaidLinkSessionResult>();
+      await pumpConnect(tester, functions: functions, link: link);
+
+      await tester.tap(connectButton);
+      await tester.pump();
+      await tester.tap(find.byType(FilledButton));
+      await tester.pump();
+
+      expect(link.openedTokens, hasLength(1));
+      expect(
+        functions.functionNames.where((n) => n == 'plaid-create-link-token'),
+        hasLength(1),
+      );
+
+      link.pending!.complete(const PlaidLinkSessionExited());
+      await tester.pumpAndSettle();
+      expect(exchangeBodies(functions), isEmpty);
     });
   });
 }

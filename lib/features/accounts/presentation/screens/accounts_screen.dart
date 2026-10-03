@@ -109,26 +109,16 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     try {
       final locale = Localizations.localeOf(context).toLanguageTag();
-      final outcome = await ref
-          .read(plaidConnectServiceProvider)
-          .connect(locale: locale);
+      final service = ref.read(plaidConnectServiceProvider);
+      var selectAgain = true;
+      while (selectAgain) {
+        final outcome = await service.connect(locale: locale);
 
-      if (!mounted) {
-        return;
-      }
+        if (!mounted) {
+          return;
+        }
 
-      switch (outcome) {
-        case PlaidConnectCompleted(:final connectionId):
-          await _syncConnectedAccounts(connectionId);
-        case PlaidConnectDuplicate():
-          await _showDuplicateConnectionDialog();
-        case PlaidConnectCancelled():
-          break;
-        case PlaidConnectFailed(:final failure):
-          final l10n = AppLocalizations.of(context);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(failure.localized(l10n))));
+        selectAgain = await _handleConnectOutcome(service, outcome);
       }
     } finally {
       if (mounted) {
@@ -137,18 +127,58 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     }
   }
 
-  Future<void> _showDuplicateConnectionDialog() async {
-    if (!mounted) {
-      return;
+  /// Returns true when the user asked to choose accounts in Link again.
+  Future<bool> _handleConnectOutcome(
+    PlaidConnectService service,
+    PlaidConnectOutcome outcome,
+  ) async {
+    switch (outcome) {
+      case PlaidConnectCompleted(:final connectionId):
+        await _syncConnectedAccounts(connectionId);
+      case PlaidConnectDuplicate(:final accounts):
+        await _showDuplicateConnectionDialog(accounts);
+      case PlaidConnectPartialDuplicate(:final accounts):
+        return _showPartialDuplicateDialog(accounts);
+      case PlaidConnectConfirmationRequired(
+        :final accounts,
+        :final pendingLink,
+      ):
+        final confirmed = await _showAmbiguousAccountsDialog(accounts);
+        if (!confirmed || !mounted) {
+          return false;
+        }
+        final confirmedOutcome = await service.confirmAmbiguous(pendingLink);
+        if (!mounted) {
+          return false;
+        }
+        return _handleConnectOutcome(service, confirmedOutcome);
+      case PlaidConnectDisconnectedExisting(:final accounts):
+        await _showDisconnectedExistingDialog(accounts);
+      case PlaidConnectCancelled():
+        break;
+      case PlaidConnectFailed(:final failure):
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.localized(l10n))));
     }
+    return false;
+  }
 
+  Future<void> _showDuplicateConnectionDialog(
+    List<PlaidLinkAccountReview> accounts,
+  ) async {
     final l10n = AppLocalizations.of(context);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(l10n.accountsDuplicateConnectionDialogTitle),
-          content: Text(l10n.accountsDuplicateConnectionDialogBody),
+          content: _linkReviewContent(
+            l10n,
+            l10n.accountsDuplicateConnectionDialogBody,
+            accounts,
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -158,6 +188,136 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         );
       },
     );
+  }
+
+  Future<bool> _showPartialDuplicateDialog(
+    List<PlaidLinkAccountReview> accounts,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final existing = [
+      for (final account in accounts)
+        if (account.decision == PlaidLinkAccountDecision.duplicate ||
+            account.decision == PlaidLinkAccountDecision.disconnectedExisting)
+          account,
+    ];
+    final selectAgain = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.accountsPartialDuplicateDialogTitle),
+          content: _linkReviewContent(
+            l10n,
+            l10n.accountsPartialDuplicateDialogBody,
+            existing,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.accountsPartialDuplicateDialogClose),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.accountsPartialDuplicateDialogSelectAgain),
+            ),
+          ],
+        );
+      },
+    );
+    return selectAgain ?? false;
+  }
+
+  Future<bool> _showAmbiguousAccountsDialog(
+    List<PlaidLinkAccountReview> accounts,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final ambiguous = [
+      for (final account in accounts)
+        if (account.decision == PlaidLinkAccountDecision.ambiguous) account,
+    ];
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.accountsAmbiguousConnectionDialogTitle),
+          content: _linkReviewContent(
+            l10n,
+            l10n.accountsAmbiguousConnectionDialogBody,
+            ambiguous,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.accountsAmbiguousConnectionDialogCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.accountsAmbiguousConnectionDialogConfirm),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _showDisconnectedExistingDialog(
+    List<PlaidLinkAccountReview> accounts,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.accountsDisconnectedExistingDialogTitle),
+          content: _linkReviewContent(
+            l10n,
+            l10n.accountsDisconnectedExistingDialogBody,
+            accounts,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.accountsDisconnectedExistingDialogAction),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _linkReviewContent(
+    AppLocalizations l10n,
+    String body,
+    List<PlaidLinkAccountReview> accounts,
+  ) {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(body),
+          if (accounts.isNotEmpty) const SizedBox(height: AppSpacing.sm),
+          for (final account in accounts)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(_linkReviewLine(l10n, account)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _linkReviewLine(
+    AppLocalizations l10n,
+    PlaidLinkAccountReview account,
+  ) {
+    final mask = account.mask;
+    final label = mask == null
+        ? account.name
+        : '${account.name} \u2022\u2022\u2022\u2022$mask';
+    return account.decision == PlaidLinkAccountDecision.disconnectedExisting
+        ? '$label \u2014 ${l10n.accountsLinkAccountDisconnectedLabel}'
+        : label;
   }
 
   Future<void> _syncConnectedAccounts(String connectionId) async {

@@ -1341,10 +1341,51 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountsDuplicateConnectionDialogBody =>
-      'Plaid успешно подтвердил доступ к банку, но этот банковский счёт уже подключён к Ophir. Чтобы избежать дублирования операций и неточных расчётов, мы не добавили его повторно. Вы можете продолжить пользоваться уже подключённым счётом или подключить другой.';
+      'Этот банковский счёт уже подключён к Ophir, поэтому мы не добавили его повторно. Можно продолжить пользоваться уже подключённым счётом или подключить другой.';
 
   @override
   String get accountsDuplicateConnectionDialogAction => 'Понятно';
+
+  @override
+  String get accountsPartialDuplicateDialogTitle =>
+      'Некоторые счета уже подключены';
+
+  @override
+  String get accountsPartialDuplicateDialogBody =>
+      'Эти выбранные счета уже есть в Ophir, поэтому ничего не добавлено. Чтобы подключить новые счета, выберите снова и отметьте только их.';
+
+  @override
+  String get accountsPartialDuplicateDialogSelectAgain => 'Выбрать снова';
+
+  @override
+  String get accountsPartialDuplicateDialogClose => 'Закрыть';
+
+  @override
+  String get accountsAmbiguousConnectionDialogTitle => 'Это другой счёт?';
+
+  @override
+  String get accountsAmbiguousConnectionDialogBody =>
+      'Не удалось точно определить, подключён ли уже этот счёт. Если это другой счёт, его можно подключить. Если тот же — его операции появятся дважды.';
+
+  @override
+  String get accountsAmbiguousConnectionDialogConfirm => 'Это другой счёт';
+
+  @override
+  String get accountsAmbiguousConnectionDialogCancel => 'Отмена';
+
+  @override
+  String get accountsDisconnectedExistingDialogTitle =>
+      'Подключение было отключено';
+
+  @override
+  String get accountsDisconnectedExistingDialogBody =>
+      'Этот счёт уже есть в Ophir, но связь с банком была отключена. Чтобы подключить его снова, сначала удалите отключённое подключение. При удалении его сохранённая история тоже будет удалена.';
+
+  @override
+  String get accountsDisconnectedExistingDialogAction => 'Понятно';
+
+  @override
+  String get accountsLinkAccountDisconnectedLabel => 'отключено';
 
   @override
   String accountsInstitutionAccountCount(int count) {

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/errors/app_failure.dart';
 import 'package:ophir/features/accounts/data/plaid/plaid_connect_service.dart';
 import 'package:ophir/features/accounts/domain/entities/plaid_connection_health.dart';
+import 'package:plaid_flutter/plaid_flutter.dart';
 
 import '../../support/plaid_test_fakes.dart';
 
@@ -276,6 +277,409 @@ void main() {
       ).connect(locale: 'en-CA');
 
       expect(outcome, isA<PlaidConnectDuplicate>());
+      expect((outcome as PlaidConnectDuplicate).accounts, isEmpty);
     });
+  });
+
+  group('initial Link duplicate protection (contract v2)', () {
+    LinkAccount account({
+      String id = 'plaid-account-1',
+      String name = 'Checking',
+      String? mask = '0000',
+      String type = 'depository',
+      String subtype = 'checking',
+    }) {
+      return LinkAccount(
+        id: id,
+        mask: mask,
+        name: name,
+        type: type,
+        subtype: subtype,
+        verificationStatus: null,
+      );
+    }
+
+    FakePlaidFunctions backend(FakeFunctionHandler exchange) {
+      return FakePlaidFunctions({
+        'plaid-create-link-token': (_) =>
+            okResponse({'link_token': 'link-initial-token'}),
+        'plaid-exchange-public-token': exchange,
+      });
+    }
+
+    List<Map<String, dynamic>> exchangeBodies(FakePlaidFunctions functions) {
+      return [
+        for (final call in functions.calls)
+          if (call.functionName == 'plaid-exchange-public-token') call.body,
+      ];
+    }
+
+    Future<PlaidConnectOutcome> connectWith(
+      FakePlaidFunctions functions, {
+      List<LinkAccount>? accounts,
+    }) {
+      return fakeConnectService(
+        functions,
+        FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: accounts)),
+        ),
+      ).connect(locale: 'en-CA');
+    }
+
+    test('sends the v2 payload with account identity fields', () async {
+      final functions = backend(
+        (_) => okResponse({'connection_id': _connectionId}),
+      );
+
+      await connectWith(
+        functions,
+        accounts: [
+          account(),
+          account(
+            id: 'plaid-account-2',
+            name: 'Visa',
+            mask: '4242',
+            type: 'credit',
+            subtype: 'credit card',
+          ),
+        ],
+      );
+
+      expect(exchangeBodies(functions).single, {
+        'contract_version': 2,
+        'public_token': 'public-sandbox-token',
+        'institution_id': 'ins_1',
+        'selected_accounts': [
+          {
+            'account_id': 'plaid-account-1',
+            'name': 'Checking',
+            'mask': '0000',
+            'type': 'depository',
+            'subtype': 'checking',
+          },
+          {
+            'account_id': 'plaid-account-2',
+            'name': 'Visa',
+            'mask': '4242',
+            'type': 'credit',
+            'subtype': 'credit card',
+          },
+        ],
+        'confirm_ambiguous': false,
+      });
+    });
+
+    test(
+      'null or blank mask is sent as null and the Link is not cancelled',
+      () async {
+        for (final mask in <String?>[null, '   ']) {
+          final functions = backend(
+            (_) => okResponse({'connection_id': _connectionId}),
+          );
+
+          final outcome = await connectWith(
+            functions,
+            accounts: [account(mask: mask)],
+          );
+
+          final sent = exchangeBodies(functions).single;
+          final accounts = sent['selected_accounts'] as List<dynamic>;
+          expect((accounts.single as Map)['mask'], isNull);
+          expect(accounts.single, containsPair('mask', null));
+          expect(outcome, isA<PlaidConnectCompleted>());
+        }
+      },
+    );
+
+    test('unusable Link metadata is a failure, never a cancel', () async {
+      final functions = backend(
+        (_) => okResponse({'connection_id': _connectionId}),
+      );
+
+      final outcome = await connectWith(
+        functions,
+        accounts: [account(id: '  ')],
+      );
+
+      expect(outcome, isA<PlaidConnectFailed>());
+      expect((outcome as PlaidConnectFailed).failure, isA<ValidationFailure>());
+      expect(exchangeBodies(functions), isEmpty);
+    });
+
+    test('Link error is a failure and a real exit is a cancel', () async {
+      final functions = backend(
+        (_) => okResponse({'connection_id': _connectionId}),
+      );
+
+      final failed = await fakeConnectService(
+        functions,
+        FakePlaidLink(result: const PlaidLinkSessionFailed()),
+      ).connect(locale: 'en-CA');
+      final exited = await fakeConnectService(
+        functions,
+        FakePlaidLink(result: const PlaidLinkSessionExited()),
+      ).connect(locale: 'en-CA');
+
+      expect(failed, isA<PlaidConnectFailed>());
+      expect(exited, isA<PlaidConnectCancelled>());
+      expect(exchangeBodies(functions), isEmpty);
+    });
+
+    test('duplicate maps decisions back to the selected accounts', () async {
+      final outcome = await connectWith(
+        backend(
+          (_) => okResponse({
+            'status': 'duplicate',
+            'accounts': [
+              {'index': 1, 'decision': 'disconnected_existing'},
+              {'index': 0, 'decision': 'duplicate'},
+            ],
+          }),
+        ),
+        accounts: [
+          account(),
+          account(id: 'b', name: 'Savings', mask: null),
+        ],
+      );
+
+      final accounts = (outcome as PlaidConnectDuplicate).accounts;
+      expect(accounts.map((a) => a.name), ['Checking', 'Savings']);
+      expect(accounts.map((a) => a.mask), ['0000', null]);
+      expect(accounts.map((a) => a.decision), [
+        PlaidLinkAccountDecision.duplicate,
+        PlaidLinkAccountDecision.disconnectedExisting,
+      ]);
+    });
+
+    test(
+      'partial_duplicate, confirmation_required and disconnected_existing parse',
+      () async {
+        final accounts = [account(), account(id: 'b', name: 'Savings')];
+
+        final partial = await connectWith(
+          backend(
+            (_) => okResponse({
+              'status': 'partial_duplicate',
+              'accounts': [
+                {'index': 0, 'decision': 'duplicate'},
+                {'index': 1, 'decision': 'new'},
+              ],
+            }),
+          ),
+          accounts: accounts,
+        );
+        expect(
+          (partial as PlaidConnectPartialDuplicate).accounts.map(
+            (a) => a.decision,
+          ),
+          [
+            PlaidLinkAccountDecision.duplicate,
+            PlaidLinkAccountDecision.newAccount,
+          ],
+        );
+
+        final ambiguous = await connectWith(
+          backend(
+            (_) => okResponse({
+              'status': 'confirmation_required',
+              'accounts': [
+                {'index': 0, 'decision': 'ambiguous'},
+                {'index': 1, 'decision': 'new'},
+              ],
+            }),
+          ),
+          accounts: accounts,
+        );
+        final confirmation = ambiguous as PlaidConnectConfirmationRequired;
+        expect(
+          confirmation.accounts.first.decision,
+          PlaidLinkAccountDecision.ambiguous,
+        );
+        expect(confirmation.pendingLink.publicToken, 'public-sandbox-token');
+
+        final disconnected = await connectWith(
+          backend(
+            (_) => okResponse({
+              'status': 'disconnected_existing',
+              'accounts': [
+                {'index': 0, 'decision': 'disconnected_existing'},
+                {'index': 1, 'decision': 'disconnected_existing'},
+              ],
+            }),
+          ),
+          accounts: accounts,
+        );
+        expect(disconnected, isA<PlaidConnectDisconnectedExisting>());
+      },
+    );
+
+    test('unknown status and malformed decision lists fail closed', () async {
+      final malformed = <Map<String, dynamic>>[
+        {'status': 'merged'},
+        {'status': 'partial_duplicate'},
+        {
+          'status': 'partial_duplicate',
+          'accounts': [
+            {'index': 0, 'decision': 'duplicate'},
+          ],
+        },
+        {
+          'status': 'confirmation_required',
+          'accounts': [
+            {'index': 0, 'decision': 'ambiguous'},
+            {'index': 0, 'decision': 'new'},
+          ],
+        },
+        {
+          'status': 'disconnected_existing',
+          'accounts': [
+            {'index': 0, 'decision': 'disconnected_existing'},
+            {'index': 2, 'decision': 'new'},
+          ],
+        },
+        {
+          'status': 'duplicate',
+          'accounts': [
+            {'index': 0, 'decision': 'duplicate'},
+            {'index': 1, 'decision': 'maybe'},
+          ],
+        },
+        {'status': 'duplicate', 'accounts': 'all'},
+        {'connection_id': ''},
+        <String, dynamic>{},
+      ];
+
+      for (final data in malformed) {
+        final outcome = await connectWith(
+          backend((_) => okResponse(data)),
+          accounts: [
+            account(),
+            account(id: 'b', name: 'Savings'),
+          ],
+        );
+
+        expect(outcome, isA<PlaidConnectFailed>(), reason: '$data');
+        expect((outcome as PlaidConnectFailed).failure, isA<UnknownFailure>());
+      }
+    });
+
+    test(
+      'server rejection and check failure are failures, not duplicates',
+      () async {
+        final invalid = await connectWith(
+          backend((_) => throw edgeError(400, 'invalid_request')),
+        );
+        final checkFailed = await connectWith(
+          backend((_) => throw edgeError(500, 'duplicate_check_failed')),
+        );
+
+        expect(
+          (invalid as PlaidConnectFailed).failure,
+          isA<ValidationFailure>(),
+        );
+        expect(
+          (checkFailed as PlaidConnectFailed).failure,
+          isA<UnknownFailure>(),
+        );
+      },
+    );
+
+    test(
+      'confirmation resends the same Link payload with confirm_ambiguous',
+      () async {
+        var exchangeCount = 0;
+        final functions = backend((body) {
+          exchangeCount += 1;
+          if (body['confirm_ambiguous'] == true) {
+            return okResponse({'connection_id': _connectionId});
+          }
+          return okResponse({
+            'status': 'confirmation_required',
+            'accounts': [
+              {'index': 0, 'decision': 'ambiguous'},
+            ],
+          });
+        });
+        final service = fakeConnectService(
+          functions,
+          FakePlaidLink(
+            result: PlaidLinkSessionSucceeded(
+              linkSuccess(accounts: [account(mask: null)]),
+            ),
+          ),
+        );
+
+        final first = await service.connect(locale: 'en-CA');
+        final confirmed = await service.confirmAmbiguous(
+          (first as PlaidConnectConfirmationRequired).pendingLink,
+        );
+
+        final bodies = exchangeBodies(functions);
+        expect(exchangeCount, 2);
+        expect(bodies.first['confirm_ambiguous'], isFalse);
+        expect(bodies.last['confirm_ambiguous'], isTrue);
+        expect(
+          {...bodies.last}..remove('confirm_ambiguous'),
+          {...bodies.first}..remove('confirm_ambiguous'),
+        );
+        expect(
+          functions.functionNames.where((n) => n == 'plaid-create-link-token'),
+          hasLength(1),
+        );
+        expect(
+          (confirmed as PlaidConnectCompleted).connectionId,
+          _connectionId,
+        );
+      },
+    );
+
+    test('confirmation never accepts another confirmation request', () async {
+      final functions = backend(
+        (_) => okResponse({
+          'status': 'confirmation_required',
+          'accounts': [
+            {'index': 0, 'decision': 'ambiguous'},
+          ],
+        }),
+      );
+      final service = fakeConnectService(functions, FakePlaidLink());
+
+      final first = await service.connect(locale: 'en-CA');
+      final confirmed = await service.confirmAmbiguous(
+        (first as PlaidConnectConfirmationRequired).pendingLink,
+      );
+
+      expect(confirmed, isA<PlaidConnectFailed>());
+    });
+
+    test(
+      'confirmation still reports a duplicate found by the recheck',
+      () async {
+        final functions = backend((body) {
+          if (body['confirm_ambiguous'] == true) {
+            return okResponse({
+              'status': 'duplicate',
+              'accounts': [
+                {'index': 0, 'decision': 'duplicate'},
+              ],
+            });
+          }
+          return okResponse({
+            'status': 'confirmation_required',
+            'accounts': [
+              {'index': 0, 'decision': 'ambiguous'},
+            ],
+          });
+        });
+        final service = fakeConnectService(functions, FakePlaidLink());
+
+        final first = await service.connect(locale: 'en-CA');
+        final confirmed = await service.confirmAmbiguous(
+          (first as PlaidConnectConfirmationRequired).pendingLink,
+        );
+
+        expect(confirmed, isA<PlaidConnectDuplicate>());
+      },
+    );
   });
 }
