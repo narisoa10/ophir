@@ -187,6 +187,7 @@ function classifySyncResult(result: WorkerSyncResult): {
       return { action: "complete", code: "synced" };
     case "connection_not_found":
     case "plaid_environment_unsupported":
+    case "item_login_required":
       return { action: "drop", code: result.kind };
     case "sync_in_progress":
     case "lease_acquire_failed":

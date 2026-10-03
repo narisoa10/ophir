@@ -28,6 +28,8 @@ type HarnessOptions = {
   bootstrapStatus?: "synced" | "deferred";
   bootstrapThrows?: boolean;
   accountsOverride?: Record<string, unknown>[];
+  accountsErrorCode?: string;
+  recordResult?: "applied" | "not_found" | "failed";
 };
 
 function assert(condition: boolean, message: string): void {
@@ -101,6 +103,9 @@ function createHarness(options: HarnessOptions = {}) {
   const bootstrapStatus = options.bootstrapStatus ?? "synced";
   const bootstrapThrows = options.bootstrapThrows ?? false;
   const accountsOverride = options.accountsOverride;
+  const accountsErrorCode = options.accountsErrorCode;
+  const recordResult = options.recordResult ?? "applied";
+  const observations: Array<Record<string, unknown>> = [];
 
   const handler = createPlaidSyncAccountsHandler({
     authenticateRequest: async () => {
@@ -130,6 +135,22 @@ function createHarness(options: HarnessOptions = {}) {
         persistedAccounts = args.accounts as PersistedAccount[];
         return persistSucceeds ? args.accounts.length : null;
       },
+      async recordItemHealthObservation(observation) {
+        calls.push("record_observation");
+        observations.push({ ...observation });
+        if (recordResult === "failed") {
+          return null;
+        }
+        if (recordResult === "not_found") {
+          return "not_found";
+        }
+        return {
+          applied: true,
+          previousStatus: "active",
+          status: observation.status,
+          plaidItemId: "external-item-id",
+        };
+      },
     }),
     bootstrapTransactions: async (receivedUserId, receivedConnectionId) => {
       calls.push("bootstrap_transactions");
@@ -156,6 +177,20 @@ function createHarness(options: HarnessOptions = {}) {
         });
       }
 
+      if (accountsErrorCode !== undefined) {
+        return new Response(
+          JSON.stringify({
+            error_type: "ITEM_ERROR",
+            error_code: accountsErrorCode,
+            request_id: "request-id",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
       return new Response(
         JSON.stringify(
           malformedAccounts
@@ -168,6 +203,7 @@ function createHarness(options: HarnessOptions = {}) {
         },
       );
     },
+    now: () => new Date("2026-10-03T12:00:00.000Z"),
     getEnv: (name) => {
       if (name === "PLAID_CLIENT_ID") {
         return "client-id";
@@ -189,6 +225,7 @@ function createHarness(options: HarnessOptions = {}) {
     request,
     calls,
     bootstrapCalls,
+    observations,
     getPersistedAccounts: () => persistedAccounts,
   };
 }
@@ -307,6 +344,51 @@ Deno.test("missing connection does not call Plaid or bootstrap", async () => {
   assertEquals(response.status, 404);
   assertEquals(calls.includes("plaid_accounts"), false);
   assertEquals(bootstrapCalls.length, 0);
+});
+
+Deno.test("accounts ITEM_LOGIN_REQUIRED records health and returns structured 409", async () => {
+  const { handler, request, calls, bootstrapCalls, observations } =
+    createHarness({ accountsErrorCode: "ITEM_LOGIN_REQUIRED" });
+
+  const response = await handler(request);
+  const text = await response.text();
+
+  assertEquals(response.status, 409);
+  assertEquals(JSON.parse(text).error.code, "item_login_required");
+  assertEquals(observations.length, 1);
+  assertEquals(observations[0].connectionId, connectionId);
+  assertEquals(observations[0].observedAt, "2026-10-03T12:00:00.000Z");
+  assertEquals(observations[0].status, "login_required");
+  assertEquals(observations[0].statusReason, "login_required");
+  assertEquals(observations[0].fromItemGet, false);
+  assertEquals(observations[0].clearPendingDisconnect, false);
+  assertEquals(calls.includes("persist_accounts"), false);
+  assertEquals(bootstrapCalls.length, 0);
+  assert(!text.includes(accessToken), "response exposed access token");
+});
+
+Deno.test("accounts ITEM_LOGIN_REQUIRED with failed health write returns persist_failed", async () => {
+  const { handler, request } = createHarness({
+    accountsErrorCode: "ITEM_LOGIN_REQUIRED",
+    recordResult: "failed",
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 500);
+  assertEquals((await response.json()).error.code, "persist_failed");
+});
+
+Deno.test("other accounts Plaid errors stay 502 without health write", async () => {
+  const { handler, request, observations } = createHarness({
+    accountsErrorCode: "INSTITUTION_DOWN",
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 502);
+  assertEquals((await response.json()).error.code, "plaid_request_failed");
+  assertEquals(observations.length, 0);
 });
 
 Deno.test("auth required", async () => {

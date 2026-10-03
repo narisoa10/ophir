@@ -2633,6 +2633,66 @@ abstract class AppLocalizations {
   /// **'Unable to remove bank connection. Please try again.'**
   String get accountsRemoveBankConnectionError;
 
+  /// No description provided for @accountsReconnectRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnection required'**
+  String get accountsReconnectRequiredTitle;
+
+  /// No description provided for @accountsReconnectRequiredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your bank is asking you to confirm access again. Reconnect the bank to keep syncing.'**
+  String get accountsReconnectRequiredBody;
+
+  /// No description provided for @accountsReconnectAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get accountsReconnectAction;
+
+  /// No description provided for @accountsReconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting…'**
+  String get accountsReconnecting;
+
+  /// No description provided for @accountsReconnectSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank reconnected.'**
+  String get accountsReconnectSuccess;
+
+  /// No description provided for @accountsReconnectStillRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The bank still needs to be reconnected. Please try again.'**
+  String get accountsReconnectStillRequired;
+
+  /// No description provided for @accountsReconnectUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This connection can no longer be restored by reconnecting.'**
+  String get accountsReconnectUnavailable;
+
+  /// No description provided for @accountsReconnectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t confirm the reconnection. Please try again.'**
+  String get accountsReconnectFailed;
+
+  /// No description provided for @accountsConnectionNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This bank connection was not found. The list has been refreshed.'**
+  String get accountsConnectionNotFound;
+
+  /// No description provided for @accountsAccessExpiresWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank access will need to be confirmed by {date}.'**
+  String accountsAccessExpiresWarning(String date);
+
   /// No description provided for @dashboardTitle.
   ///
   /// In en, this message translates to:

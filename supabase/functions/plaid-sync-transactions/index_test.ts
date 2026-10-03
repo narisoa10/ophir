@@ -32,6 +32,9 @@ type HarnessOptions = {
   fetchResponses?: FetchResponse[];
   applyResult?: "success" | "cursor_conflict" | "failed";
   releaseThrows?: boolean;
+  itemStatus?: "active" | "login_required";
+  itemGetResponse?: FetchResponse;
+  recordResult?: "applied" | "not_found" | "failed";
 };
 
 function assert(condition: boolean, message: string): void {
@@ -110,11 +113,43 @@ function apiError(): FetchResponse {
   };
 }
 
+function itemLoginRequiredError(): FetchResponse {
+  return {
+    status: 400,
+    body: {
+      error_type: "ITEM_ERROR",
+      error_code: "ITEM_LOGIN_REQUIRED",
+      request_id: "request-id",
+    },
+  };
+}
+
+function itemGet(
+  error: Record<string, unknown> | null,
+  consentExpirationTime: string | null = null,
+): FetchResponse {
+  return {
+    status: 200,
+    body: {
+      item: {
+        item_id: "external-item-id",
+        error,
+        consent_expiration_time: consentExpirationTime,
+      },
+      request_id: "request-id",
+    },
+  };
+}
+
 function createHarness(options: HarnessOptions = {}) {
   const calls: string[] = [];
   const fetchBodies: Array<Record<string, unknown>> = [];
   const applyCalls: ApplyCall[] = [];
   const releaseCalls: string[] = [];
+  const observations: Array<Record<string, unknown>> = [];
+  const itemStatus = options.itemStatus ?? "active";
+  const itemGetResponse = options.itemGetResponse ?? itemGet(null);
+  const recordResult = options.recordResult ?? "applied";
 
   const authenticatedUserId = options.authenticatedUserId === undefined
     ? userId
@@ -227,8 +262,39 @@ function createHarness(options: HarnessOptions = {}) {
           initialSyncCompleted: args.markInitialSyncCompleted,
         };
       },
+      async getItemHealthStatus(receivedUserId, receivedConnectionId) {
+        calls.push("get_item_status");
+        return receivedUserId === userId &&
+            receivedConnectionId === connectionId
+          ? itemStatus
+          : null;
+      },
+      async recordItemHealthObservation(observation) {
+        calls.push("record_observation");
+        observations.push({ ...observation });
+        if (recordResult === "failed") {
+          return null;
+        }
+        if (recordResult === "not_found") {
+          return "not_found";
+        }
+        return {
+          applied: true,
+          previousStatus: itemStatus,
+          status: observation.status,
+          plaidItemId: "external-item-id",
+        };
+      },
     }),
-    fetch: async (_url, init) => {
+    fetch: async (url, init) => {
+      if (String(url) === "https://sandbox.plaid.com/item/get") {
+        calls.push("plaid_item_get");
+        fetchBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(itemGetResponse.body), {
+          status: itemGetResponse.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       calls.push("plaid_sync");
       fetchBodies.push(JSON.parse(String(init?.body)));
       const response = fetchResponses.shift() ?? apiError();
@@ -254,7 +320,15 @@ function createHarness(options: HarnessOptions = {}) {
     body: JSON.stringify({ connection_id: requestConnectionId }),
   });
 
-  return { handler, request, calls, fetchBodies, applyCalls, releaseCalls };
+  return {
+    handler,
+    request,
+    calls,
+    fetchBodies,
+    applyCalls,
+    releaseCalls,
+    observations,
+  };
 }
 
 Deno.test("auth required", async () => {
@@ -330,6 +404,7 @@ Deno.test("first single-page sync applies batch after final page", async () => {
       "plaid_sync",
       "renew_lease",
       "apply_batch",
+      "get_item_status",
       "release_lease",
     ].join(","),
   );
@@ -636,7 +711,7 @@ Deno.test("other Plaid ITEM or API error does not call RPC", async () => {
         status: 400,
         body: {
           error_type: "ITEM_ERROR",
-          error_code: "ITEM_LOGIN_REQUIRED",
+          error_code: "ITEM_LOCKED",
           request_id: "request-id",
         },
       },
@@ -790,4 +865,111 @@ Deno.test("no secrets in any error response", async () => {
   assertEquals(response.status, 502);
   assert(!text.includes(accessToken), "response exposed access token");
   assert(!text.includes("sandbox-secret"), "response exposed Plaid secret");
+});
+
+Deno.test("ITEM_LOGIN_REQUIRED records health and returns structured 409", async () => {
+  const { handler, request, calls, applyCalls, observations, releaseCalls } =
+    createHarness({ fetchResponses: [itemLoginRequiredError()] });
+
+  const response = await handler(request);
+  const text = await response.text();
+
+  assertEquals(response.status, 409);
+  assertEquals(JSON.parse(text).error.code, "item_login_required");
+  assertEquals(applyCalls.length, 0);
+  assertEquals(observations.length, 1);
+  assertEquals(observations[0].connectionId, connectionId);
+  assertEquals(observations[0].status, "login_required");
+  assertEquals(observations[0].statusReason, "login_required");
+  assertEquals(observations[0].fromItemGet, false);
+  assertEquals(observations[0].consentExpiresAt, null);
+  assertEquals(observations[0].clearPendingDisconnect, false);
+  assert(
+    !Number.isNaN(Date.parse(String(observations[0].observedAt))),
+    "observedAt must be a timestamp",
+  );
+  assertEquals(calls.includes("plaid_item_get"), false);
+  assertEquals(releaseCalls.length, 1);
+  assert(!text.includes(accessToken), "response exposed access token");
+});
+
+Deno.test("ITEM_LOGIN_REQUIRED with failed health write returns persist_failed", async () => {
+  const { handler, request } = createHarness({
+    fetchResponses: [itemLoginRequiredError()],
+    recordResult: "failed",
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 500);
+  assertEquals((await response.json()).error.code, "persist_failed");
+});
+
+Deno.test("other Plaid errors do not write Item health", async () => {
+  const { handler, request, observations } = createHarness({
+    fetchResponses: [apiError()],
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 502);
+  assertEquals(observations.length, 0);
+});
+
+Deno.test("successful sync of active Item does not call item/get", async () => {
+  const { handler, request, calls, observations } = createHarness();
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(calls.includes("plaid_item_get"), false);
+  assertEquals(observations.length, 0);
+});
+
+Deno.test("successful sync of login_required Item confirms recovery via item/get", async () => {
+  const { handler, request, calls, observations } = createHarness({
+    itemStatus: "login_required",
+    itemGetResponse: itemGet(null, "2026-12-01T00:00:00Z"),
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(calls.includes("plaid_item_get"), true);
+  assertEquals(observations.length, 1);
+  assertEquals(observations[0].status, "active");
+  assertEquals(observations[0].statusReason, null);
+  assertEquals(observations[0].fromItemGet, true);
+  assertEquals(observations[0].consentExpiresAt, "2026-12-01T00:00:00Z");
+  assertEquals(observations[0].clearPendingDisconnect, false);
+});
+
+Deno.test("recovery item/get failure does not fail successful sync", async () => {
+  const { handler, request, observations } = createHarness({
+    itemStatus: "login_required",
+    itemGetResponse: apiError(),
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(observations.length, 0);
+});
+
+Deno.test("recovery item/get still login_required keeps Item login_required", async () => {
+  const { handler, request, observations } = createHarness({
+    itemStatus: "login_required",
+    itemGetResponse: itemGet({
+      error_type: "ITEM_ERROR",
+      error_code: "ITEM_LOGIN_REQUIRED",
+      error_code_reason: "OAUTH_CONSENT_EXPIRED",
+    }),
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(observations.length, 1);
+  assertEquals(observations[0].status, "login_required");
+  assertEquals(observations[0].statusReason, "consent_expired");
 });

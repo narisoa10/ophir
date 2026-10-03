@@ -143,6 +143,14 @@ function createHarness(options: HarnessOptions = {}) {
       calls.push("unexpected_apply_batch");
       return null;
     },
+    async getItemHealthStatus() {
+      calls.push("unexpected_get_item_status");
+      return null;
+    },
+    async recordItemHealthObservation() {
+      calls.push("unexpected_record_observation");
+      return null;
+    },
   };
 
   const handler = createPlaidProcessTransactionSyncJobsHandler({
@@ -460,6 +468,12 @@ Deno.test("long sync renews job lease before transaction lease renewal", async (
           initialSyncCompleted: false,
         };
       },
+      async getItemHealthStatus() {
+        return "active";
+      },
+      async recordItemHealthObservation() {
+        return null;
+      },
     },
   });
 
@@ -527,6 +541,12 @@ Deno.test("old owner cannot renew after reclaim", async () => {
           initialSyncCompleted: false,
         };
       },
+      async getItemHealthStatus() {
+        return "active";
+      },
+      async recordItemHealthObservation() {
+        return null;
+      },
     },
   });
 
@@ -576,6 +596,20 @@ Deno.test("missing or deleted Item is dropped safely", async () => {
 
   assertEquals(response.status, 200);
   assertEquals(body.dropped, 1);
+});
+
+Deno.test("Item requiring login is dropped, not retried", async () => {
+  const { handler, request } = createHarness({
+    claimedJobs: [job()],
+    syncResults: [{ kind: "item_login_required" }],
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.dropped, 1);
+  assertEquals(body.rescheduled, 0);
 });
 
 Deno.test("worker crash simulation reschedules when fail RPC is available", async () => {

@@ -9,13 +9,17 @@ import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/core/theme_v1/app_colors.dart';
 import 'package:ophir/features/accounts/controller/account_providers.dart';
 import 'package:ophir/features/accounts/data/plaid/plaid_accounts_sync_service.dart';
+import 'package:ophir/features/accounts/data/plaid/plaid_connect_service.dart';
 import 'package:ophir/features/accounts/domain/entities/account.dart';
 import 'package:ophir/features/accounts/domain/entities/institution.dart';
+import 'package:ophir/features/accounts/domain/entities/plaid_connection_health.dart';
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/accounts/presentation/screens/accounts_screen.dart';
 import 'package:ophir/features/accounts/presentation/widgets/accounts_empty_state.dart';
 import 'package:ophir/core/widgets/app_compact_switch.dart';
+
+import '../../support/plaid_test_fakes.dart';
 
 void main() {
   group('AccountsScreen', () {
@@ -518,6 +522,464 @@ void main() {
       await tester.pumpAndSettle();
     });
   });
+
+  group('AccountsScreen connection health', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    final reconnectTitle = find.text(l10n.accountsReconnectRequiredTitle);
+    final reconnectCta = find.widgetWithText(
+      TextButton,
+      l10n.accountsReconnectAction,
+    );
+
+    List<Account> twoBanks() => [
+      _account(name: 'Checking'),
+      _account(
+        id: 'account-2',
+        name: 'Savings',
+        institutionId: 'institution-2',
+        plaidItemId: 'item-2',
+        plaidAccountId: 'plaid-account-2',
+      ),
+    ];
+
+    List<Institution> twoInstitutions() => [
+      _institution(),
+      _institution(id: 'institution-2', name: 'Second Bank'),
+    ];
+
+    FakePlaidFunctions repairBackend({
+      FakeFunctionHandler? createLinkToken,
+      FakeFunctionHandler? refresh,
+    }) {
+      return FakePlaidFunctions({
+        'plaid-create-link-token':
+            createLinkToken ??
+            (_) => okResponse({
+              'link_token': 'link-update-token',
+              'expiration': '2026-10-03T14:00:00Z',
+              'mode': 'update',
+            }),
+        'plaid-refresh-item-status':
+            refresh ?? (_) => okResponse({'status': 'active'}),
+      });
+    }
+
+    Future<void> pumpScreen(
+      WidgetTester tester, {
+      required _HealthStore store,
+      _FakeAccountRepository? repository,
+      FakePlaidFunctions? functions,
+      FakePlaidLink? link,
+      PlaidAccountsSyncCallback? syncAccounts,
+    }) async {
+      await tester.pumpWidget(
+        _TestApp(
+          repository:
+              repository ??
+              _FakeAccountRepository(
+                accounts: twoBanks(),
+                institutions: twoInstitutions(),
+              ),
+          healthStore: store,
+          connectService: fakeConnectService(
+            functions ?? repairBackend(),
+            link ?? FakePlaidLink(),
+          ),
+          syncAccounts: syncAccounts,
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    String formattedDate(WidgetTester tester, DateTime date) {
+      return MaterialLocalizations.of(
+        tester.element(find.byType(AccountsScreen)),
+      ).formatMediumDate(date.toLocal());
+    }
+
+    testWidgets('login_required health warns only its own bank group', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+          _health('item-2'),
+        ]),
+      );
+
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('connection-health-item-2')),
+        findsNothing,
+      );
+      expect(reconnectTitle, findsOneWidget);
+    });
+
+    testWidgets('login_required warning is user-facing with Reconnect CTA', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+      );
+
+      expect(reconnectTitle, findsOneWidget);
+      expect(find.text(l10n.accountsReconnectRequiredBody), findsOneWidget);
+      expect(reconnectCta, findsOneWidget);
+      expect(find.textContaining('ITEM_LOGIN_REQUIRED'), findsNothing);
+      expect(find.textContaining('login_required'), findsNothing);
+    });
+
+    testWidgets('healthy connection shows no warning', (tester) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([_health('item-1'), _health('item-2')]),
+      );
+
+      expect(reconnectTitle, findsNothing);
+      expect(reconnectCta, findsNothing);
+      expect(find.byKey(const ValueKey('connection-health-item-1')), findsNothing);
+    });
+
+    testWidgets('consent deadline shows soft warning with date', (
+      tester,
+    ) async {
+      final consent = DateTime.utc(2099, 12, 1);
+      await pumpScreen(
+        tester,
+        store: _HealthStore([_health('item-1', consentExpiresAt: consent)]),
+      );
+
+      expect(
+        find.text(
+          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
+        ),
+        findsOneWidget,
+      );
+      expect(reconnectCta, findsNothing);
+    });
+
+    testWidgets('pending disconnect deadline shows soft warning with date', (
+      tester,
+    ) async {
+      final disconnect = DateTime.utc(2099, 11, 15);
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', pendingDisconnectAt: disconnect),
+        ]),
+      );
+
+      expect(
+        find.text(
+          l10n.accountsAccessExpiresWarning(formattedDate(tester, disconnect)),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('both deadlines use the nearest one', (tester) async {
+      final consent = DateTime.utc(2099, 12, 1);
+      final disconnect = DateTime.utc(2099, 11, 15);
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health(
+            'item-1',
+            consentExpiresAt: consent,
+            pendingDisconnectAt: disconnect,
+          ),
+        ]),
+      );
+
+      expect(
+        find.text(
+          l10n.accountsAccessExpiresWarning(formattedDate(tester, disconnect)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('past deadline shows no warning', (tester) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', consentExpiresAt: DateTime.utc(2000, 1, 1)),
+        ]),
+      );
+
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('login_required takes priority over deadline warning', (
+      tester,
+    ) async {
+      final consent = DateTime.utc(2099, 12, 1);
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          PlaidConnectionHealth(
+            connectionId: 'item-1',
+            status: PlaidConnectionStatus.loginRequired,
+            consentExpiresAt: consent,
+          ),
+        ]),
+      );
+
+      expect(reconnectTitle, findsOneWidget);
+      expect(
+        find.text(
+          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('reconnect confirmed active removes warning after refresh', (
+      tester,
+    ) async {
+      final store = _HealthStore([
+        _health('item-1', status: PlaidConnectionStatus.loginRequired),
+      ]);
+      final functions = repairBackend(
+        refresh: (body) {
+          store.setStatus(
+            body['connection_id'] as String,
+            PlaidConnectionStatus.active,
+          );
+          return okResponse({'status': 'active', 'status_reason': null});
+        },
+      );
+      final link = FakePlaidLink();
+      final repository = _FakeAccountRepository(
+        accounts: twoBanks(),
+        institutions: twoInstitutions(),
+      );
+
+      await pumpScreen(
+        tester,
+        store: store,
+        repository: repository,
+        functions: functions,
+        link: link,
+      );
+      final accountLoadsBefore = repository.getAccountsCalls;
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(functions.calls.first.body['connection_id'], 'item-1');
+      expect(link.openedTokens, ['link-update-token']);
+      expect(functions.functionNames, [
+        'plaid-create-link-token',
+        'plaid-refresh-item-status',
+      ]);
+      expect(reconnectTitle, findsNothing);
+      expect(find.text(l10n.accountsReconnectSuccess), findsOneWidget);
+      expect(repository.getAccountsCalls, greaterThan(accountLoadsBefore));
+    });
+
+    testWidgets('double tap does not start a second reconnect flow', (
+      tester,
+    ) async {
+      final functions = repairBackend();
+      final link = FakePlaidLink()
+        ..pending = Completer<PlaidLinkSessionResult>();
+
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+        functions: functions,
+        link: link,
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pump();
+      await tester.tap(find.text(l10n.accountsReconnecting));
+      await tester.pump();
+
+      expect(link.openedTokens, hasLength(1));
+      expect(functions.functionNames, ['plaid-create-link-token']);
+
+      link.pending!.complete(const PlaidLinkSessionExited());
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('server still login_required keeps warning', (tester) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+        functions: repairBackend(
+          refresh: (_) => okResponse({
+            'status': 'login_required',
+            'status_reason': 'login_required',
+          }),
+        ),
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(reconnectTitle, findsOneWidget);
+      expect(find.text(l10n.accountsReconnectStillRequired), findsOneWidget);
+    });
+
+    testWidgets('refresh failure keeps warning and allows retry', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+        functions: repairBackend(
+          refresh: (_) => throw edgeError(502, 'plaid_request_failed'),
+        ),
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(reconnectTitle, findsOneWidget);
+      expect(reconnectCta, findsOneWidget);
+      expect(find.text(l10n.accountsReconnectFailed), findsOneWidget);
+    });
+
+    testWidgets('cancel keeps warning without error or exchange', (
+      tester,
+    ) async {
+      final functions = repairBackend();
+
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+        functions: functions,
+        link: FakePlaidLink(result: const PlaidLinkSessionExited()),
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(reconnectTitle, findsOneWidget);
+      expect(reconnectCta, findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(functions.functionNames, ['plaid-create-link-token']);
+    });
+
+    testWidgets('sync item_login_required shows repair UI without opening Link', (
+      tester,
+    ) async {
+      final link = FakePlaidLink();
+      final store = _HealthStore([_health('item-1'), _health('item-2')]);
+
+      await pumpScreen(
+        tester,
+        store: store,
+        link: link,
+        syncAccounts: (connectionId) async {
+          return const Failure(PlaidItemLoginRequiredFailure());
+        },
+      );
+      final healthLoadsBefore = store.loadCalls;
+
+      await tester.tap(find.byIcon(Icons.more_vert).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuSync));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('connection-health-item-2')),
+        findsNothing,
+      );
+      expect(reconnectCta, findsOneWidget);
+      expect(find.text(l10n.failureUnknown), findsNothing);
+      expect(store.loadCalls, greaterThan(healthLoadsBefore));
+      expect(link.openedTokens, isEmpty);
+    });
+
+    testWidgets('reconnect_unavailable shows message and stops offering retry', (
+      tester,
+    ) async {
+      final functions = repairBackend(
+        createLinkToken: (_) => throw edgeError(409, 'reconnect_unavailable'),
+      );
+      final link = FakePlaidLink();
+
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', status: PlaidConnectionStatus.loginRequired),
+        ]),
+        functions: functions,
+        link: link,
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
+      expect(reconnectCta, findsNothing);
+      expect(functions.functionNames, ['plaid-create-link-token']);
+      expect(link.openedTokens, isEmpty);
+    });
+
+    testWidgets('connection_not_found shows message and refreshes state', (
+      tester,
+    ) async {
+      final store = _HealthStore([
+        _health('item-1', status: PlaidConnectionStatus.loginRequired),
+      ]);
+      final repository = _FakeAccountRepository(
+        accounts: twoBanks(),
+        institutions: twoInstitutions(),
+      );
+
+      await pumpScreen(
+        tester,
+        store: store,
+        repository: repository,
+        functions: repairBackend(
+          createLinkToken: (_) => throw edgeError(404, 'connection_not_found'),
+        ),
+      );
+      final accountLoadsBefore = repository.getAccountsCalls;
+      final healthLoadsBefore = store.loadCalls;
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsConnectionNotFound), findsOneWidget);
+      expect(repository.getAccountsCalls, greaterThan(accountLoadsBefore));
+      expect(store.loadCalls, greaterThan(healthLoadsBefore));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
 
 final class _TestApp extends StatelessWidget {
@@ -526,18 +988,28 @@ final class _TestApp extends StatelessWidget {
     required this.child,
     this.syncAccounts,
     this.removeItem,
+    this.healthStore,
+    this.connectService,
   });
 
   final AccountRepository repository;
   final Widget child;
   final PlaidAccountsSyncCallback? syncAccounts;
   final PlaidItemRemoveCallback? removeItem;
+  final _HealthStore? healthStore;
+  final PlaidConnectService? connectService;
 
   @override
   Widget build(BuildContext context) {
+    final store = healthStore ?? _HealthStore();
     return ProviderScope(
       overrides: [
         accountRepositoryProvider.overrideWithValue(repository),
+        plaidConnectionHealthLoaderProvider.overrideWithValue(store.load),
+        plaidConnectServiceProvider.overrideWithValue(
+          connectService ??
+              fakeConnectService(FakePlaidFunctions({}), FakePlaidLink()),
+        ),
         if (syncAccounts != null)
           plaidAccountsSyncCallbackProvider.overrideWithValue(syncAccounts!),
         if (removeItem != null)
@@ -550,6 +1022,46 @@ final class _TestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+final class _HealthStore {
+  _HealthStore([List<PlaidConnectionHealth>? health])
+    : health = health ?? <PlaidConnectionHealth>[];
+
+  List<PlaidConnectionHealth> health;
+  int loadCalls = 0;
+
+  Future<Result<List<PlaidConnectionHealth>>> load() async {
+    loadCalls += 1;
+    return Success(List.of(health));
+  }
+
+  void setStatus(String connectionId, PlaidConnectionStatus status) {
+    health = [
+      for (final item in health)
+        if (item.connectionId == connectionId)
+          _health(connectionId, status: status)
+        else
+          item,
+    ];
+  }
+}
+
+PlaidConnectionHealth _health(
+  String connectionId, {
+  PlaidConnectionStatus status = PlaidConnectionStatus.active,
+  DateTime? consentExpiresAt,
+  DateTime? pendingDisconnectAt,
+}) {
+  return PlaidConnectionHealth(
+    connectionId: connectionId,
+    status: status,
+    statusReason: status == PlaidConnectionStatus.loginRequired
+        ? PlaidConnectionStatusReason.loginRequired
+        : null,
+    consentExpiresAt: consentExpiresAt,
+    pendingDisconnectAt: pendingDisconnectAt,
+  );
 }
 
 final class _FakeAccountRepository implements AccountRepository {

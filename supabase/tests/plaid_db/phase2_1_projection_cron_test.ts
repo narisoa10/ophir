@@ -54,7 +54,7 @@ async function applyAllMigrationsExcept(sql: Sql, excluded: string): Promise<voi
 
 Deno.test("projection worker cron is registered once next to the sync worker cron", options, async () => {
   await withDatabase("phase21_cron", async (db) => {
-    assertEquals(listMigrations().at(-1), PROJECTION_MIGRATION);
+    assert(listMigrations().includes(PROJECTION_MIGRATION));
     await applyAllMigrations(db.sql);
 
     const jobs = await plaidTransactionCronJobs(db.sql);

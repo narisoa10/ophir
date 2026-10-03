@@ -442,6 +442,23 @@
     "accountsRemoveBankConnectionDialogTitle": "Remove bank connection?",
     "accountsRemoveBankConnectionDialogBody": "The bank and all related accounts will be removed from Ophir. Syncing will stop, and you\u0027ll need to go through Plaid again to reconnect it.",
     "accountsRemoveBankConnectionError": "Unable to remove bank connection. Please try again.",
+    "accountsReconnectRequiredTitle": "Reconnection required",
+    "accountsReconnectRequiredBody": "Your bank is asking you to confirm access again. Reconnect the bank to keep syncing.",
+    "accountsReconnectAction": "Reconnect",
+    "accountsReconnecting": "Reconnecting…",
+    "accountsReconnectSuccess": "Bank reconnected.",
+    "accountsReconnectStillRequired": "The bank still needs to be reconnected. Please try again.",
+    "accountsReconnectUnavailable": "This connection can no longer be restored by reconnecting.",
+    "accountsReconnectFailed": "We couldn't confirm the reconnection. Please try again.",
+    "accountsConnectionNotFound": "This bank connection was not found. The list has been refreshed.",
+    "accountsAccessExpiresWarning": "Bank access will need to be confirmed by {date}.",
+    "@accountsAccessExpiresWarning": {
+        "placeholders": {
+            "date": {
+                "type": "String"
+            }
+        }
+    },
     "dashboardTitle":  "Dashboard",
     "dashboardWelcome":  "Welcome back.",
     "dashboardHeaderGreetingMorning":  "Good morning",

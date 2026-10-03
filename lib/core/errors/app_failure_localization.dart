@@ -11,6 +11,8 @@ extension AppFailureLocalization on AppFailure {
       NetworkFailure() => l10n.failureNetwork,
       PermissionFailure() => l10n.failurePermission,
       UnknownFailure() => l10n.failureUnknown,
+      PlaidItemLoginRequiredFailure() => l10n.accountsReconnectRequiredTitle,
+      PlaidReconnectUnavailableFailure() => l10n.accountsReconnectUnavailable,
     };
   }
 }

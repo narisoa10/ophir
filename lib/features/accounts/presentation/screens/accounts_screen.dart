@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/app_failure_localization.dart';
 import '../../../../core/errors/result.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
@@ -21,6 +21,7 @@ import '../../data/plaid/plaid_accounts_sync_service.dart';
 import '../../data/plaid/plaid_connect_service.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/entities/institution.dart';
+import '../../domain/entities/plaid_connection_health.dart';
 import '../adapters/account_adapter.dart';
 import '../widgets/account_list_tile.dart';
 import '../widgets/accounts_empty_state.dart';
@@ -36,6 +37,12 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   bool _isConnecting = false;
   final Set<String> _expandedBankGroupKeys = <String>{};
   final Set<String> _removingConnectionIds = <String>{};
+  final Set<String> _reconnectingConnectionIds = <String>{};
+  // Sync just reported item_login_required; shown until the server confirms
+  // the Item is active again, even if the health reload has not landed yet.
+  final Set<String> _syncLoginRequiredConnectionIds = <String>{};
+  // update mode is not possible for these Items; reconnect is not offered again.
+  final Set<String> _reconnectUnavailableConnectionIds = <String>{};
 
   Future<void> _connectBank() async {
     if (_isConnecting) {
@@ -46,9 +53,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     try {
       final locale = Localizations.localeOf(context).toLanguageTag();
-      final outcome = await PlaidConnectService(
-        Supabase.instance.client,
-      ).connect(locale: locale);
+      final outcome = await ref
+          .read(plaidConnectServiceProvider)
+          .connect(locale: locale);
 
       if (!mounted) {
         return;
@@ -107,22 +114,95 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     if (result is Failure<PlaidAccountsSyncSummary>) {
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.failureUnknown)));
+      switch (result.failure) {
+        case PlaidItemLoginRequiredFailure():
+          setState(() => _syncLoginRequiredConnectionIds.add(connectionId));
+          ref.invalidate(plaidConnectionHealthProvider);
+          _showMessage(l10n.accountsReconnectRequiredTitle);
+        case NotFoundFailure():
+          _showMessage(l10n.accountsConnectionNotFound);
+          await _refreshAccountsAndHealth();
+        default:
+          _showMessage(l10n.failureUnknown);
+      }
       return;
     }
 
+    await _refreshAccountsAndHealth();
+  }
+
+  Future<void> _refreshAccountsAndHealth() async {
     ref.invalidate(accountInstitutionsProvider);
+    ref.invalidate(plaidConnectionHealthProvider);
     await ref.read(accountControllerProvider.notifier).refresh();
   }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _syncBankConnection(String connectionId) async {
-    if (_removingConnectionIds.contains(connectionId)) {
+    if (_removingConnectionIds.contains(connectionId) ||
+        _reconnectingConnectionIds.contains(connectionId)) {
       return;
     }
 
     await _syncConnectedAccounts(connectionId);
+  }
+
+  Future<void> _reconnectBankConnection(String connectionId) async {
+    if (_reconnectingConnectionIds.contains(connectionId) ||
+        _removingConnectionIds.contains(connectionId) ||
+        _reconnectUnavailableConnectionIds.contains(connectionId)) {
+      return;
+    }
+
+    setState(() => _reconnectingConnectionIds.add(connectionId));
+
+    try {
+      final locale = Localizations.localeOf(context).toLanguageTag();
+      final outcome = await ref
+          .read(plaidConnectServiceProvider)
+          .reconnect(connectionId: connectionId, locale: locale);
+
+      if (!mounted) {
+        return;
+      }
+
+      final l10n = AppLocalizations.of(context);
+      switch (outcome) {
+        case PlaidReconnectCancelled():
+          break;
+        case PlaidReconnectConfirmed(:final refresh):
+          if (refresh.status == PlaidConnectionStatus.active) {
+            setState(() => _syncLoginRequiredConnectionIds.remove(connectionId));
+            _showMessage(l10n.accountsReconnectSuccess);
+            await _refreshAccountsAndHealth();
+          } else {
+            ref.invalidate(plaidConnectionHealthProvider);
+            _showMessage(l10n.accountsReconnectStillRequired);
+          }
+        case PlaidReconnectFailed(:final failure):
+          switch (failure) {
+            case PlaidReconnectUnavailableFailure():
+              setState(
+                () => _reconnectUnavailableConnectionIds.add(connectionId),
+              );
+              _showMessage(l10n.accountsReconnectUnavailable);
+            case NotFoundFailure():
+              _showMessage(l10n.accountsConnectionNotFound);
+              await _refreshAccountsAndHealth();
+            default:
+              _showMessage(l10n.accountsReconnectFailed);
+          }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _reconnectingConnectionIds.remove(connectionId));
+      }
+    }
   }
 
   Future<void> _removeBankConnection(String connectionId) async {
@@ -199,6 +279,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     final accountsState = ref.watch(accountControllerProvider);
     final institutionsState = ref.watch(accountInstitutionsProvider);
     final institutionsById = _institutionsById(institutionsState);
+    final healthByConnectionId = _healthByConnectionId(
+      ref.watch(plaidConnectionHealthProvider),
+    );
     final l10n = AppLocalizations.of(context);
     const adapter = AccountAdapter();
 
@@ -229,6 +312,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                           l10n: l10n,
                           accounts: value,
                           institutionsById: institutionsById,
+                          healthByConnectionId: healthByConnectionId,
                           adapter: adapter,
                         ),
                       Failure<List<Account>>() => const AccountsEmptyState(),
@@ -260,9 +344,11 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     required AppLocalizations l10n,
     required List<Account> accounts,
     required Map<String, Institution> institutionsById,
+    required Map<String, PlaidConnectionHealth> healthByConnectionId,
     required AccountAdapter adapter,
   }) {
     final groups = _groupAccountsByBank(accounts);
+    final now = DateTime.now();
 
     final children = <Widget>[
       Text(
@@ -280,9 +366,18 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             accountAdapter: adapter,
             l10n: l10n,
             isRemoving: _removingConnectionIds.contains(group.connectionId),
+            healthNotice: _healthNotice(
+              group.connectionId,
+              healthByConnectionId[group.connectionId],
+              now,
+            ),
+            isReconnecting: _reconnectingConnectionIds.contains(
+              group.connectionId,
+            ),
             onToggleExpanded: () => _toggleBankGroup(group.key),
             onSync: () => _syncBankConnection(group.connectionId),
             onRemove: () => _removeBankConnection(group.connectionId),
+            onReconnect: () => _reconnectBankConnection(group.connectionId),
             onFinancialParticipationChanged: _setFinancialParticipation,
           ),
     ];
@@ -312,6 +407,46 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       error: (error, stackTrace) => const {},
       loading: () => const {},
     );
+  }
+
+  Map<String, PlaidConnectionHealth> _healthByConnectionId(
+    AsyncValue<Result<List<PlaidConnectionHealth>>> state,
+  ) {
+    return state.when(
+      data: (result) {
+        if (result is! Success<List<PlaidConnectionHealth>>) {
+          return const {};
+        }
+
+        return {
+          for (final health in result.value) health.connectionId: health,
+        };
+      },
+      error: (error, stackTrace) => const {},
+      loading: () => const {},
+    );
+  }
+
+  _HealthNotice? _healthNotice(
+    String connectionId,
+    PlaidConnectionHealth? health,
+    DateTime now,
+  ) {
+    if (_reconnectUnavailableConnectionIds.contains(connectionId)) {
+      return const _ReconnectUnavailableNotice();
+    }
+
+    if (_syncLoginRequiredConnectionIds.contains(connectionId) ||
+        (health?.requiresReconnect ?? false)) {
+      return const _ReconnectRequiredNotice();
+    }
+
+    final deadline = health?.upcomingAccessDeadline(now);
+    if (deadline != null) {
+      return _AccessDeadlineNotice(deadline);
+    }
+
+    return null;
   }
 
   List<_BankAccountGroup> _groupAccountsByBank(List<Account> accounts) {
@@ -472,9 +607,12 @@ class _BankAccountGroupView extends StatelessWidget {
     required this.accountAdapter,
     required this.l10n,
     required this.isRemoving,
+    required this.healthNotice,
+    required this.isReconnecting,
     required this.onToggleExpanded,
     required this.onSync,
     required this.onRemove,
+    required this.onReconnect,
     required this.onFinancialParticipationChanged,
   });
 
@@ -484,14 +622,18 @@ class _BankAccountGroupView extends StatelessWidget {
   final AccountAdapter accountAdapter;
   final AppLocalizations l10n;
   final bool isRemoving;
+  final _HealthNotice? healthNotice;
+  final bool isReconnecting;
   final VoidCallback onToggleExpanded;
   final Future<void> Function() onSync;
   final Future<void> Function() onRemove;
+  final Future<void> Function() onReconnect;
   final Future<void> Function(Account account, bool isIncludedInFinances)
   onFinancialParticipationChanged;
 
   @override
   Widget build(BuildContext context) {
+    final notice = healthNotice;
     final children = <Widget>[
       _BankGroupHeader(
         group: group,
@@ -503,6 +645,14 @@ class _BankAccountGroupView extends StatelessWidget {
         onSync: onSync,
         onRemove: onRemove,
       ),
+      if (notice != null)
+        _ConnectionHealthBanner(
+          key: ValueKey('connection-health-${group.connectionId}'),
+          notice: notice,
+          l10n: l10n,
+          isReconnecting: isReconnecting,
+          onReconnect: onReconnect,
+        ),
     ];
 
     if (isExpanded) {
@@ -521,6 +671,99 @@ class _BankAccountGroupView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
+    );
+  }
+}
+
+sealed class _HealthNotice {
+  const _HealthNotice();
+}
+
+final class _ReconnectRequiredNotice extends _HealthNotice {
+  const _ReconnectRequiredNotice();
+}
+
+final class _ReconnectUnavailableNotice extends _HealthNotice {
+  const _ReconnectUnavailableNotice();
+}
+
+final class _AccessDeadlineNotice extends _HealthNotice {
+  const _AccessDeadlineNotice(this.deadline);
+
+  final DateTime deadline;
+}
+
+class _ConnectionHealthBanner extends StatelessWidget {
+  const _ConnectionHealthBanner({
+    super.key,
+    required this.notice,
+    required this.l10n,
+    required this.isReconnecting,
+    required this.onReconnect,
+  });
+
+  final _HealthNotice notice;
+  final AppLocalizations l10n;
+  final bool isReconnecting;
+  final Future<void> Function() onReconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appThemeColors;
+    final (accent, title, body) = switch (notice) {
+      _ReconnectRequiredNotice() => (
+        colors.error,
+        l10n.accountsReconnectRequiredTitle,
+        l10n.accountsReconnectRequiredBody,
+      ),
+      _ReconnectUnavailableNotice() => (
+        colors.error,
+        l10n.accountsReconnectRequiredTitle,
+        l10n.accountsReconnectUnavailable,
+      ),
+      _AccessDeadlineNotice(:final deadline) => (
+        colors.warning,
+        null,
+        l10n.accountsAccessExpiresWarning(
+          MaterialLocalizations.of(context).formatMediumDate(deadline.toLocal()),
+        ),
+      ),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: AppSpacing.compactCardInsets,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: accent),
+        borderRadius: AppRadius.smRadius,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null)
+            Text(
+              title,
+              style: AppTypography.bodyStrong.copyWith(color: accent),
+            ),
+          Text(
+            body,
+            style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
+          ),
+          if (notice is _ReconnectRequiredNotice)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: isReconnecting ? null : onReconnect,
+                child: Text(
+                  isReconnecting
+                      ? l10n.accountsReconnecting
+                      : l10n.accountsReconnectAction,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

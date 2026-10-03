@@ -8,6 +8,16 @@ import {
   optionsResponse,
   readJsonObject,
 } from "../_shared/http.ts";
+import {
+  fetchItemGetHealth,
+  isItemLoginRequiredError,
+  type ItemHealthStatus,
+  loginRequiredObservation,
+  observationFromItemGet,
+  plaidItemGetUrls,
+  recordItemHealthObservationRpc,
+  type RecordItemHealthObservation,
+} from "../_shared/plaid_item_health.ts";
 
 type PlaidEnvironment = "sandbox" | "development" | "production";
 
@@ -98,6 +108,11 @@ export type TransactionsSyncDatabase = {
   applyTransactionsSyncBatch(
     args: ApplyTransactionsSyncBatchArgs,
   ): Promise<ApplyTransactionsSyncBatchResult | "cursor_conflict" | null>;
+  getItemHealthStatus(
+    userId: string,
+    connectionId: string,
+  ): Promise<ItemHealthStatus | null>;
+  recordItemHealthObservation: RecordItemHealthObservation;
 };
 
 type HandlerDependencies = {
@@ -120,6 +135,7 @@ type PlaidSyncPage = {
 type PlaidSyncPageResult =
   | { kind: "success"; page: PlaidSyncPage }
   | { kind: "mutation_during_pagination" }
+  | { kind: "item_login_required"; observedAt: string }
   | { kind: "failed" }
   | { kind: "malformed" };
 
@@ -135,6 +151,7 @@ type CollectedSyncBatchResult =
   }
   | { kind: "mutation_during_pagination" }
   | { kind: "lease_lost" }
+  | { kind: "item_login_required"; observedAt: string }
   | { kind: "failed" }
   | { kind: "malformed" };
 
@@ -381,6 +398,7 @@ async function callPlaidTransactionsSync(
   secret: string,
   accessToken: string,
   cursor: string | null,
+  now: () => Date,
 ): Promise<PlaidSyncPageResult> {
   const requestBody: Record<string, unknown> = {
     access_token: accessToken,
@@ -395,6 +413,7 @@ async function callPlaidTransactionsSync(
   }
 
   let response: Response;
+  const requestedAt = now().toISOString();
 
   try {
     response = await fetchImpl(config.transactionsSyncUrl, {
@@ -427,6 +446,10 @@ async function callPlaidTransactionsSync(
       return { kind: "mutation_during_pagination" };
     }
 
+    if (isItemLoginRequiredError(payload)) {
+      return { kind: "item_login_required", observedAt: requestedAt };
+    }
+
     return { kind: "failed" };
   }
 
@@ -449,6 +472,7 @@ async function collectTransactionsSyncBatch(params: {
   connectionId: string;
   ownerToken: string;
   originalCursor: string | null;
+  now: () => Date;
 }): Promise<CollectedSyncBatchResult> {
   let cursor: string | null = params.originalCursor;
   let pageCount = 0;
@@ -475,6 +499,7 @@ async function collectTransactionsSyncBatch(params: {
       params.secret,
       params.accessToken,
       cursor,
+      params.now,
     );
 
     if (pageResult.kind !== "success") {
@@ -677,6 +702,28 @@ export function createPlaidTransactionsSyncDatabase(
 
       return parseApplyResult(data);
     },
+
+    async getItemHealthStatus(userId, connectionId) {
+      const { data, error } = await supabaseAdmin
+        .from("plaid_items")
+        .select("status")
+        .eq("id", connectionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error !== null || data === null) {
+        return null;
+      }
+
+      const status = (data as Record<string, unknown>).status;
+      return status === "active" || status === "login_required"
+        ? status
+        : null;
+    },
+
+    recordItemHealthObservation(observation) {
+      return recordItemHealthObservationRpc(supabaseAdmin, observation);
+    },
   };
 }
 
@@ -699,8 +746,52 @@ export type PlaidTransactionsSyncCoreResult =
   | { kind: "plaid_pagination_mutation_exhausted" }
   | { kind: "plaid_payload_invalid" }
   | { kind: "plaid_request_failed" }
+  | { kind: "item_login_required" }
   | { kind: "cursor_conflict" }
   | { kind: "persist_failed" };
+
+// Recovers health missed by LOGIN_REPAIRED or by an interrupted repair refresh.
+// Best-effort: the sync result does not depend on it.
+async function confirmRecoveredItemHealth(params: {
+  database: TransactionsSyncDatabase;
+  fetchImpl: typeof fetch;
+  environment: PlaidEnvironment;
+  clientId: string;
+  secret: string;
+  accessToken: string;
+  userId: string;
+  connectionId: string;
+  now: () => Date;
+}): Promise<void> {
+  try {
+    const status = await params.database.getItemHealthStatus(
+      params.userId,
+      params.connectionId,
+    );
+    if (status !== "login_required") {
+      return;
+    }
+
+    const observedAt = params.now().toISOString();
+    const health = await fetchItemGetHealth(params.fetchImpl, {
+      url: plaidItemGetUrls[params.environment],
+      clientId: params.clientId,
+      secret: params.secret,
+      accessToken: params.accessToken,
+    });
+    const observation = observationFromItemGet(
+      params.connectionId,
+      observedAt,
+      health,
+      false,
+    );
+    if (observation !== null) {
+      await params.database.recordItemHealthObservation(observation);
+    }
+  } catch (_) {
+    // A later sync, webhook or repair refresh observes health again.
+  }
+}
 
 export async function syncPlaidTransactionsForConnection(params: {
   userId: string;
@@ -709,7 +800,9 @@ export async function syncPlaidTransactionsForConnection(params: {
   fetchImpl: typeof fetch;
   getEnv: (name: string) => string | undefined;
   ownerToken: string;
+  now?: () => Date;
 }): Promise<PlaidTransactionsSyncCoreResult> {
+  const now = params.now ?? (() => new Date());
   const lease = await params.database.acquireLease(
     params.userId,
     params.connectionId,
@@ -771,6 +864,7 @@ export async function syncPlaidTransactionsForConnection(params: {
         connectionId: params.connectionId,
         ownerToken: params.ownerToken,
         originalCursor: lease.originalCursor,
+        now,
       });
 
       if (batch.kind === "mutation_during_pagination") {
@@ -788,6 +882,19 @@ export async function syncPlaidTransactionsForConnection(params: {
 
       if (batch.kind === "malformed") {
         return { kind: "plaid_payload_invalid" };
+      }
+
+      if (batch.kind === "item_login_required") {
+        const recorded = await params.database.recordItemHealthObservation(
+          loginRequiredObservation(params.connectionId, batch.observedAt),
+        );
+        if (recorded === null) {
+          return { kind: "persist_failed" };
+        }
+        if (recorded === "not_found") {
+          return { kind: "connection_not_found" };
+        }
+        return { kind: "item_login_required" };
       }
 
       if (batch.kind === "failed") {
@@ -825,6 +932,18 @@ export async function syncPlaidTransactionsForConnection(params: {
       if (applyResult === null) {
         return { kind: "persist_failed" };
       }
+
+      await confirmRecoveredItemHealth({
+        database: params.database,
+        fetchImpl: params.fetchImpl,
+        environment,
+        clientId,
+        secret,
+        accessToken,
+        userId: params.userId,
+        connectionId: params.connectionId,
+        now,
+      });
 
       return {
         kind: "synced",
@@ -929,6 +1048,8 @@ export function createPlaidSyncTransactionsHandler(
         return errorResponse(502, "plaid_payload_invalid");
       case "plaid_request_failed":
         return errorResponse(502, "plaid_request_failed");
+      case "item_login_required":
+        return errorResponse(409, "item_login_required");
       case "cursor_conflict":
         return errorResponse(409, "cursor_conflict");
       case "persist_failed":

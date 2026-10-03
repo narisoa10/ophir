@@ -1375,6 +1375,43 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unable to remove bank connection. Please try again.';
 
   @override
+  String get accountsReconnectRequiredTitle => 'Reconnection required';
+
+  @override
+  String get accountsReconnectRequiredBody =>
+      'Your bank is asking you to confirm access again. Reconnect the bank to keep syncing.';
+
+  @override
+  String get accountsReconnectAction => 'Reconnect';
+
+  @override
+  String get accountsReconnecting => 'Reconnecting…';
+
+  @override
+  String get accountsReconnectSuccess => 'Bank reconnected.';
+
+  @override
+  String get accountsReconnectStillRequired =>
+      'The bank still needs to be reconnected. Please try again.';
+
+  @override
+  String get accountsReconnectUnavailable =>
+      'This connection can no longer be restored by reconnecting.';
+
+  @override
+  String get accountsReconnectFailed =>
+      'We couldn\'t confirm the reconnection. Please try again.';
+
+  @override
+  String get accountsConnectionNotFound =>
+      'This bank connection was not found. The list has been refreshed.';
+
+  @override
+  String accountsAccessExpiresWarning(String date) {
+    return 'Bank access will need to be confirmed by $date.';
+  }
+
+  @override
   String get dashboardTitle => 'Dashboard';
 
   @override

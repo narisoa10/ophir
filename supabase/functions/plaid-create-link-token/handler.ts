@@ -1,3 +1,4 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
 import type { AuthenticatedUser } from "../_shared/auth.ts";
 import { authenticateRequest as defaultAuthenticateRequest } from "../_shared/auth.ts";
 import {
@@ -7,6 +8,7 @@ import {
   optionsResponse,
   readJsonObject,
 } from "../_shared/http.ts";
+import { isItemUnavailableError } from "../_shared/plaid_item_health.ts";
 
 const PLAID_SANDBOX_LINK_TOKEN_CREATE_URL =
   "https://sandbox.plaid.com/link/token/create";
@@ -36,11 +38,75 @@ const PLAID_LINK_LANGUAGES = new Set([
   "vi",
 ]);
 
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type LinkTokenDatabase = {
+  getAccessTokenForItem(
+    userId: string,
+    connectionId: string,
+  ): Promise<string | null>;
+};
+
 type HandlerDependencies = {
   authenticateRequest: (request: Request) => Promise<AuthenticatedUser | null>;
+  createDatabase: () => LinkTokenDatabase | null;
   fetch: typeof fetch;
   getEnv: (name: string) => string | undefined;
 };
+
+function createDefaultDatabase(
+  getEnv: (name: string) => string | undefined,
+): LinkTokenDatabase | null {
+  const supabaseUrl = getEnv("SUPABASE_URL");
+  const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (
+    typeof supabaseUrl !== "string" ||
+    supabaseUrl.length === 0 ||
+    typeof serviceRoleKey !== "string" ||
+    serviceRoleKey.length === 0
+  ) {
+    return null;
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+  return {
+    async getAccessTokenForItem(userId, connectionId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_get_access_token_for_item",
+        {
+          p_user_id: userId,
+          p_connection_id: connectionId,
+        },
+      );
+
+      if (error !== null || typeof data !== "string" || data.length === 0) {
+        return null;
+      }
+
+      return data;
+    },
+  };
+}
+
+// undefined: initial Link; null: malformed connection_id.
+function readUpdateConnectionId(
+  body: Record<string, unknown>,
+): string | null | undefined {
+  if (!("connection_id" in body)) {
+    return undefined;
+  }
+
+  const connectionId = body.connection_id;
+  if (typeof connectionId !== "string") {
+    return null;
+  }
+
+  const trimmed = connectionId.trim();
+  return uuidPattern.test(trimmed) ? trimmed.toLowerCase() : null;
+}
 
 function normalizePlaidLanguage(appLocale: string): string {
   const primary = appLocale.trim().toLowerCase().split(/[-_]/)[0];
@@ -87,6 +153,8 @@ export function createPlaidCreateLinkTokenHandler(
   const deps: HandlerDependencies = {
     authenticateRequest: dependencies.authenticateRequest ??
       defaultAuthenticateRequest,
+    createDatabase: dependencies.createDatabase ??
+      (() => createDefaultDatabase(deps.getEnv)),
     fetch: dependencies.fetch ?? fetch,
     getEnv: dependencies.getEnv ?? ((name) => Deno.env.get(name) ?? undefined),
   };
@@ -115,9 +183,13 @@ export function createPlaidCreateLinkTokenHandler(
       return errorResponse(400, "invalid_request");
     }
 
+    const updateConnectionId = readUpdateConnectionId(body);
+    if (updateConnectionId === null) {
+      return errorResponse(400, "invalid_request");
+    }
+
     const clientId = deps.getEnv("PLAID_CLIENT_ID");
     const sandboxSecret = deps.getEnv("PLAID_SANDBOX_SECRET");
-    const webhookUrl = readWebhookUrl(deps.getEnv);
 
     if (
       typeof clientId !== "string" ||
@@ -128,11 +200,53 @@ export function createPlaidCreateLinkTokenHandler(
       return errorResponse(500, "plaid_config_missing");
     }
 
-    if (webhookUrl === null) {
-      return errorResponse(500, "plaid_webhook_config_missing");
-    }
-
     const language = normalizePlaidLanguage(appLocale);
+    let linkTokenRequest: Record<string, unknown>;
+
+    if (updateConnectionId === undefined) {
+      const webhookUrl = readWebhookUrl(deps.getEnv);
+      if (webhookUrl === null) {
+        return errorResponse(500, "plaid_webhook_config_missing");
+      }
+
+      linkTokenRequest = {
+        client_name: PLAID_CLIENT_NAME,
+        language,
+        country_codes: PLAID_COUNTRY_CODES,
+        products: PLAID_PRODUCTS,
+        webhook: webhookUrl,
+        transactions: {
+          days_requested: TRANSACTIONS_DAYS_REQUESTED,
+        },
+        user: {
+          client_user_id: user.id,
+        },
+      };
+    } else {
+      const database = deps.createDatabase();
+      if (database === null) {
+        return errorResponse(500, "config_missing");
+      }
+
+      const accessToken = await database.getAccessTokenForItem(
+        user.id,
+        updateConnectionId,
+      );
+      if (accessToken === null) {
+        return errorResponse(404, "connection_not_found");
+      }
+
+      // Update mode: Plaid derives products and webhook from the existing Item.
+      linkTokenRequest = {
+        client_name: PLAID_CLIENT_NAME,
+        language,
+        country_codes: PLAID_COUNTRY_CODES,
+        user: {
+          client_user_id: user.id,
+        },
+        access_token: accessToken,
+      };
+    }
 
     let plaidResponse: Response;
 
@@ -144,19 +258,7 @@ export function createPlaidCreateLinkTokenHandler(
           "PLAID-CLIENT-ID": clientId,
           "PLAID-SECRET": sandboxSecret,
         },
-        body: JSON.stringify({
-          client_name: PLAID_CLIENT_NAME,
-          language,
-          country_codes: PLAID_COUNTRY_CODES,
-          products: PLAID_PRODUCTS,
-          webhook: webhookUrl,
-          transactions: {
-            days_requested: TRANSACTIONS_DAYS_REQUESTED,
-          },
-          user: {
-            client_user_id: user.id,
-          },
-        }),
+        body: JSON.stringify(linkTokenRequest),
       });
     } catch (_) {
       return errorResponse(502, "plaid_request_failed");
@@ -175,7 +277,10 @@ export function createPlaidCreateLinkTokenHandler(
     }
 
     if (!plaidResponse.ok) {
-      return errorResponse(502, "plaid_request_failed");
+      return updateConnectionId !== undefined &&
+          isItemUnavailableError(plaidPayload)
+        ? errorResponse(409, "reconnect_unavailable")
+        : errorResponse(502, "plaid_request_failed");
     }
 
     const linkToken = plaidPayload.link_token;
@@ -188,6 +293,14 @@ export function createPlaidCreateLinkTokenHandler(
       expiration.length === 0
     ) {
       return errorResponse(502, "plaid_request_failed");
+    }
+
+    if (updateConnectionId !== undefined) {
+      return jsonResponse(200, {
+        link_token: linkToken,
+        expiration,
+        mode: "update",
+      });
     }
 
     return jsonResponse(200, {

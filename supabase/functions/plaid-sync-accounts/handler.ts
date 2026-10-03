@@ -12,6 +12,12 @@ import {
   createPlaidTransactionsSyncDatabase,
   syncPlaidTransactionsForConnection,
 } from "../plaid-sync-transactions/handler.ts";
+import {
+  isItemLoginRequiredError,
+  loginRequiredObservation,
+  recordItemHealthObservationRpc,
+  type RecordItemHealthObservation,
+} from "../_shared/plaid_item_health.ts";
 
 const PLAID_SANDBOX_ACCOUNTS_GET_URL = "https://sandbox.plaid.com/accounts/get";
 const PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL =
@@ -47,6 +53,7 @@ type AccountSyncDatabase = {
     balanceFetchedAt: string;
     accounts: PlaidAccountPayload[];
   }): Promise<number | null>;
+  recordItemHealthObservation: RecordItemHealthObservation;
 };
 
 type TransactionBootstrapStatus = "synced" | "deferred";
@@ -60,6 +67,7 @@ type HandlerDependencies = {
   ) => Promise<TransactionBootstrapStatus>;
   fetch: typeof fetch;
   getEnv: (name: string) => string | undefined;
+  now: () => Date;
 };
 
 function readConnectionId(body: Record<string, unknown>): string | null {
@@ -70,6 +78,11 @@ function readConnectionId(body: Record<string, unknown>): string | null {
 
   return null;
 }
+
+type PlaidCallResult =
+  | { kind: "ok"; payload: Record<string, unknown> }
+  | { kind: "item_login_required" }
+  | { kind: "failed" };
 
 function readNonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -112,7 +125,7 @@ async function callPlaid(
   clientId: string,
   secret: string,
   body: Record<string, unknown>,
-): Promise<Record<string, unknown> | null> {
+): Promise<PlaidCallResult> {
   let response: Response;
 
   try {
@@ -126,7 +139,7 @@ async function callPlaid(
       body: JSON.stringify(body),
     });
   } catch (_) {
-    return null;
+    return { kind: "failed" };
   }
 
   let payload: Record<string, unknown>;
@@ -134,18 +147,20 @@ async function callPlaid(
   try {
     const parsed = await response.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return null;
+      return { kind: "failed" };
     }
     payload = parsed as Record<string, unknown>;
   } catch (_) {
-    return null;
+    return { kind: "failed" };
   }
 
   if (!response.ok) {
-    return null;
+    return isItemLoginRequiredError(payload)
+      ? { kind: "item_login_required" }
+      : { kind: "failed" };
   }
 
-  return payload;
+  return { kind: "ok", payload };
 }
 
 function normalizePlaidAccounts(
@@ -265,6 +280,10 @@ function createDefaultDatabase(
 
       return data;
     },
+
+    recordItemHealthObservation(observation) {
+      return recordItemHealthObservationRpc(supabaseAdmin, observation);
+    },
   };
 }
 
@@ -309,6 +328,7 @@ export function createPlaidSyncAccountsHandler(
       createDefaultTransactionBootstrap(fetchImpl, getEnv),
     fetch: fetchImpl,
     getEnv,
+    now: dependencies.now ?? (() => new Date()),
   };
 
   return async (request: Request): Promise<Response> => {
@@ -361,7 +381,8 @@ export function createPlaidSyncAccountsHandler(
       return errorResponse(404, "connection_not_found");
     }
 
-    const accountsPayload = await callPlaid(
+    const accountsRequestedAt = deps.now().toISOString();
+    const accountsResult = await callPlaid(
       deps.fetch,
       PLAID_SANDBOX_ACCOUNTS_GET_URL,
       clientId,
@@ -369,10 +390,24 @@ export function createPlaidSyncAccountsHandler(
       { access_token: accessToken },
     );
 
-    if (accountsPayload === null) {
+    if (accountsResult.kind === "item_login_required") {
+      const recorded = await database.recordItemHealthObservation(
+        loginRequiredObservation(connectionId, accountsRequestedAt),
+      );
+      if (recorded === null) {
+        return errorResponse(500, "persist_failed");
+      }
+      if (recorded === "not_found") {
+        return errorResponse(404, "connection_not_found");
+      }
+      return errorResponse(409, "item_login_required");
+    }
+
+    if (accountsResult.kind === "failed") {
       return errorResponse(502, "plaid_request_failed");
     }
 
+    const accountsPayload = accountsResult.payload;
     const item = accountsPayload.item;
     const itemRecord = item && typeof item === "object" && !Array.isArray(item)
       ? item as Record<string, unknown>
@@ -399,8 +434,8 @@ export function createPlaidSyncAccountsHandler(
         },
       );
 
-      if (institutionPayload !== null) {
-        const institution = institutionPayload.institution;
+      if (institutionPayload.kind === "ok") {
+        const institution = institutionPayload.payload.institution;
         if (
           institution &&
           typeof institution === "object" &&

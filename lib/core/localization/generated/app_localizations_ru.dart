@@ -1400,6 +1400,43 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось удалить подключение банка. Попробуйте ещё раз.';
 
   @override
+  String get accountsReconnectRequiredTitle => 'Требуется переподключение';
+
+  @override
+  String get accountsReconnectRequiredBody =>
+      'Банк просит снова подтвердить доступ. Переподключите банк, чтобы продолжить синхронизацию.';
+
+  @override
+  String get accountsReconnectAction => 'Переподключить';
+
+  @override
+  String get accountsReconnecting => 'Переподключение…';
+
+  @override
+  String get accountsReconnectSuccess => 'Банк переподключён.';
+
+  @override
+  String get accountsReconnectStillRequired =>
+      'Банк всё ещё требует переподключения. Попробуйте ещё раз.';
+
+  @override
+  String get accountsReconnectUnavailable =>
+      'Это подключение больше нельзя восстановить переподключением.';
+
+  @override
+  String get accountsReconnectFailed =>
+      'Не удалось подтвердить переподключение. Попробуйте ещё раз.';
+
+  @override
+  String get accountsConnectionNotFound =>
+      'Подключение банка не найдено. Список обновлён.';
+
+  @override
+  String accountsAccessExpiresWarning(String date) {
+    return 'Доступ к банку нужно будет подтвердить до $date.';
+  }
+
+  @override
   String get dashboardTitle => 'Дашборд';
 
   @override

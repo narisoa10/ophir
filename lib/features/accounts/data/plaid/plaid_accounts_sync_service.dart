@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/result.dart';
+import 'plaid_edge_failure.dart';
 
 final class PlaidAccountsSyncSummary {
   const PlaidAccountsSyncSummary({
@@ -51,7 +52,7 @@ final class PlaidAccountsSyncService {
         ),
       );
     } on FunctionException catch (exception) {
-      return Failure(_failureFromFunctionException(exception));
+      return Failure(plaidFailureFromFunctionException(exception));
     } catch (_) {
       return const Failure(NetworkFailure());
     }
@@ -69,17 +70,6 @@ final class PlaidAccountsSyncService {
     }
     if (status >= 500) {
       return const UnknownFailure();
-    }
-    return const UnknownFailure();
-  }
-
-  AppFailure _failureFromFunctionException(FunctionException exception) {
-    final status = exception.status;
-    if (status == 401) {
-      return const UnauthorizedFailure();
-    }
-    if (status == 400) {
-      return const ValidationFailure();
     }
     return const UnknownFailure();
   }

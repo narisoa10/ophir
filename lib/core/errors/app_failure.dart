@@ -29,3 +29,11 @@ final class PermissionFailure extends AppFailure {
 final class UnknownFailure extends AppFailure {
   const UnknownFailure();
 }
+
+final class PlaidItemLoginRequiredFailure extends AppFailure {
+  const PlaidItemLoginRequiredFailure();
+}
+
+final class PlaidReconnectUnavailableFailure extends AppFailure {
+  const PlaidReconnectUnavailableFailure();
+}

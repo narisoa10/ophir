@@ -398,6 +398,12 @@ verify_jwt = false
 [functions.plaid-sandbox-transactions-refresh]
 verify_jwt = false
 
+[functions.plaid-reconcile-item-health]
+verify_jwt = false
+
+[functions.plaid-sandbox-item-health-tools]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
