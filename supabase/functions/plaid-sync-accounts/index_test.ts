@@ -30,6 +30,16 @@ type HarnessOptions = {
   accountsOverride?: Record<string, unknown>[];
   accountsErrorCode?: string;
   recordResult?: "applied" | "not_found" | "failed";
+  institutionFails?: boolean;
+};
+
+type PersistArgs = {
+  plaidInstitutionId: string | null;
+  institutionName: string | null;
+  logoBase64: string | null;
+  primaryColor: string | null;
+  institutionUrl: string | null;
+  balanceFetchedAt: string;
 };
 
 function assert(condition: boolean, message: string): void {
@@ -91,6 +101,8 @@ function createHarness(options: HarnessOptions = {}) {
   const calls: string[] = [];
   const bootstrapCalls: Array<{ userId: string; connectionId: string }> = [];
   let persistedAccounts: PersistedAccount[] | null = null;
+  let persistArgs: PersistArgs | null = null;
+  const institutionFails = options.institutionFails ?? false;
 
   const authenticatedUserId = options.authenticatedUserId === undefined
     ? userId
@@ -133,6 +145,14 @@ function createHarness(options: HarnessOptions = {}) {
         assertEquals(args.userId, userId);
         assertEquals(args.connectionId, connectionId);
         persistedAccounts = args.accounts as PersistedAccount[];
+        persistArgs = {
+          plaidInstitutionId: args.plaidInstitutionId,
+          institutionName: args.institutionName,
+          logoBase64: args.logoBase64,
+          primaryColor: args.primaryColor,
+          institutionUrl: args.institutionUrl,
+          balanceFetchedAt: args.balanceFetchedAt,
+        };
         return persistSucceeds ? args.accounts.length : null;
       },
       async recordItemHealthObservation(observation) {
@@ -171,6 +191,12 @@ function createHarness(options: HarnessOptions = {}) {
       );
 
       if (url.toString().includes("institutions/get_by_id")) {
+        if (institutionFails) {
+          return new Response(
+            JSON.stringify({ error_code: "INSTITUTION_NOT_FOUND" }),
+            { status: 400, headers: { "Content-Type": "application/json" } },
+          );
+        }
         return new Response(JSON.stringify(institutionPayload()), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -227,6 +253,7 @@ function createHarness(options: HarnessOptions = {}) {
     bootstrapCalls,
     observations,
     getPersistedAccounts: () => persistedAccounts,
+    getPersistArgs: () => persistArgs,
   };
 }
 
@@ -628,4 +655,158 @@ Deno.test("B17 repeated mapper invocation with same PAI is deterministic", async
     second.persisted![0].persistent_account_id,
   );
   assertEquals(first.persisted![0].persistent_account_id, "same-pai");
+});
+
+Deno.test("manual sync persists the full snapshot with Plaid institution metadata", async () => {
+  const { handler, request, calls, getPersistedAccounts, getPersistArgs } =
+    createHarness({
+      accountsOverride: [
+        baseAccount({ account_id: "plaid-account-a" }),
+        baseAccount({ account_id: "plaid-account-quiet" }),
+      ],
+    });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    JSON.stringify(body),
+    JSON.stringify({
+      synced_account_count: 2,
+      institution_name: "First Platypus Bank",
+      transactions_bootstrap_status: "synced",
+    }),
+  );
+  assertEquals(
+    calls.join(","),
+    "get_access_token,plaid_accounts,plaid_institution,persist_accounts,bootstrap_transactions",
+  );
+  assertEquals(
+    getPersistedAccounts()!.map((account) => account.plaid_account_id).join(","),
+    "plaid-account-a,plaid-account-quiet",
+  );
+  const persistArgs = getPersistArgs()!;
+  assertEquals(persistArgs.plaidInstitutionId, "ins_109508");
+  assertEquals(persistArgs.institutionName, "First Platypus Bank");
+  assertEquals(persistArgs.logoBase64, "logo-base64");
+  assertEquals(persistArgs.primaryColor, "#111111");
+  assertEquals(persistArgs.institutionUrl, "https://example.com");
+  assert(
+    !Number.isNaN(Date.parse(persistArgs.balanceFetchedAt)),
+    "balance_fetched_at is not a timestamp",
+  );
+});
+
+Deno.test("institution lookup failure keeps the item name and null metadata as before", async () => {
+  const { handler, request, getPersistArgs } = createHarness({
+    institutionFails: true,
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.institution_name, "First Platypus Bank");
+  const persistArgs = getPersistArgs()!;
+  assertEquals(persistArgs.plaidInstitutionId, "ins_109508");
+  assertEquals(persistArgs.institutionName, "First Platypus Bank");
+  assertEquals(persistArgs.logoBase64, null);
+  assertEquals(persistArgs.primaryColor, null);
+  assertEquals(persistArgs.institutionUrl, null);
+});
+
+Deno.test("another user's connection gets no token, no Plaid call and a 404", async () => {
+  const { handler, request, calls, bootstrapCalls, observations } =
+    createHarness({
+      authenticatedUserId: "33333333-3333-4333-8333-333333333333",
+    });
+
+  const response = await handler(request);
+  const text = await response.text();
+
+  assertEquals(response.status, 404);
+  assertEquals(JSON.parse(text).error.code, "connection_not_found");
+  assertEquals(calls.join(","), "get_access_token");
+  assertEquals(observations.length, 0);
+  assertEquals(bootstrapCalls.length, 0);
+  assert(!text.includes(accessToken), "response exposed access token");
+});
+
+Deno.test("persist failure keeps the 500 persist_failed contract", async () => {
+  const { handler, request } = createHarness({ persistSucceeds: false });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 500);
+  assertEquals((await response.json()).error.code, "persist_failed");
+});
+
+Deno.test("malformed accounts payload keeps the 502 plaid_payload_invalid contract", async () => {
+  const { handler, request, calls } = createHarness({ malformedAccounts: true });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 502);
+  assertEquals((await response.json()).error.code, "plaid_payload_invalid");
+  assertEquals(calls.includes("persist_accounts"), false);
+});
+
+Deno.test("unavailable Item errors keep the 502 plaid_request_failed contract", async () => {
+  for (const errorCode of ["ITEM_NOT_FOUND", "INVALID_ACCESS_TOKEN"]) {
+    const { handler, request, calls, observations } = createHarness({
+      accountsErrorCode: errorCode,
+    });
+
+    const response = await handler(request);
+
+    assertEquals(response.status, 502);
+    assertEquals((await response.json()).error.code, "plaid_request_failed");
+    assertEquals(observations.length, 0);
+    assertEquals(calls.includes("persist_accounts"), false);
+  }
+});
+
+Deno.test("handler writes no access token or Plaid secret to console output", async () => {
+  const written: string[] = [];
+  const original = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug,
+  };
+  const capture = (...args: unknown[]) => {
+    written.push(args.map((arg) => String(arg)).join(" "));
+  };
+  console.log = capture;
+  console.info = capture;
+  console.warn = capture;
+  console.error = capture;
+  console.debug = capture;
+
+  try {
+    const scenarios: HarnessOptions[] = [
+      {},
+      { accountsErrorCode: "ITEM_LOGIN_REQUIRED" },
+      { accountsErrorCode: "INSTITUTION_DOWN" },
+      { accountsErrorCode: "ITEM_NOT_FOUND" },
+      { malformedAccounts: true },
+      { persistSucceeds: false },
+      { institutionFails: true },
+      { accessTokenExists: false },
+    ];
+    for (const scenario of scenarios) {
+      const { handler, request } = createHarness(scenario);
+      const text = await (await handler(request)).text();
+      assert(!text.includes(accessToken), "response exposed access token");
+      assert(!text.includes("sandbox-secret"), "response exposed Plaid secret");
+    }
+  } finally {
+    Object.assign(console, original);
+  }
+
+  const output = written.join("\n");
+  assert(!output.includes(accessToken), "console exposed access token");
+  assert(!output.includes("sandbox-secret"), "console exposed Plaid secret");
 });

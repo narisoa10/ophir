@@ -12,55 +12,18 @@ import {
   createPlaidTransactionsSyncDatabase,
   syncPlaidTransactionsForConnection,
 } from "../plaid-sync-transactions/handler.ts";
+import { recordItemHealthObservationRpc } from "../_shared/plaid_item_health.ts";
 import {
-  isItemLoginRequiredError,
-  loginRequiredObservation,
-  recordItemHealthObservationRpc,
-  type RecordItemHealthObservation,
-} from "../_shared/plaid_item_health.ts";
-
-const PLAID_SANDBOX_ACCOUNTS_GET_URL = "https://sandbox.plaid.com/accounts/get";
-const PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL =
-  "https://sandbox.plaid.com/institutions/get_by_id";
-
-type PlaidAccountPayload = {
-  plaid_account_id: string;
-  name: string;
-  official_name: string | null;
-  mask: string | null;
-  plaid_type: string;
-  plaid_subtype: string | null;
-  currency_code: string | null;
-  unofficial_currency_code: string | null;
-  current_balance: number | null;
-  available_balance: number | null;
-  persistent_account_id: string | null;
-};
-
-type AccountSyncDatabase = {
-  getAccessTokenForItem(
-    userId: string,
-    connectionId: string,
-  ): Promise<string | null>;
-  persistAccountsSync(args: {
-    userId: string;
-    connectionId: string;
-    plaidInstitutionId: string | null;
-    institutionName: string | null;
-    logoBase64: string | null;
-    primaryColor: string | null;
-    institutionUrl: string | null;
-    balanceFetchedAt: string;
-    accounts: PlaidAccountPayload[];
-  }): Promise<number | null>;
-  recordItemHealthObservation: RecordItemHealthObservation;
-};
+  type AccountsRefreshDatabase,
+  type PlaidAccountsRefreshResult,
+  refreshPlaidAccountsForItem,
+} from "../_shared/plaid_accounts_refresh.ts";
 
 type TransactionBootstrapStatus = "synced" | "deferred";
 
 type HandlerDependencies = {
   authenticateRequest: (request: Request) => Promise<AuthenticatedUser | null>;
-  createDatabase: () => AccountSyncDatabase | null;
+  createDatabase: () => AccountsRefreshDatabase | null;
   bootstrapTransactions: (
     userId: string,
     connectionId: string,
@@ -79,154 +42,9 @@ function readConnectionId(body: Record<string, unknown>): string | null {
   return null;
 }
 
-type PlaidCallResult =
-  | { kind: "ok"; payload: Record<string, unknown> }
-  | { kind: "item_login_required" }
-  | { kind: "failed" };
-
-function readNonEmptyString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function readNullableNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
-function readIsoCurrencyCode(value: unknown): string | null {
-  const iso = readNonEmptyString(value);
-  if (iso === null || iso.length !== 3) {
-    return null;
-  }
-
-  return iso.toUpperCase();
-}
-
-function readUnofficialCurrencyCode(value: unknown): string | null {
-  return readNonEmptyString(value);
-}
-
-async function callPlaid(
-  fetchImpl: typeof fetch,
-  url: string,
-  clientId: string,
-  secret: string,
-  body: Record<string, unknown>,
-): Promise<PlaidCallResult> {
-  let response: Response;
-
-  try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "PLAID-CLIENT-ID": clientId,
-        "PLAID-SECRET": secret,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (_) {
-    return { kind: "failed" };
-  }
-
-  let payload: Record<string, unknown>;
-
-  try {
-    const parsed = await response.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { kind: "failed" };
-    }
-    payload = parsed as Record<string, unknown>;
-  } catch (_) {
-    return { kind: "failed" };
-  }
-
-  if (!response.ok) {
-    return isItemLoginRequiredError(payload)
-      ? { kind: "item_login_required" }
-      : { kind: "failed" };
-  }
-
-  return { kind: "ok", payload };
-}
-
-function normalizePlaidAccounts(
-  accounts: unknown,
-): PlaidAccountPayload[] | null {
-  if (!Array.isArray(accounts)) {
-    return null;
-  }
-
-  const mapped: PlaidAccountPayload[] = [];
-
-  for (const account of accounts) {
-    if (!account || typeof account !== "object" || Array.isArray(account)) {
-      return null;
-    }
-
-    const record = account as Record<string, unknown>;
-    const plaidAccountId = readNonEmptyString(record.account_id);
-    const name = readNonEmptyString(record.name);
-    const plaidType = readNonEmptyString(record.type);
-
-    if (plaidAccountId === null || name === null || plaidType === null) {
-      return null;
-    }
-
-    const balances = record.balances;
-    let currentBalance: number | null = null;
-    let availableBalance: number | null = null;
-    let isoCurrencyCode: string | null = null;
-    let unofficialCurrencyCode: string | null = null;
-
-    if (balances && typeof balances === "object" && !Array.isArray(balances)) {
-      const balanceRecord = balances as Record<string, unknown>;
-      currentBalance = readNullableNumber(balanceRecord.current);
-      availableBalance = readNullableNumber(balanceRecord.available);
-      isoCurrencyCode = readIsoCurrencyCode(balanceRecord.iso_currency_code);
-      unofficialCurrencyCode = readUnofficialCurrencyCode(
-        balanceRecord.unofficial_currency_code,
-      );
-    }
-
-    if (isoCurrencyCode === null && unofficialCurrencyCode === null) {
-      return null;
-    }
-
-    mapped.push({
-      plaid_account_id: plaidAccountId,
-      name,
-      official_name: readNonEmptyString(record.official_name),
-      mask: readNonEmptyString(record.mask),
-      plaid_type: plaidType,
-      plaid_subtype: readNonEmptyString(record.subtype),
-      currency_code: isoCurrencyCode,
-      unofficial_currency_code: unofficialCurrencyCode,
-      current_balance: currentBalance,
-      available_balance: availableBalance,
-      persistent_account_id: readNonEmptyString(record.persistent_account_id),
-    });
-  }
-
-  return mapped;
-}
-
 function createDefaultDatabase(
   getEnv: (name: string) => string | undefined,
-): AccountSyncDatabase | null {
+): AccountsRefreshDatabase | null {
   const supabaseUrl = getEnv("SUPABASE_URL");
   const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -313,6 +131,25 @@ function createDefaultTransactionBootstrap(
   };
 }
 
+function refreshFailureResponse(
+  result: Exclude<PlaidAccountsRefreshResult, { kind: "refreshed" }>,
+): Response {
+  switch (result.kind) {
+    case "connection_not_found":
+      return errorResponse(404, "connection_not_found");
+    case "item_login_required":
+      return errorResponse(409, "item_login_required");
+    case "persist_failed":
+      return errorResponse(500, "persist_failed");
+    case "plaid_payload_invalid":
+      return errorResponse(502, "plaid_payload_invalid");
+    case "item_unavailable":
+    case "plaid_request_failed":
+    case "institution_lookup_failed":
+      return errorResponse(502, "plaid_request_failed");
+  }
+}
+
 export function createPlaidSyncAccountsHandler(
   dependencies: Partial<HandlerDependencies> = {},
 ): (request: Request) => Promise<Response> {
@@ -372,105 +209,19 @@ export function createPlaidSyncAccountsHandler(
       return errorResponse(500, "config_missing");
     }
 
-    const accessToken = await database.getAccessTokenForItem(
-      user.id,
-      connectionId,
-    );
-
-    if (accessToken === null) {
-      return errorResponse(404, "connection_not_found");
-    }
-
-    const accountsRequestedAt = deps.now().toISOString();
-    const accountsResult = await callPlaid(
-      deps.fetch,
-      PLAID_SANDBOX_ACCOUNTS_GET_URL,
-      clientId,
-      sandboxSecret,
-      { access_token: accessToken },
-    );
-
-    if (accountsResult.kind === "item_login_required") {
-      const recorded = await database.recordItemHealthObservation(
-        loginRequiredObservation(connectionId, accountsRequestedAt),
-      );
-      if (recorded === null) {
-        return errorResponse(500, "persist_failed");
-      }
-      if (recorded === "not_found") {
-        return errorResponse(404, "connection_not_found");
-      }
-      return errorResponse(409, "item_login_required");
-    }
-
-    if (accountsResult.kind === "failed") {
-      return errorResponse(502, "plaid_request_failed");
-    }
-
-    const accountsPayload = accountsResult.payload;
-    const item = accountsPayload.item;
-    const itemRecord = item && typeof item === "object" && !Array.isArray(item)
-      ? item as Record<string, unknown>
-      : {};
-
-    const plaidInstitutionId = readNonEmptyString(itemRecord.institution_id);
-    let institutionName = readNonEmptyString(itemRecord.institution_name);
-    let logoBase64: string | null = null;
-    let primaryColor: string | null = null;
-    let institutionUrl: string | null = null;
-
-    if (plaidInstitutionId !== null) {
-      const institutionPayload = await callPlaid(
-        deps.fetch,
-        PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL,
-        clientId,
-        sandboxSecret,
-        {
-          institution_id: plaidInstitutionId,
-          country_codes: ["CA"],
-          options: {
-            include_optional_metadata: true,
-          },
-        },
-      );
-
-      if (institutionPayload.kind === "ok") {
-        const institution = institutionPayload.payload.institution;
-        if (
-          institution &&
-          typeof institution === "object" &&
-          !Array.isArray(institution)
-        ) {
-          const institutionRecord = institution as Record<string, unknown>;
-          const institutionApiName = readNonEmptyString(institutionRecord.name);
-          institutionName = institutionApiName ?? institutionName;
-          logoBase64 = readNonEmptyString(institutionRecord.logo);
-          primaryColor = readNonEmptyString(institutionRecord.primary_color);
-          institutionUrl = readNonEmptyString(institutionRecord.url);
-        }
-      }
-    }
-
-    const mappedAccounts = normalizePlaidAccounts(accountsPayload.accounts);
-    if (mappedAccounts === null) {
-      return errorResponse(502, "plaid_payload_invalid");
-    }
-
-    const balanceFetchedAt = new Date().toISOString();
-    const syncedAccountCount = await database.persistAccountsSync({
+    const refresh = await refreshPlaidAccountsForItem({
       userId: user.id,
       connectionId,
-      plaidInstitutionId,
-      institutionName,
-      logoBase64,
-      primaryColor,
-      institutionUrl,
-      balanceFetchedAt,
-      accounts: mappedAccounts,
+      database,
+      fetchImpl: deps.fetch,
+      clientId,
+      secret: sandboxSecret,
+      now: deps.now,
+      institutionSource: "plaid",
     });
 
-    if (syncedAccountCount === null) {
-      return errorResponse(500, "persist_failed");
+    if (refresh.kind !== "refreshed") {
+      return refreshFailureResponse(refresh);
     }
 
     let transactionsBootstrapStatus: TransactionBootstrapStatus = "deferred";
@@ -484,8 +235,8 @@ export function createPlaidSyncAccountsHandler(
     }
 
     return jsonResponse(200, {
-      synced_account_count: syncedAccountCount,
-      institution_name: institutionName,
+      synced_account_count: refresh.syncedAccountCount,
+      institution_name: refresh.institutionName,
       transactions_bootstrap_status: transactionsBootstrapStatus,
     });
   };

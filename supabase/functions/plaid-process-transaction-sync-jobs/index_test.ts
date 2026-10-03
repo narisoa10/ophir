@@ -5,6 +5,7 @@ import {
   type TransactionSyncJobWorkerDatabase,
 } from "./handler.ts";
 import type { PlaidTransactionsSyncCoreResult } from "../plaid-sync-transactions/handler.ts";
+import type { AccountsRefreshDatabase } from "../_shared/plaid_accounts_refresh.ts";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const connectionId = "22222222-2222-4222-8222-222222222222";
@@ -13,6 +14,8 @@ const claimedRequestedAt = "2026-08-11T12:00:00.000Z";
 const internalSecret = "worker-secret-value";
 const accessToken = "access-token-secret-value";
 const cursor = "cursor-secret-value";
+const plaidClientId = "plaid-client-id-value";
+const plaidSecret = "plaid-sandbox-secret-value";
 
 type ClaimedJob = {
   connectionId: string;
@@ -34,7 +37,12 @@ type HarnessOptions = {
   >;
   dropResults?: Array<"dropped" | "missing" | "lease_lost" | null>;
   failResults?: Array<"rescheduled" | "lease_lost" | "missing" | null>;
+  plaidCredentials?: boolean;
+  accountsDatabase?: (calls: string[]) => AccountsRefreshDatabase | null;
+  fetch?: (calls: string[]) => typeof fetch;
 };
+
+type LoggedEntry = { message: string; fields: Record<string, unknown> };
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -153,8 +161,24 @@ function createHarness(options: HarnessOptions = {}) {
     },
   };
 
+  const logs: LoggedEntry[] = [];
+
   const handler = createPlaidProcessTransactionSyncJobsHandler({
     createDatabase: () => database,
+    createAccountsRefreshDatabase: () => {
+      if (options.accountsDatabase === undefined) {
+        calls.push("unexpected_accounts_database");
+        return null;
+      }
+      return options.accountsDatabase(calls);
+    },
+    fetch: options.fetch === undefined
+      ? (() => {
+        calls.push("unexpected_fetch");
+        return Promise.reject(new Error("unexpected fetch"));
+      }) as typeof fetch
+      : options.fetch(calls),
+    now: () => new Date("2026-10-03T12:00:00.000Z"),
     getEnv: (name) => {
       if (name === "OPHIR_INTERNAL_WORKER_SECRET") {
         return options.envSecret === undefined
@@ -163,6 +187,12 @@ function createHarness(options: HarnessOptions = {}) {
       }
       if (name === "PLAID_TRANSACTION_SYNC_JOB_BATCH_SIZE") {
         return "5";
+      }
+      if (options.plaidCredentials && name === "PLAID_CLIENT_ID") {
+        return plaidClientId;
+      }
+      if (options.plaidCredentials && name === "PLAID_SANDBOX_SECRET") {
+        return plaidSecret;
       }
       return undefined;
     },
@@ -175,7 +205,9 @@ function createHarness(options: HarnessOptions = {}) {
       }
       return syncResults.length === 0 ? synced() : syncResults.shift()!;
     },
-    log: () => {},
+    log: (message, fields) => {
+      logs.push({ message, fields });
+    },
   });
 
   const headers = new Headers();
@@ -199,6 +231,7 @@ function createHarness(options: HarnessOptions = {}) {
     failCodes,
     jobLeaseRenewals,
     syncJobs,
+    logs,
   };
 }
 
@@ -680,4 +713,561 @@ Deno.test("response contains no IDs secrets cursors or financial data", async ()
   assert(!text.includes(internalSecret), "response exposed internal secret");
   assert(!text.includes(accessToken), "response exposed access token");
   assert(!text.includes(cursor), "response exposed cursor");
+});
+
+type PersistedAccountsCall = {
+  plaidInstitutionId: string | null;
+  institutionName: string | null;
+  logoBase64: string | null;
+  primaryColor: string | null;
+  institutionUrl: string | null;
+  accounts: Array<Record<string, unknown>>;
+};
+
+type AccountsRefreshFake = {
+  persisted: PersistedAccountsCall[];
+  observations: Array<Record<string, unknown>>;
+  factory: (calls: string[]) => AccountsRefreshDatabase;
+};
+
+function accountsRefreshFake(options: {
+  tokenAvailable?: boolean;
+  persistSucceeds?: boolean;
+  storedInstitution?: "row" | "failed";
+  throwsOnToken?: boolean;
+} = {}): AccountsRefreshFake {
+  const persisted: PersistedAccountsCall[] = [];
+  const observations: Array<Record<string, unknown>> = [];
+
+  return {
+    persisted,
+    observations,
+    factory: (calls) => ({
+      getAccessTokenForItem(receivedUserId, receivedConnectionId) {
+        calls.push("accounts_get_access_token");
+        if (options.throwsOnToken) {
+          return Promise.reject(new Error("token rpc crashed"));
+        }
+        const available = (options.tokenAvailable ?? true) &&
+          receivedUserId === userId && receivedConnectionId === connectionId;
+        return Promise.resolve(available ? accessToken : null);
+      },
+      persistAccountsSync(args) {
+        calls.push("persist_accounts");
+        persisted.push({
+          plaidInstitutionId: args.plaidInstitutionId,
+          institutionName: args.institutionName,
+          logoBase64: args.logoBase64,
+          primaryColor: args.primaryColor,
+          institutionUrl: args.institutionUrl,
+          accounts: args.accounts as unknown as Array<Record<string, unknown>>,
+        });
+        return Promise.resolve(
+          (options.persistSucceeds ?? true) ? args.accounts.length : null,
+        );
+      },
+      recordItemHealthObservation(observation) {
+        calls.push("accounts_record_observation");
+        observations.push({ ...observation });
+        return Promise.resolve({
+          applied: true,
+          previousStatus: "active",
+          status: observation.status,
+          plaidItemId: "external-item-id",
+        });
+      },
+      getStoredInstitution() {
+        calls.push("stored_institution");
+        if (options.storedInstitution === "failed") {
+          return Promise.resolve("failed");
+        }
+        return Promise.resolve({
+          plaidInstitutionId: "ins_stored",
+          name: "Stored Bank",
+          logoBase64: "stored-logo",
+          primaryColor: "#abcdef",
+          url: "https://stored-bank.example",
+        });
+      },
+    }),
+  };
+}
+
+const quietAccountBalance = 7654.32;
+
+function plaidAccountsFetch(
+  response: "ok" | { errorCode: string },
+): (calls: string[]) => typeof fetch {
+  return (calls) =>
+    ((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes("/accounts/get")) {
+        calls.push("plaid_accounts_get");
+      } else if (url.includes("/institutions/get_by_id")) {
+        calls.push("plaid_institutions_get_by_id");
+      } else {
+        calls.push(`plaid_other:${url}`);
+      }
+
+      if (response !== "ok") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error_type: "ITEM_ERROR",
+              error_code: response.errorCode,
+            }),
+            { status: 400 },
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            item: { institution_id: "ins_item", institution_name: "Item Bank" },
+            accounts: [
+              {
+                account_id: "plaid-account-active",
+                name: "Active Checking",
+                mask: "1111",
+                type: "depository",
+                subtype: "checking",
+                balances: {
+                  current: 100,
+                  available: 90,
+                  iso_currency_code: "CAD",
+                },
+              },
+              {
+                account_id: "plaid-account-quiet",
+                name: "Quiet Savings",
+                mask: "2222",
+                type: "depository",
+                subtype: "savings",
+                balances: {
+                  current: quietAccountBalance,
+                  available: null,
+                  iso_currency_code: "CAD",
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+    }) as typeof fetch;
+}
+
+function refreshOutcomes(logs: LoggedEntry[]): unknown[] {
+  return logs
+    .filter((entry) =>
+      entry.message === "plaid_transaction_sync_job_accounts_refresh"
+    )
+    .map((entry) => entry.fields.outcome);
+}
+
+function assertPrimaryJobSucceeded(
+  body: Record<string, unknown>,
+  calls: string[],
+  syncJobs: ClaimedJob[],
+): void {
+  assertEquals(body.succeeded, 1);
+  assertEquals(body.rescheduled, 0);
+  assertEquals(body.dropped, 0);
+  assertEquals(syncJobs.length, 1, "transaction sync must run exactly once");
+  assertEquals(calls.some((call) => call.startsWith("fail:")), false);
+  assertEquals(calls.some((call) => call.startsWith("drop:")), false);
+  assertEquals(
+    calls.filter((call) => call.startsWith("complete:")).length,
+    1,
+  );
+}
+
+Deno.test("A successful sync refreshes the full accounts snapshot with stored institution metadata", async () => {
+  const fake = accountsRefreshFake();
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(calls.filter((call) => call === "plaid_accounts_get").length, 1);
+  assertEquals(calls.includes("plaid_institutions_get_by_id"), false);
+  assertEquals(fake.persisted.length, 1);
+  const persisted = fake.persisted[0];
+  assertEquals(
+    persisted.accounts.map((account) => account.plaid_account_id).join(","),
+    "plaid-account-active,plaid-account-quiet",
+  );
+  const quiet = persisted.accounts.find((account) =>
+    account.plaid_account_id === "plaid-account-quiet"
+  )!;
+  assertEquals(quiet.current_balance, quietAccountBalance);
+  assertEquals(persisted.plaidInstitutionId, "ins_stored");
+  assertEquals(persisted.institutionName, "Stored Bank");
+  assertEquals(persisted.logoBase64, "stored-logo");
+  assertEquals(persisted.primaryColor, "#abcdef");
+  assertEquals(persisted.institutionUrl, "https://stored-bank.example");
+  assertEquals(refreshOutcomes(logs).join(","), "refreshed");
+});
+
+Deno.test("B accounts refresh starts only after the sync job is finalized", async () => {
+  const fake = accountsRefreshFake();
+  const { handler, request, calls } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  await handler(request);
+
+  const syncIndex = calls.indexOf(`sync:${connectionId}:${leaseToken}`);
+  const completeIndex = calls.indexOf(`complete:${connectionId}:${leaseToken}`);
+  const tokenIndex = calls.indexOf("accounts_get_access_token");
+  const accountsIndex = calls.indexOf("plaid_accounts_get");
+  const persistIndex = calls.indexOf("persist_accounts");
+  assert(syncIndex >= 0 && syncIndex < completeIndex, "sync before complete");
+  assert(completeIndex < tokenIndex, "refresh must start after completion");
+  assert(tokenIndex < accountsIndex, "token before /accounts/get");
+  assert(accountsIndex < persistIndex, "/accounts/get before persist");
+});
+
+Deno.test("B no accounts refresh for failed, retried, dropped or unconfirmed sync jobs", async () => {
+  const scenarios: HarnessOptions[] = [
+    { syncResults: [{ kind: "plaid_request_failed" }] },
+    { syncResults: [{ kind: "persist_failed" }] },
+    { syncResults: [{ kind: "cursor_conflict" }] },
+    { syncResults: [{ kind: "item_login_required" }] },
+    { syncResults: [{ kind: "connection_not_found" }] },
+    { syncThrows: true },
+    { completeResults: ["lease_lost"] },
+    { completeResults: ["missing"] },
+    { completeResults: [null] },
+  ];
+
+  for (const scenario of scenarios) {
+    const fake = accountsRefreshFake();
+    const { handler, request, calls, logs } = createHarness({
+      claimedJobs: [job()],
+      plaidCredentials: true,
+      accountsDatabase: fake.factory,
+      fetch: plaidAccountsFetch("ok"),
+      ...scenario,
+    });
+
+    const response = await handler(request);
+
+    assertEquals(response.status, 200);
+    assertEquals(calls.includes("accounts_get_access_token"), false);
+    assertEquals(calls.includes("plaid_accounts_get"), false);
+    assertEquals(fake.persisted.length, 0);
+    assertEquals(refreshOutcomes(logs).length, 0);
+  }
+});
+
+Deno.test("B rerun-scheduled completion still refreshes accounts once", async () => {
+  const fake = accountsRefreshFake();
+  const { handler, request, calls, logs } = createHarness({
+    claimedJobs: [job()],
+    completeResults: ["rerun_scheduled"],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(body.succeeded, 1);
+  assertEquals(body.rescheduled, 1);
+  assertEquals(calls.filter((call) => call === "plaid_accounts_get").length, 1);
+  assertEquals(refreshOutcomes(logs).join(","), "refreshed");
+});
+
+Deno.test("C ordinary /accounts/get failure keeps the transaction job succeeded", async () => {
+  const fake = accountsRefreshFake();
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch({ errorCode: "INSTITUTION_DOWN" }),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(fake.persisted.length, 0);
+  assertEquals(fake.observations.length, 0);
+  assertEquals(refreshOutcomes(logs).join(","), "plaid_request_failed");
+});
+
+Deno.test("D ITEM_LOGIN_REQUIRED records health without persist or job retry", async () => {
+  const fake = accountsRefreshFake();
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch({ errorCode: "ITEM_LOGIN_REQUIRED" }),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(fake.persisted.length, 0);
+  assertEquals(fake.observations.length, 1);
+  assertEquals(fake.observations[0].connectionId, connectionId);
+  assertEquals(fake.observations[0].status, "login_required");
+  assertEquals(fake.observations[0].statusReason, "login_required");
+  assertEquals(fake.observations[0].fromItemGet, false);
+  assertEquals(fake.observations[0].clearPendingDisconnect, false);
+  assertEquals(calls.filter((call) => call === "plaid_accounts_get").length, 1);
+  assertEquals(refreshOutcomes(logs).join(","), "item_login_required");
+});
+
+Deno.test("E unavailable Item stays a safe best-effort outcome", async () => {
+  for (const errorCode of ["ITEM_NOT_FOUND", "INVALID_ACCESS_TOKEN"]) {
+    const fake = accountsRefreshFake();
+    const { handler, request, calls, syncJobs, logs } = createHarness({
+      claimedJobs: [job()],
+      plaidCredentials: true,
+      accountsDatabase: fake.factory,
+      fetch: plaidAccountsFetch({ errorCode }),
+    });
+
+    const response = await handler(request);
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertPrimaryJobSucceeded(body, calls, syncJobs);
+    assertEquals(fake.persisted.length, 0);
+    assertEquals(fake.observations.length, 0);
+    assertEquals(
+      calls.filter((call) => call.startsWith("plaid_")).join(","),
+      "plaid_accounts_get",
+      "only /accounts/get may be called: no link token or token exchange",
+    );
+    assertEquals(refreshOutcomes(logs).join(","), "item_unavailable");
+  }
+});
+
+Deno.test("F accounts persist failure keeps the transaction job succeeded", async () => {
+  const fake = accountsRefreshFake({ persistSucceeds: false });
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(fake.persisted.length, 1);
+  assertEquals(refreshOutcomes(logs).join(","), "persist_failed");
+});
+
+Deno.test("G stored institution failure does not persist and keeps the job succeeded", async () => {
+  const fake = accountsRefreshFake({ storedInstitution: "failed" });
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(fake.persisted.length, 0);
+  assertEquals(calls.includes("plaid_institutions_get_by_id"), false);
+  assertEquals(refreshOutcomes(logs).join(","), "institution_lookup_failed");
+});
+
+Deno.test("H disconnected Item without a token fails closed before Plaid", async () => {
+  const fake = accountsRefreshFake({ tokenAvailable: false });
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(calls.some((call) => call.startsWith("plaid_")), false);
+  assertEquals(fake.persisted.length, 0);
+  assertEquals(fake.observations.length, 0);
+  assertEquals(refreshOutcomes(logs).join(","), "connection_not_found");
+});
+
+Deno.test("refresh exceptions and missing config never change the primary job", async () => {
+  const crashing = accountsRefreshFake({ throwsOnToken: true });
+  const crashed = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: crashing.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+  const crashedBody = await (await crashed.handler(crashed.request)).json();
+  assertPrimaryJobSucceeded(crashedBody, crashed.calls, crashed.syncJobs);
+  assertEquals(refreshOutcomes(crashed.logs).join(","), "refresh_exception");
+
+  const noSupabase = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: () => null,
+    fetch: plaidAccountsFetch("ok"),
+  });
+  const noSupabaseBody = await (await noSupabase.handler(noSupabase.request))
+    .json();
+  assertPrimaryJobSucceeded(noSupabaseBody, noSupabase.calls, noSupabase.syncJobs);
+  assertEquals(noSupabase.calls.includes("plaid_accounts_get"), false);
+  assertEquals(
+    refreshOutcomes(noSupabase.logs).join(","),
+    "supabase_config_missing",
+  );
+
+  const noPlaid = createHarness({ claimedJobs: [job()] });
+  const noPlaidBody = await (await noPlaid.handler(noPlaid.request)).json();
+  assertPrimaryJobSucceeded(noPlaidBody, noPlaid.calls, noPlaid.syncJobs);
+  assertEquals(noPlaid.calls.includes("unexpected_accounts_database"), false);
+  assertEquals(noPlaid.calls.includes("unexpected_fetch"), false);
+  assertEquals(refreshOutcomes(noPlaid.logs).join(","), "plaid_config_missing");
+});
+
+Deno.test("repeated successful jobs reuse the same idempotent persist path", async () => {
+  const fake = accountsRefreshFake();
+  const secondLease = "66666666-6666-4666-8666-666666666666";
+  const { handler, request, calls } = createHarness({
+    claimedJobs: [job(), job({ leaseToken: secondLease })],
+    syncResults: [synced(), synced()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(body.succeeded, 2);
+  assertEquals(fake.persisted.length, 2);
+  assertEquals(
+    JSON.stringify(fake.persisted[0].accounts),
+    JSON.stringify(fake.persisted[1].accounts),
+  );
+  assertEquals(
+    calls.filter((call) => call.startsWith("plaid_other")).length,
+    0,
+  );
+  assertEquals(calls.includes("unexpected_apply_batch"), false);
+});
+
+Deno.test("I no token, secret or raw Plaid account data in response, logs or console", async () => {
+  const written: string[] = [];
+  const original = {
+    log: console.log,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+    debug: console.debug,
+  };
+  const capture = (...args: unknown[]) => {
+    written.push(args.map((arg) => String(arg)).join(" "));
+  };
+  console.log = capture;
+  console.info = capture;
+  console.warn = capture;
+  console.error = capture;
+  console.debug = capture;
+
+  const responses: string[] = [];
+  const loggedEntries: LoggedEntry[] = [];
+  try {
+    const scenarios: Array<{
+      fetchResponse: "ok" | { errorCode: string };
+      fake: AccountsRefreshFake;
+    }> = [
+      { fetchResponse: "ok", fake: accountsRefreshFake() },
+      {
+        fetchResponse: { errorCode: "ITEM_LOGIN_REQUIRED" },
+        fake: accountsRefreshFake(),
+      },
+      {
+        fetchResponse: { errorCode: "ITEM_NOT_FOUND" },
+        fake: accountsRefreshFake(),
+      },
+      {
+        fetchResponse: { errorCode: "INSTITUTION_DOWN" },
+        fake: accountsRefreshFake(),
+      },
+      {
+        fetchResponse: "ok",
+        fake: accountsRefreshFake({ persistSucceeds: false }),
+      },
+      {
+        fetchResponse: "ok",
+        fake: accountsRefreshFake({ storedInstitution: "failed" }),
+      },
+      {
+        fetchResponse: "ok",
+        fake: accountsRefreshFake({ tokenAvailable: false }),
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const { handler, request, logs } = createHarness({
+        claimedJobs: [job()],
+        plaidCredentials: true,
+        accountsDatabase: scenario.fake.factory,
+        fetch: plaidAccountsFetch(scenario.fetchResponse),
+      });
+      responses.push(await (await handler(request)).text());
+      loggedEntries.push(...logs);
+    }
+  } finally {
+    Object.assign(console, original);
+  }
+
+  const haystack = [
+    ...responses,
+    JSON.stringify(loggedEntries),
+    ...written,
+  ].join("\n");
+  for (
+    const sensitive of [
+      accessToken,
+      plaidSecret,
+      plaidClientId,
+      internalSecret,
+      userId,
+      connectionId,
+      "Quiet Savings",
+      "Active Checking",
+      "1111",
+      "2222",
+      String(quietAccountBalance),
+      "plaid-account-quiet",
+      "stored-logo",
+    ]
+  ) {
+    assert(!haystack.includes(sensitive), `leaked sensitive value ${sensitive}`);
+  }
 });

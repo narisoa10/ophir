@@ -11,6 +11,13 @@ import {
   methodNotAllowed,
   optionsResponse,
 } from "../_shared/http.ts";
+import {
+  type AccountsRefreshDatabase,
+  type PlaidAccountsRefreshResult,
+  readStoredInstitutionRow,
+  refreshPlaidAccountsForItem,
+} from "../_shared/plaid_accounts_refresh.ts";
+import { recordItemHealthObservationRpc } from "../_shared/plaid_item_health.ts";
 
 const internalSecretHeader = "x-ophir-internal-secret";
 const internalSecretEnvName = "OPHIR_INTERNAL_WORKER_SECRET";
@@ -63,10 +70,18 @@ export type TransactionSyncJobWorkerDatabase = TransactionsSyncDatabase & {
 
 type WorkerSyncResult = PlaidTransactionsSyncCoreResult;
 
+export type AccountsRefreshOutcome =
+  | PlaidAccountsRefreshResult["kind"]
+  | "plaid_config_missing"
+  | "supabase_config_missing"
+  | "refresh_exception";
+
 type HandlerDependencies = {
   createDatabase: () => TransactionSyncJobWorkerDatabase | null;
+  createAccountsRefreshDatabase: () => AccountsRefreshDatabase | null;
   fetch: typeof fetch;
   getEnv: (name: string) => string | undefined;
+  now: () => Date;
   randomUUID: () => string;
   syncTransactions: (params: {
     job: ClaimedTransactionSyncJob;
@@ -363,6 +378,115 @@ function createDefaultDatabase(
   };
 }
 
+function createDefaultAccountsRefreshDatabase(
+  getEnv: (name: string) => string | undefined,
+): AccountsRefreshDatabase | null {
+  const supabaseUrl = getEnv("SUPABASE_URL");
+  const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (
+    typeof supabaseUrl !== "string" ||
+    supabaseUrl.length === 0 ||
+    typeof serviceRoleKey !== "string" ||
+    serviceRoleKey.length === 0
+  ) {
+    return null;
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+  return {
+    async getAccessTokenForItem(userId, connectionId) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_get_access_token_for_item",
+        {
+          p_user_id: userId,
+          p_connection_id: connectionId,
+        },
+      );
+
+      if (error !== null || typeof data !== "string" || data.length === 0) {
+        return null;
+      }
+
+      return data;
+    },
+
+    async persistAccountsSync(args) {
+      const { data, error } = await supabaseAdmin.rpc(
+        "plaid_persist_accounts_sync",
+        {
+          p_user_id: args.userId,
+          p_connection_id: args.connectionId,
+          p_plaid_institution_id: args.plaidInstitutionId,
+          p_institution_name: args.institutionName,
+          p_logo_base64: args.logoBase64,
+          p_primary_color: args.primaryColor,
+          p_url: args.institutionUrl,
+          p_balance_fetched_at: args.balanceFetchedAt,
+          p_accounts: args.accounts,
+        },
+      );
+
+      if (error !== null || typeof data !== "number") {
+        return null;
+      }
+
+      return data;
+    },
+
+    recordItemHealthObservation(observation) {
+      return recordItemHealthObservationRpc(supabaseAdmin, observation);
+    },
+
+    getStoredInstitution(userId, connectionId) {
+      return readStoredInstitutionRow(supabaseAdmin, userId, connectionId);
+    },
+  };
+}
+
+// Best-effort follow-up of an already finalized transaction sync job: the
+// outcome is only reported, it never changes the job result.
+async function refreshAccountsAfterSuccessfulSync(params: {
+  job: ClaimedTransactionSyncJob;
+  getDatabase: () => AccountsRefreshDatabase | null;
+  fetchImpl: typeof fetch;
+  getEnv: (name: string) => string | undefined;
+  now: () => Date;
+}): Promise<AccountsRefreshOutcome> {
+  try {
+    const clientId = params.getEnv("PLAID_CLIENT_ID");
+    const secret = params.getEnv("PLAID_SANDBOX_SECRET");
+    if (
+      typeof clientId !== "string" ||
+      clientId.length === 0 ||
+      typeof secret !== "string" ||
+      secret.length === 0
+    ) {
+      return "plaid_config_missing";
+    }
+
+    const database = params.getDatabase();
+    if (database === null) {
+      return "supabase_config_missing";
+    }
+
+    const result = await refreshPlaidAccountsForItem({
+      userId: params.job.userId,
+      connectionId: params.job.connectionId,
+      database,
+      fetchImpl: params.fetchImpl,
+      clientId,
+      secret,
+      now: params.now,
+      institutionSource: "stored",
+    });
+    return result.kind;
+  } catch (_) {
+    return "refresh_exception";
+  }
+}
+
 export function createJobLeaseRenewingTransactionsDatabase(params: {
   job: ClaimedTransactionSyncJob;
   database: TransactionSyncJobWorkerDatabase;
@@ -419,8 +543,11 @@ export function createPlaidProcessTransactionSyncJobsHandler(
   const deps: HandlerDependencies = {
     createDatabase: dependencies.createDatabase ??
       (() => createDefaultDatabase(getEnv)),
+    createAccountsRefreshDatabase: dependencies.createAccountsRefreshDatabase ??
+      (() => createDefaultAccountsRefreshDatabase(getEnv)),
     fetch: fetchImpl,
     getEnv,
+    now: dependencies.now ?? (() => new Date()),
     randomUUID: dependencies.randomUUID ?? (() => crypto.randomUUID()),
     syncTransactions: dependencies.syncTransactions ?? defaultSyncTransactions,
     log: dependencies.log ??
@@ -463,6 +590,14 @@ export function createPlaidProcessTransactionSyncJobsHandler(
     let succeeded = 0;
     let rescheduled = 0;
     let dropped = 0;
+
+    let accountsRefreshDatabase: AccountsRefreshDatabase | null | undefined;
+    const getAccountsRefreshDatabase = () => {
+      if (accountsRefreshDatabase === undefined) {
+        accountsRefreshDatabase = deps.createAccountsRefreshDatabase();
+      }
+      return accountsRefreshDatabase;
+    };
 
     for (const job of jobs) {
       const stillOwnsLease = await database.validateTransactionSyncJobLease(
@@ -513,6 +648,20 @@ export function createPlaidProcessTransactionSyncJobsHandler(
           rescheduled += 1;
         } else if (completion === "missing") {
           dropped += 1;
+        }
+
+        if (completion === "completed" || completion === "rerun_scheduled") {
+          const outcome = await refreshAccountsAfterSuccessfulSync({
+            job,
+            getDatabase: getAccountsRefreshDatabase,
+            fetchImpl: deps.fetch,
+            getEnv: deps.getEnv,
+            now: deps.now,
+          });
+          deps.log("plaid_transaction_sync_job_accounts_refresh", {
+            run_id: runId,
+            outcome,
+          });
         }
         continue;
       }
