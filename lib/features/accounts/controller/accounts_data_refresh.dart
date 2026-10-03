@@ -19,6 +19,7 @@ final class AccountsDataRefresh {
 
   final Ref _ref;
   Future<Result<void>>? _inFlight;
+  Future<Result<void>>? _queuedAfterMutation;
 
   /// Concurrent callers share the in-flight re-read.
   ///
@@ -35,15 +36,48 @@ final class AccountsDataRefresh {
     final started = _run();
     _inFlight = started;
 
-    unawaited(
-      started.whenComplete(() {
-        if (identical(_inFlight, started)) {
-          _inFlight = null;
-        }
-      }),
-    );
+    started.whenComplete(() {
+      if (identical(_inFlight, started)) {
+        _inFlight = null;
+      }
+    }).ignore();
 
     return started;
+  }
+
+  /// Re-reads after a server-side change the caller has just completed.
+  ///
+  /// A re-read already in flight may have read the state before that change,
+  /// so it is never the answer: this waits for it and then joins the first
+  /// [refresh] started afterwards. Callers arriving while that wait is
+  /// pending share it, so concurrent changes cost one extra re-read.
+  Future<Result<void>> refreshAfterMutation() {
+    final queued = _queuedAfterMutation;
+    if (queued != null) {
+      return queued;
+    }
+
+    final next = _refreshAfterInFlight();
+    _queuedAfterMutation = next;
+    return next;
+  }
+
+  Future<Result<void>> _refreshAfterInFlight() async {
+    try {
+      final current = _inFlight;
+      if (current != null) {
+        await current;
+      } else {
+        // Yields once so callers in the same synchronous turn share this wait.
+        await Future<void>.value();
+      }
+    } catch (_) {
+      // Only the re-read started afterwards answers; how the earlier one
+      // ended does not matter.
+    }
+
+    _queuedAfterMutation = null;
+    return refresh();
   }
 
   Future<Result<void>> _run() async {

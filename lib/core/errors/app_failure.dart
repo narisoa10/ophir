@@ -37,3 +37,7 @@ final class PlaidItemLoginRequiredFailure extends AppFailure {
 final class PlaidReconnectUnavailableFailure extends AppFailure {
   const PlaidReconnectUnavailableFailure();
 }
+
+final class PlaidConnectionDisconnectedFailure extends AppFailure {
+  const PlaidConnectionDisconnectedFailure();
+}

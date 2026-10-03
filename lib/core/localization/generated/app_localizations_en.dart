@@ -1360,19 +1360,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountsBankMenuSync => 'Refresh now';
 
   @override
-  String get accountsBankMenuRemoveConnection => 'Remove bank connection';
+  String get accountsBankMenuRemoveConnection => 'Delete connection';
 
   @override
   String get accountsRemoveBankConnectionDialogTitle =>
-      'Remove bank connection?';
+      'Delete connection permanently?';
 
   @override
   String get accountsRemoveBankConnectionDialogBody =>
-      'The bank and all related accounts will be removed from Ophir. Syncing will stop, and you\'ll need to go through Plaid again to reconnect it.';
+      'This bank\'s accounts and the transactions imported from it will be removed from Ophir. Manual income and expenses are kept without an account. This can\'t be undone.';
 
   @override
   String get accountsRemoveBankConnectionError =>
-      'Unable to remove bank connection. Please try again.';
+      'Unable to delete the bank connection. Please try again.';
 
   @override
   String get accountsReconnectRequiredTitle => 'Reconnection required';
@@ -1418,6 +1418,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsAccessExtended => 'Access extended.';
+
+  @override
+  String get accountsBankMenuDisconnect => 'Disconnect bank';
+
+  @override
+  String get accountsDisconnectDialogTitle => 'Disconnect bank?';
+
+  @override
+  String get accountsDisconnectDialogBody =>
+      'Ophir will stop receiving data from this bank. Accounts and transaction history are kept, but balances will no longer update. To connect this bank again, delete the connection.';
+
+  @override
+  String get accountsDisconnectConfirm => 'Disconnect';
+
+  @override
+  String get accountsDisconnected => 'Bank disconnected.';
+
+  @override
+  String get accountsDisconnectError =>
+      'Unable to disconnect the bank. Please try again.';
+
+  @override
+  String get accountsDisconnectedTitle => 'Bank disconnected';
+
+  @override
+  String get accountsDisconnectedBody =>
+      'Syncing has stopped. History is kept; balances no longer update.';
+
+  @override
+  String get accountsDeleteConfirm => 'Delete permanently';
+
+  @override
+  String get accountsConnectionDeleted => 'Connection deleted.';
 
   @override
   String get dashboardTitle => 'Dashboard';

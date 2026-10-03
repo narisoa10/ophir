@@ -2612,25 +2612,25 @@ abstract class AppLocalizations {
   /// No description provided for @accountsBankMenuRemoveConnection.
   ///
   /// In en, this message translates to:
-  /// **'Remove bank connection'**
+  /// **'Delete connection'**
   String get accountsBankMenuRemoveConnection;
 
   /// No description provided for @accountsRemoveBankConnectionDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Remove bank connection?'**
+  /// **'Delete connection permanently?'**
   String get accountsRemoveBankConnectionDialogTitle;
 
   /// No description provided for @accountsRemoveBankConnectionDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'The bank and all related accounts will be removed from Ophir. Syncing will stop, and you\'ll need to go through Plaid again to reconnect it.'**
+  /// **'This bank\'s accounts and the transactions imported from it will be removed from Ophir. Manual income and expenses are kept without an account. This can\'t be undone.'**
   String get accountsRemoveBankConnectionDialogBody;
 
   /// No description provided for @accountsRemoveBankConnectionError.
   ///
   /// In en, this message translates to:
-  /// **'Unable to remove bank connection. Please try again.'**
+  /// **'Unable to delete the bank connection. Please try again.'**
   String get accountsRemoveBankConnectionError;
 
   /// No description provided for @accountsReconnectRequiredTitle.
@@ -2710,6 +2710,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Access extended.'**
   String get accountsAccessExtended;
+
+  /// No description provided for @accountsBankMenuDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect bank'**
+  String get accountsBankMenuDisconnect;
+
+  /// No description provided for @accountsDisconnectDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect bank?'**
+  String get accountsDisconnectDialogTitle;
+
+  /// No description provided for @accountsDisconnectDialogBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Ophir will stop receiving data from this bank. Accounts and transaction history are kept, but balances will no longer update. To connect this bank again, delete the connection.'**
+  String get accountsDisconnectDialogBody;
+
+  /// No description provided for @accountsDisconnectConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get accountsDisconnectConfirm;
+
+  /// No description provided for @accountsDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank disconnected.'**
+  String get accountsDisconnected;
+
+  /// No description provided for @accountsDisconnectError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to disconnect the bank. Please try again.'**
+  String get accountsDisconnectError;
+
+  /// No description provided for @accountsDisconnectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bank disconnected'**
+  String get accountsDisconnectedTitle;
+
+  /// No description provided for @accountsDisconnectedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing has stopped. History is kept; balances no longer update.'**
+  String get accountsDisconnectedBody;
+
+  /// No description provided for @accountsDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete permanently'**
+  String get accountsDeleteConfirm;
+
+  /// No description provided for @accountsConnectionDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection deleted.'**
+  String get accountsConnectionDeleted;
 
   /// No description provided for @dashboardTitle.
   ///

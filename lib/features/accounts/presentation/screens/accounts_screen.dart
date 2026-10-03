@@ -38,7 +38,9 @@ class AccountsScreen extends ConsumerStatefulWidget {
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   bool _isConnecting = false;
   final Set<String> _expandedBankGroupKeys = <String>{};
-  final Set<String> _removingConnectionIds = <String>{};
+  final Set<String> _syncingConnectionIds = <String>{};
+  // Disconnect or Delete in progress; at most one action per connection.
+  final Set<String> _lifecycleConnectionIds = <String>{};
   final Set<String> _reconnectingConnectionIds = <String>{};
   // Sync just reported item_login_required; shown until the server confirms
   // the Item is active again, even if the health reload has not landed yet.
@@ -70,11 +72,32 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       _isConnecting || _reconnectingConnectionIds.isNotEmpty;
 
   void _refreshAccountsDataOnResume() {
-    if (!mounted || _isPlaidLinkFlowActive) {
+    // A Disconnect or Delete re-reads once it completes; a re-read started
+    // while it runs could only show the state before it.
+    if (!mounted ||
+        _isPlaidLinkFlowActive ||
+        _lifecycleConnectionIds.isNotEmpty) {
       return;
     }
 
     unawaited(ref.read(accountsDataRefreshProvider).refresh());
+  }
+
+  bool _isConnectionBusy(String connectionId) {
+    return _syncingConnectionIds.contains(connectionId) ||
+        _lifecycleConnectionIds.contains(connectionId) ||
+        _reconnectingConnectionIds.contains(connectionId);
+  }
+
+  bool _isDisconnected(String connectionId) {
+    final health = _healthByConnectionId(
+      ref.read(plaidConnectionHealthProvider),
+    )[connectionId];
+    return health?.isDisconnected ?? false;
+  }
+
+  Future<void> _refreshAfterMutation() {
+    return ref.read(accountsDataRefreshProvider).refreshAfterMutation();
   }
 
   Future<void> _connectBank() async {
@@ -150,18 +173,21 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       switch (result.failure) {
         case PlaidItemLoginRequiredFailure():
           setState(() => _syncLoginRequiredConnectionIds.add(connectionId));
-          ref.invalidate(plaidConnectionHealthProvider);
           _showMessage(l10n.accountsReconnectRequiredTitle);
+          await _refreshAfterMutation();
         case NotFoundFailure():
           _showMessage(l10n.accountsConnectionNotFound);
-          await _refreshAccountsAndHealth();
+          await _refreshAfterMutation();
+        case PlaidConnectionDisconnectedFailure():
+          _showMessage(l10n.accountsDisconnectedBody);
+          await _refreshAfterMutation();
         default:
           _showMessage(l10n.failureUnknown);
       }
       return;
     }
 
-    await _refreshAccountsAndHealth();
+    await _refreshAfterMutation();
   }
 
   /// Returns whether the post-repair accounts sync still reports
@@ -185,12 +211,6 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     return stillLoginRequired;
   }
 
-  Future<void> _refreshAccountsAndHealth() async {
-    ref.invalidate(accountInstitutionsProvider);
-    ref.invalidate(plaidConnectionHealthProvider);
-    await ref.read(accountControllerProvider.notifier).refresh();
-  }
-
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -198,20 +218,26 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 
   Future<void> _syncBankConnection(String connectionId) async {
-    if (_removingConnectionIds.contains(connectionId) ||
-        _reconnectingConnectionIds.contains(connectionId)) {
+    if (_isConnectionBusy(connectionId) || _isDisconnected(connectionId)) {
       return;
     }
 
-    await _syncConnectedAccounts(connectionId);
+    setState(() => _syncingConnectionIds.add(connectionId));
+    try {
+      await _syncConnectedAccounts(connectionId);
+    } finally {
+      if (mounted) {
+        setState(() => _syncingConnectionIds.remove(connectionId));
+      }
+    }
   }
 
   Future<void> _reconnectBankConnection(
     String connectionId, {
     bool isAccessExtension = false,
   }) async {
-    if (_reconnectingConnectionIds.contains(connectionId) ||
-        _removingConnectionIds.contains(connectionId) ||
+    if (_isConnectionBusy(connectionId) ||
+        _isDisconnected(connectionId) ||
         _reconnectUnavailableConnectionIds.contains(connectionId)) {
       return;
     }
@@ -263,7 +289,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               _showMessage(l10n.accountsReconnectUnavailable);
             case NotFoundFailure():
               _showMessage(l10n.accountsConnectionNotFound);
-              await _refreshAccountsAndHealth();
+              await _refreshAfterMutation();
             default:
               _showMessage(l10n.accountsReconnectFailed);
           }
@@ -275,66 +301,129 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     }
   }
 
-  Future<void> _removeBankConnection(String connectionId) async {
-    if (_removingConnectionIds.contains(connectionId)) {
+  Future<void> _disconnectBankConnection(String connectionId) async {
+    if (_isConnectionBusy(connectionId) || _isDisconnected(connectionId)) {
       return;
     }
 
-    final confirmed = await _confirmBankConnectionRemoval();
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await _confirmConnectionAction(
+      title: l10n.accountsDisconnectDialogTitle,
+      body: l10n.accountsDisconnectDialogBody,
+      confirmLabel: l10n.accountsDisconnectConfirm,
+      isDestructive: false,
+    );
     if (!confirmed || !mounted) {
       return;
     }
 
-    setState(() {
-      _removingConnectionIds.add(connectionId);
-    });
+    await _runLifecycleAction(
+      connectionId: connectionId,
+      action: ref.read(plaidItemDisconnectCallbackProvider),
+      successMessage: l10n.accountsDisconnected,
+      errorMessage: l10n.accountsDisconnectError,
+    );
+  }
+
+  Future<void> _deleteBankConnection(String connectionId) async {
+    if (_isConnectionBusy(connectionId)) {
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await _confirmConnectionAction(
+      title: l10n.accountsRemoveBankConnectionDialogTitle,
+      body: l10n.accountsRemoveBankConnectionDialogBody,
+      confirmLabel: l10n.accountsDeleteConfirm,
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    await _runLifecycleAction(
+      connectionId: connectionId,
+      action: ref.read(plaidItemDeleteCallbackProvider),
+      successMessage: l10n.accountsConnectionDeleted,
+      errorMessage: l10n.accountsRemoveBankConnectionError,
+      onSuccess: () {
+        _expandedBankGroupKeys.remove(connectionId);
+        _syncLoginRequiredConnectionIds.remove(connectionId);
+        _reconnectUnavailableConnectionIds.remove(connectionId);
+      },
+    );
+  }
+
+  /// Every outcome ends with a post-mutation re-read: an unknown or partial
+  /// server outcome is resolved by the database, never by guessing locally.
+  Future<void> _runLifecycleAction({
+    required String connectionId,
+    required PlaidItemLifecycleCallback action,
+    required String successMessage,
+    required String errorMessage,
+    VoidCallback? onSuccess,
+  }) async {
+    // The confirmation dialog awaited; another action may have started.
+    if (_isConnectionBusy(connectionId)) {
+      return;
+    }
+
+    setState(() => _lifecycleConnectionIds.add(connectionId));
 
     try {
-      final removeItem = ref.read(plaidItemRemoveCallbackProvider);
-      final result = await removeItem(connectionId);
-
+      final result = await action(connectionId);
       if (!mounted) {
         return;
       }
 
-      if (result is Failure<void>) {
-        final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.accountsRemoveBankConnectionError)),
-        );
+      if (result is Success<void>) {
+        onSuccess?.call();
+      }
+
+      await _refreshAfterMutation();
+      if (!mounted) {
         return;
       }
 
-      _expandedBankGroupKeys.remove(connectionId);
-      ref.invalidate(accountInstitutionsProvider);
-      await ref.read(accountControllerProvider.notifier).refresh();
+      final l10n = AppLocalizations.of(context);
+      _showMessage(switch (result) {
+        Success<void>() => successMessage,
+        Failure<void>(failure: NotFoundFailure()) =>
+          l10n.accountsConnectionNotFound,
+        Failure<void>() => errorMessage,
+      });
     } finally {
       if (mounted) {
-        setState(() {
-          _removingConnectionIds.remove(connectionId);
-        });
+        setState(() => _lifecycleConnectionIds.remove(connectionId));
       }
     }
   }
 
-  Future<bool> _confirmBankConnectionRemoval() async {
+  Future<bool> _confirmConnectionAction({
+    required String title,
+    required String body,
+    required String confirmLabel,
+    required bool isDestructive,
+  }) async {
     final l10n = AppLocalizations.of(context);
     final colors = context.appThemeColors;
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(l10n.accountsRemoveBankConnectionDialogTitle),
-          content: Text(l10n.accountsRemoveBankConnectionDialogBody),
+          title: Text(title),
+          content: Text(body),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text(l10n.commonCancel),
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: colors.error),
+              style: isDestructive
+                  ? TextButton.styleFrom(foregroundColor: colors.error)
+                  : null,
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(l10n.commonDelete),
+              child: Text(confirmLabel),
             ),
           ],
         );
@@ -441,14 +530,20 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             isExpanded: _expandedBankGroupKeys.contains(group.key),
             accountAdapter: adapter,
             l10n: l10n,
-            isRemoving: _removingConnectionIds.contains(group.connectionId),
+            isBusy:
+                _syncingConnectionIds.contains(group.connectionId) ||
+                _lifecycleConnectionIds.contains(group.connectionId),
+            isDisconnected:
+                healthByConnectionId[group.connectionId]?.isDisconnected ??
+                false,
             healthNotice: noticesByConnectionId[group.connectionId],
             isReconnecting: _reconnectingConnectionIds.contains(
               group.connectionId,
             ),
             onToggleExpanded: () => _toggleBankGroup(group.key),
             onSync: () => _syncBankConnection(group.connectionId),
-            onRemove: () => _removeBankConnection(group.connectionId),
+            onDisconnect: () => _disconnectBankConnection(group.connectionId),
+            onDelete: () => _deleteBankConnection(group.connectionId),
             onReconnect: () => _reconnectBankConnection(
               group.connectionId,
               isAccessExtension:
@@ -508,6 +603,12 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     String connectionId,
     PlaidConnectionHealth? health,
   ) {
+    // The database is the only source of the disconnected state; it hides
+    // every repair or extension notice of an Item that no longer exists.
+    if (health?.isDisconnected ?? false) {
+      return const _DisconnectedNotice();
+    }
+
     if (_reconnectUnavailableConnectionIds.contains(connectionId)) {
       return const _ReconnectUnavailableNotice();
     }
@@ -658,7 +759,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 }
 
-enum _BankMenuAction { sync, remove }
+enum _BankMenuAction { sync, disconnect, delete }
 
 final class _BankAccountGroup {
   const _BankAccountGroup({
@@ -681,12 +782,14 @@ class _BankAccountGroupView extends StatelessWidget {
     required this.isExpanded,
     required this.accountAdapter,
     required this.l10n,
-    required this.isRemoving,
+    required this.isBusy,
+    required this.isDisconnected,
     required this.healthNotice,
     required this.isReconnecting,
     required this.onToggleExpanded,
     required this.onSync,
-    required this.onRemove,
+    required this.onDisconnect,
+    required this.onDelete,
     required this.onReconnect,
     required this.onFinancialParticipationChanged,
   });
@@ -696,12 +799,14 @@ class _BankAccountGroupView extends StatelessWidget {
   final bool isExpanded;
   final AccountAdapter accountAdapter;
   final AppLocalizations l10n;
-  final bool isRemoving;
+  final bool isBusy;
+  final bool isDisconnected;
   final _HealthNotice? healthNotice;
   final bool isReconnecting;
   final VoidCallback onToggleExpanded;
   final Future<void> Function() onSync;
-  final Future<void> Function() onRemove;
+  final Future<void> Function() onDisconnect;
+  final Future<void> Function() onDelete;
   final Future<void> Function() onReconnect;
   final Future<void> Function(Account account, bool isIncludedInFinances)
   onFinancialParticipationChanged;
@@ -715,10 +820,12 @@ class _BankAccountGroupView extends StatelessWidget {
         institution: institution,
         isExpanded: isExpanded,
         l10n: l10n,
-        isRemoving: isRemoving,
+        isBusy: isBusy,
+        isDisconnected: isDisconnected,
         onToggleExpanded: onToggleExpanded,
         onSync: onSync,
-        onRemove: onRemove,
+        onDisconnect: onDisconnect,
+        onDelete: onDelete,
       ),
       if (notice != null)
         _ConnectionHealthBanner(
@@ -766,6 +873,10 @@ final class _AccessExtensionNotice extends _HealthNotice {
   const _AccessExtensionNotice();
 }
 
+final class _DisconnectedNotice extends _HealthNotice {
+  const _DisconnectedNotice();
+}
+
 class _ConnectionHealthBanner extends StatelessWidget {
   const _ConnectionHealthBanner({
     super.key,
@@ -799,6 +910,11 @@ class _ConnectionHealthBanner extends StatelessWidget {
         null,
         l10n.accountsAccessExtensionRequired,
       ),
+      _DisconnectedNotice() => (
+        colors.textSecondary,
+        l10n.accountsDisconnectedTitle,
+        l10n.accountsDisconnectedBody,
+      ),
     };
     final action = switch (notice) {
       _ReconnectRequiredNotice() => (
@@ -809,7 +925,7 @@ class _ConnectionHealthBanner extends StatelessWidget {
         l10n.accountsExtendAccessAction,
         l10n.accountsExtendingAccess,
       ),
-      _ReconnectUnavailableNotice() => null,
+      _ReconnectUnavailableNotice() || _DisconnectedNotice() => null,
     };
 
     return Container(
@@ -852,20 +968,24 @@ class _BankGroupHeader extends StatelessWidget {
     required this.institution,
     required this.isExpanded,
     required this.l10n,
-    required this.isRemoving,
+    required this.isBusy,
+    required this.isDisconnected,
     required this.onToggleExpanded,
     required this.onSync,
-    required this.onRemove,
+    required this.onDisconnect,
+    required this.onDelete,
   });
 
   final _BankAccountGroup group;
   final Institution? institution;
   final bool isExpanded;
   final AppLocalizations l10n;
-  final bool isRemoving;
+  final bool isBusy;
+  final bool isDisconnected;
   final VoidCallback onToggleExpanded;
   final Future<void> Function() onSync;
-  final Future<void> Function() onRemove;
+  final Future<void> Function() onDisconnect;
+  final Future<void> Function() onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -904,7 +1024,7 @@ class _BankGroupHeader extends StatelessWidget {
                     SizedBox(
                       width: AppDimensions.buttonMdHeight,
                       height: AppDimensions.buttonMdHeight,
-                      child: isRemoving
+                      child: isBusy
                           ? const Center(
                               child: SizedBox(
                                 width: 20,
@@ -921,18 +1041,30 @@ class _BankGroupHeader extends StatelessWidget {
                                 switch (action) {
                                   case _BankMenuAction.sync:
                                     await onSync();
-                                  case _BankMenuAction.remove:
-                                    await onRemove();
+                                  case _BankMenuAction.disconnect:
+                                    await onDisconnect();
+                                  case _BankMenuAction.delete:
+                                    await onDelete();
                                 }
                               },
                               itemBuilder: (context) {
+                                // A disconnected Item has no Plaid link left
+                                // to refresh or disconnect; only Delete remains.
                                 return [
+                                  if (!isDisconnected) ...[
+                                    PopupMenuItem(
+                                      value: _BankMenuAction.sync,
+                                      child: Text(l10n.accountsBankMenuSync),
+                                    ),
+                                    PopupMenuItem(
+                                      value: _BankMenuAction.disconnect,
+                                      child: Text(
+                                        l10n.accountsBankMenuDisconnect,
+                                      ),
+                                    ),
+                                  ],
                                   PopupMenuItem(
-                                    value: _BankMenuAction.sync,
-                                    child: Text(l10n.accountsBankMenuSync),
-                                  ),
-                                  PopupMenuItem(
-                                    value: _BankMenuAction.remove,
+                                    value: _BankMenuAction.delete,
                                     child: Text(
                                       l10n.accountsBankMenuRemoveConnection,
                                       style: AppTypography.bodyMd.copyWith(

@@ -31,8 +31,12 @@ void main() {
   late FakePlaidFunctions functions;
   late FakePlaidLink link;
   late List<String> syncCalls;
+  late List<String> lifecycleCalls;
+  late Completer<Result<void>> disconnectGate;
+  late Completer<Result<void>> deleteGate;
 
   setUp(() {
+    lifecycleCalls = <String>[];
     repository = _FakeAccountRepository(balance: 100);
     health = _FakeHealthLoader(PlaidConnectionStatus.active);
     functions = FakePlaidFunctions({
@@ -53,6 +57,9 @@ void main() {
   });
 
   Future<void> pumpApp(WidgetTester tester) async {
+    // Created inside the test zone so completing them reaches fake async.
+    disconnectGate = Completer<Result<void>>();
+    deleteGate = Completer<Result<void>>();
     addTearDown(() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     });
@@ -67,6 +74,14 @@ void main() {
           plaidAccountsSyncCallbackProvider.overrideWithValue((id) async {
             syncCalls.add(id);
             return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 0));
+          }),
+          plaidItemDisconnectCallbackProvider.overrideWithValue((id) {
+            lifecycleCalls.add('disconnect:$id');
+            return disconnectGate.future;
+          }),
+          plaidItemDeleteCallbackProvider.overrideWithValue((id) {
+            lifecycleCalls.add('delete:$id');
+            return deleteGate.future;
           }),
         ],
         child: MaterialApp(
@@ -337,6 +352,141 @@ void main() {
       expect(reads(), (accounts: 1, institutions: 1, health: 1));
     });
   });
+
+  group('AccountsScreen resume during Disconnect and Delete', () {
+    final disconnectedTitle = find.text(l10n.accountsDisconnectedTitle);
+
+    Future<void> startMenuAction(
+      WidgetTester tester, {
+      required String menuLabel,
+      required String confirmLabel,
+    }) async {
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(menuLabel));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(confirmLabel));
+      await tester.pump();
+    }
+
+    testWidgets('resume during Disconnect adds no refresh; one re-read after', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openAccounts(tester);
+      final before = reads();
+
+      await startMenuAction(
+        tester,
+        menuLabel: l10n.accountsBankMenuDisconnect,
+        confirmLabel: l10n.accountsDisconnectConfirm,
+      );
+      expect(lifecycleCalls, ['disconnect:item-1']);
+
+      await backgroundAndResume(tester);
+      await backgroundAndResume(tester);
+      expect(reads(), before);
+
+      health.disconnectedAt = DateTime.utc(2026, 10, 3);
+      disconnectGate.complete(const Success(null));
+      await tester.pumpAndSettle();
+
+      expect(reads(), (
+        accounts: before.accounts + 1,
+        institutions: before.institutions + 1,
+        health: before.health + 1,
+      ));
+      expect(disconnectedTitle, findsOneWidget);
+      expect(find.text(l10n.accountsDisconnected), findsOneWidget);
+      expectNoPlaidSideEffects();
+    });
+
+    testWidgets('resume during Delete adds no refresh; one re-read after', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openAccounts(tester);
+      final before = reads();
+
+      await startMenuAction(
+        tester,
+        menuLabel: l10n.accountsBankMenuRemoveConnection,
+        confirmLabel: l10n.accountsDeleteConfirm,
+      );
+      expect(lifecycleCalls, ['delete:item-1']);
+
+      await backgroundAndResume(tester);
+      expect(reads(), before);
+
+      deleteGate.complete(const Failure(UnknownFailure()));
+      await tester.pumpAndSettle();
+
+      expect(reads(), (
+        accounts: before.accounts + 1,
+        institutions: before.institutions + 1,
+        health: before.health + 1,
+      ));
+      expect(find.text(l10n.accountsRemoveBankConnectionError), findsOneWidget);
+      expectNoPlaidSideEffects();
+    });
+
+    testWidgets('resume works again after the lifecycle action ends', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openAccounts(tester);
+
+      await startMenuAction(
+        tester,
+        menuLabel: l10n.accountsBankMenuDisconnect,
+        confirmLabel: l10n.accountsDisconnectConfirm,
+      );
+      disconnectGate.complete(const Failure(UnknownFailure()));
+      await tester.pumpAndSettle();
+      final after = reads();
+
+      await backgroundAndResume(tester);
+      await tester.pumpAndSettle();
+
+      expect(reads(), (
+        accounts: after.accounts + 1,
+        institutions: after.institutions + 1,
+        health: after.health + 1,
+      ));
+    });
+
+    testWidgets('a refresh in flight before Disconnect is not the final word', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openAccounts(tester);
+      final before = reads();
+
+      final gate = Completer<void>();
+      repository.gate = gate;
+      await backgroundAndResume(tester);
+
+      await startMenuAction(
+        tester,
+        menuLabel: l10n.accountsBankMenuDisconnect,
+        confirmLabel: l10n.accountsDisconnectConfirm,
+      );
+      health.disconnectedAt = DateTime.utc(2026, 10, 3);
+      disconnectGate.complete(const Success(null));
+      await tester.pump();
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(reads(), (
+        accounts: before.accounts + 2,
+        institutions: before.institutions + 2,
+        health: before.health + 2,
+      ));
+      expect(disconnectedTitle, findsOneWidget);
+      expectNoPlaidSideEffects();
+    });
+  });
 }
 
 class _Launcher extends StatelessWidget {
@@ -405,6 +555,7 @@ final class _FakeHealthLoader {
 
   PlaidConnectionStatus status;
   DateTime? pendingDisconnectAt;
+  DateTime? disconnectedAt;
   bool fail = false;
   int loadCalls = 0;
 
@@ -421,6 +572,7 @@ final class _FakeHealthLoader {
             ? PlaidConnectionStatusReason.loginRequired
             : null,
         pendingDisconnectAt: pendingDisconnectAt,
+        disconnectedAt: disconnectedAt,
       ),
     ]);
   }

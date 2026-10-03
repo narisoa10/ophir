@@ -39,5 +39,6 @@ PlaidConnectionHealth? plaidConnectionHealthFromJson(Map<String, dynamic> json) 
     statusChangedAt: _parseOptionalTimestamp(json['status_changed_at']),
     consentExpiresAt: _parseOptionalTimestamp(json['consent_expires_at']),
     pendingDisconnectAt: _parseOptionalTimestamp(json['pending_disconnect_at']),
+    disconnectedAt: _parseOptionalTimestamp(json['disconnected_at']),
   );
 }

@@ -1395,16 +1395,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get accountsBankMenuSync => 'Actualiser maintenant';
 
   @override
-  String get accountsBankMenuRemoveConnection =>
-      'Supprimer la connexion bancaire';
+  String get accountsBankMenuRemoveConnection => 'Supprimer la connexion';
 
   @override
   String get accountsRemoveBankConnectionDialogTitle =>
-      'Supprimer la connexion bancaire ?';
+      'Supprimer définitivement la connexion ?';
 
   @override
   String get accountsRemoveBankConnectionDialogBody =>
-      'La banque et tous les comptes associés seront supprimés d’Ophir. La synchronisation s’arrêtera, et vous devrez repasser par Plaid pour la reconnecter.';
+      'Les comptes de cette banque et les opérations importées seront supprimés d’Ophir. Les revenus et dépenses manuels sont conservés sans compte. Cette action est irréversible.';
 
   @override
   String get accountsRemoveBankConnectionError =>
@@ -1454,6 +1453,39 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountsAccessExtended => 'Accès prolongé.';
+
+  @override
+  String get accountsBankMenuDisconnect => 'Déconnecter la banque';
+
+  @override
+  String get accountsDisconnectDialogTitle => 'Déconnecter la banque ?';
+
+  @override
+  String get accountsDisconnectDialogBody =>
+      'Ophir ne recevra plus de données de cette banque. Les comptes et l’historique sont conservés, mais les soldes ne seront plus mis à jour. Pour reconnecter cette banque, supprimez la connexion.';
+
+  @override
+  String get accountsDisconnectConfirm => 'Déconnecter';
+
+  @override
+  String get accountsDisconnected => 'Banque déconnectée.';
+
+  @override
+  String get accountsDisconnectError =>
+      'Impossible de déconnecter la banque. Veuillez réessayer.';
+
+  @override
+  String get accountsDisconnectedTitle => 'Banque déconnectée';
+
+  @override
+  String get accountsDisconnectedBody =>
+      'La synchronisation est arrêtée. L’historique est conservé ; les soldes ne sont plus mis à jour.';
+
+  @override
+  String get accountsDeleteConfirm => 'Supprimer définitivement';
+
+  @override
+  String get accountsConnectionDeleted => 'Connexion supprimée.';
 
   @override
   String get dashboardTitle => 'Tableau de bord';

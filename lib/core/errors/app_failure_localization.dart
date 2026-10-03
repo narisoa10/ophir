@@ -13,6 +13,7 @@ extension AppFailureLocalization on AppFailure {
       UnknownFailure() => l10n.failureUnknown,
       PlaidItemLoginRequiredFailure() => l10n.accountsReconnectRequiredTitle,
       PlaidReconnectUnavailableFailure() => l10n.accountsReconnectUnavailable,
+      PlaidConnectionDisconnectedFailure() => l10n.accountsDisconnectedBody,
     };
   }
 }

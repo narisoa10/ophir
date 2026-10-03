@@ -337,8 +337,10 @@ void main() {
       expect(repository.participationUpdates, isEmpty);
     });
 
-    testWidgets('bank menu shows sync and destructive remove', (tester) async {
+    testWidgets('sync double tap starts one sync', (tester) async {
       final l10n = lookupAppLocalizations(const Locale('en'));
+      final completer = Completer<Result<PlaidAccountsSyncSummary>>();
+      var syncCallCount = 0;
 
       await tester.pumpWidget(
         _TestApp(
@@ -346,160 +348,8 @@ void main() {
             accounts: [_account(name: 'Checking')],
             institutions: [_institution()],
           ),
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
-
-      expect(find.text(l10n.accountsBankMenuSync), findsOneWidget);
-      expect(find.text(l10n.accountsBankMenuRemoveConnection), findsOneWidget);
-
-      final removeText = tester.widget<Text>(
-        find.text(l10n.accountsBankMenuRemoveConnection),
-      );
-      expect(removeText.style?.color, AppColors.error);
-    });
-
-    testWidgets('remove cancel does not call backend', (tester) async {
-      final l10n = lookupAppLocalizations(const Locale('en'));
-      final removedConnectionIds = <String>[];
-
-      await tester.pumpWidget(
-        _TestApp(
-          repository: _FakeAccountRepository(
-            accounts: [_account(name: 'Checking')],
-            institutions: [_institution()],
-          ),
-          removeItem: (connectionId) async {
-            removedConnectionIds.add(connectionId);
-            return const Success(null);
-          },
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.commonCancel));
-      await tester.pumpAndSettle();
-
-      expect(removedConnectionIds, isEmpty);
-      expect(find.text('Test Bank'), findsOneWidget);
-    });
-
-    testWidgets('remove confirm calls backend once', (tester) async {
-      final l10n = lookupAppLocalizations(const Locale('en'));
-      final removedConnectionIds = <String>[];
-
-      await tester.pumpWidget(
-        _TestApp(
-          repository: _FakeAccountRepository(
-            accounts: [_account(name: 'Checking')],
-            institutions: [_institution()],
-          ),
-          removeItem: (connectionId) async {
-            removedConnectionIds.add(connectionId);
-            return const Success(null);
-          },
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.commonDelete));
-      await tester.pumpAndSettle();
-
-      expect(removedConnectionIds, ['item-1']);
-    });
-
-    testWidgets('successful remove refreshes accounts and bank disappears', (
-      tester,
-    ) async {
-      final l10n = lookupAppLocalizations(const Locale('en'));
-      final repository = _FakeAccountRepository(
-        accounts: [_account(name: 'Checking')],
-        institutions: [_institution()],
-      );
-
-      await tester.pumpWidget(
-        _TestApp(
-          repository: repository,
-          removeItem: (connectionId) async {
-            repository.removeConnection(connectionId);
-            return const Success(null);
-          },
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      expect(repository.getAccountsCalls, 1);
-
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.commonDelete));
-      await tester.pumpAndSettle();
-
-      expect(repository.getAccountsCalls, greaterThan(1));
-      expect(find.text('Test Bank'), findsNothing);
-      expect(find.byType(AccountsEmptyState), findsOneWidget);
-    });
-
-    testWidgets('remove error leaves bank visible and shows feedback', (
-      tester,
-    ) async {
-      final l10n = lookupAppLocalizations(const Locale('en'));
-
-      await tester.pumpWidget(
-        _TestApp(
-          repository: _FakeAccountRepository(
-            accounts: [_account(name: 'Checking')],
-            institutions: [_institution()],
-          ),
-          removeItem: (connectionId) async {
-            return const Failure(UnknownFailure());
-          },
-          child: const AccountsScreen(),
-        ),
-      );
-      await tester.pump();
-
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.commonDelete));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Test Bank'), findsOneWidget);
-      expect(find.text(l10n.accountsRemoveBankConnectionError), findsOneWidget);
-    });
-
-    testWidgets('remove double submit is prevented', (tester) async {
-      final l10n = lookupAppLocalizations(const Locale('en'));
-      final completer = Completer<Result<void>>();
-      var removeCallCount = 0;
-
-      await tester.pumpWidget(
-        _TestApp(
-          repository: _FakeAccountRepository(
-            accounts: [_account(name: 'Checking')],
-            institutions: [_institution()],
-          ),
-          removeItem: (connectionId) {
-            removeCallCount += 1;
+          syncAccounts: (connectionId) {
+            syncCallCount += 1;
             return completer.future;
           },
           child: const AccountsScreen(),
@@ -509,16 +359,557 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuRemoveConnection));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.commonDelete));
+      await tester.tap(find.text(l10n.accountsBankMenuSync));
       await tester.pump();
 
-      expect(removeCallCount, 1);
+      expect(syncCallCount, 1);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      completer.complete(
+        const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.accountsBankMenuSync), findsOneWidget);
+    });
+
+    testWidgets('sync connection_disconnected refreshes into disconnected UI', (
+      tester,
+    ) async {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      final store = _HealthStore([_health('item-1')]);
+      final link = FakePlaidLink();
+
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [_account(name: 'Checking')],
+            institutions: [_institution()],
+          ),
+          healthStore: store,
+          connectService: fakeConnectService(FakePlaidFunctions({}), link),
+          syncAccounts: (connectionId) async {
+            store.disconnect(connectionId);
+            return const Failure(PlaidConnectionDisconnectedFailure());
+          },
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final healthLoadsBefore = store.loadCalls;
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuSync));
+      await tester.pumpAndSettle();
+
+      expect(store.loadCalls, greaterThan(healthLoadsBefore));
+      expect(find.text(l10n.accountsDisconnectedTitle), findsOneWidget);
+      expect(find.text(l10n.failureUnknown), findsNothing);
+      expect(link.openedTokens, isEmpty);
+    });
+  });
+
+  group('AccountsScreen Disconnect and Delete', () {
+    final l10n = lookupAppLocalizations(const Locale('en'));
+    final disconnectedTitle = find.text(l10n.accountsDisconnectedTitle);
+
+    Future<void> pumpLifecycle(
+      WidgetTester tester, {
+      required _HealthStore store,
+      _FakeAccountRepository? repository,
+      PlaidItemLifecycleCallback? disconnectItem,
+      PlaidItemLifecycleCallback? deleteItem,
+      PlaidAccountsSyncCallback? syncAccounts,
+      FakePlaidLink? link,
+    }) async {
+      await tester.pumpWidget(
+        _TestApp(
+          repository:
+              repository ??
+              _FakeAccountRepository(
+                accounts: [_account(name: 'Checking')],
+                institutions: [_institution()],
+              ),
+          healthStore: store,
+          connectService: fakeConnectService(
+            FakePlaidFunctions({}),
+            link ?? FakePlaidLink(),
+          ),
+          syncAccounts: syncAccounts ?? _successfulSync,
+          disconnectItem:
+              disconnectItem ?? (_) async => const Failure(UnknownFailure()),
+          deleteItem: deleteItem ?? (_) async => const Failure(UnknownFailure()),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> chooseMenu(WidgetTester tester, String label) async {
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('active connection menu offers sync, disconnect and delete', (
+      tester,
+    ) async {
+      await pumpLifecycle(tester, store: _HealthStore([_health('item-1')]));
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsBankMenuSync), findsOneWidget);
+      expect(find.text(l10n.accountsBankMenuDisconnect), findsOneWidget);
+      expect(find.text(l10n.accountsBankMenuRemoveConnection), findsOneWidget);
+      final deleteText = tester.widget<Text>(
+        find.text(l10n.accountsBankMenuRemoveConnection),
+      );
+      expect(deleteText.style?.color, AppColors.error);
+    });
+
+    testWidgets('disconnected connection menu offers only delete', (
+      tester,
+    ) async {
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([
+          _health('item-1', disconnectedAt: DateTime.utc(2026, 10, 3)),
+        ]),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsBankMenuSync), findsNothing);
+      expect(find.text(l10n.accountsBankMenuDisconnect), findsNothing);
+      expect(find.text(l10n.accountsBankMenuRemoveConnection), findsOneWidget);
+    });
+
+    testWidgets('disconnected banner wins over every remaining health signal', (
+      tester,
+    ) async {
+      final link = FakePlaidLink();
+      final syncCalls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([
+          _health(
+            'item-1',
+            status: PlaidConnectionStatus.loginRequired,
+            pendingDisconnectAt: DateTime.utc(2099, 11, 15),
+            disconnectedAt: DateTime.utc(2026, 10, 3),
+          ),
+        ]),
+        link: link,
+        syncAccounts: (id) async {
+          syncCalls.add(id);
+          return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1));
+        },
+      );
+
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsOneWidget,
+      );
+      expect(disconnectedTitle, findsOneWidget);
+      expect(find.text(l10n.accountsDisconnectedBody), findsOneWidget);
+      expect(find.text(l10n.accountsReconnectRequiredTitle), findsNothing);
+      expect(find.text(l10n.accountsReconnectAction), findsNothing);
+      expect(find.text(l10n.accountsAccessExtensionRequired), findsNothing);
+      expect(find.text(l10n.accountsExtendAccessAction), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('connection-health-item-1')),
+          matching: find.byType(TextButton),
+        ),
+        findsNothing,
+      );
+      expect(link.openedTokens, isEmpty);
+      expect(syncCalls, isEmpty);
+    });
+
+    testWidgets('disconnect cancel calls nothing', (tester) async {
+      final calls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([_health('item-1')]),
+        disconnectItem: (id) async {
+          calls.add(id);
+          return const Success(null);
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      expect(find.text(l10n.accountsDisconnectDialogBody), findsOneWidget);
+      await tester.tap(find.text(l10n.commonCancel));
+      await tester.pumpAndSettle();
+
+      expect(calls, isEmpty);
+      expect(disconnectedTitle, findsNothing);
+    });
+
+    testWidgets('disconnect success refreshes from DB into disconnected UI', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      final repository = _FakeAccountRepository(
+        accounts: [_account(name: 'Checking')],
+        institutions: [_institution()],
+      );
+      final disconnectCalls = <String>[];
+      final deleteCalls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: store,
+        repository: repository,
+        disconnectItem: (id) async {
+          disconnectCalls.add(id);
+          store.disconnect(id);
+          return const Success(null);
+        },
+        deleteItem: (id) async {
+          deleteCalls.add(id);
+          return const Success(null);
+        },
+      );
+      final accountLoadsBefore = repository.getAccountsCalls;
+      final healthLoadsBefore = store.loadCalls;
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+      await tester.pumpAndSettle();
+
+      expect(disconnectCalls, ['item-1']);
+      expect(deleteCalls, isEmpty);
+      expect(repository.getAccountsCalls, accountLoadsBefore + 1);
+      expect(store.loadCalls, healthLoadsBefore + 1);
+      expect(disconnectedTitle, findsOneWidget);
+      expect(find.text('Test Bank'), findsOneWidget);
+      expect(find.text(l10n.accountsDisconnected), findsOneWidget);
+    });
+
+    testWidgets('disconnected UI comes from the DB, not from the action result', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      await pumpLifecycle(
+        tester,
+        store: store,
+        disconnectItem: (_) async => const Success(null),
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsDisconnected), findsOneWidget);
+      expect(disconnectedTitle, findsNothing);
+    });
+
+    testWidgets('disconnect failure is not success and re-reads the DB', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      await pumpLifecycle(
+        tester,
+        store: store,
+        disconnectItem: (_) async => const Failure(UnknownFailure()),
+      );
+      final healthLoadsBefore = store.loadCalls;
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsDisconnectError), findsOneWidget);
+      expect(find.text(l10n.accountsDisconnected), findsNothing);
+      expect(store.loadCalls, healthLoadsBefore + 1);
+      expect(disconnectedTitle, findsNothing);
+    });
+
+    testWidgets('disconnect double tap sends one request', (tester) async {
+      final completer = Completer<Result<void>>();
+      var calls = 0;
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([_health('item-1')]),
+        disconnectItem: (_) {
+          calls += 1;
+          return completer.future;
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+      await tester.pump();
+
+      expect(calls, 1);
       expect(find.byIcon(Icons.more_vert), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
       completer.complete(const Success(null));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+    });
+
+    testWidgets('delete active connection uses delete and the bank disappears', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      final repository = _FakeAccountRepository(
+        accounts: [_account(name: 'Checking')],
+        institutions: [_institution()],
+      );
+      final disconnectCalls = <String>[];
+      final deleteCalls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: store,
+        repository: repository,
+        disconnectItem: (id) async {
+          disconnectCalls.add(id);
+          return const Success(null);
+        },
+        deleteItem: (id) async {
+          deleteCalls.add(id);
+          repository.removeConnection(id);
+          store.remove(id);
+          return const Success(null);
+        },
+      );
+      final accountLoadsBefore = repository.getAccountsCalls;
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      expect(
+        find.text(l10n.accountsRemoveBankConnectionDialogBody),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(deleteCalls, ['item-1']);
+      expect(disconnectCalls, isEmpty);
+      expect(repository.getAccountsCalls, accountLoadsBefore + 1);
+      expect(find.text('Test Bank'), findsNothing);
+      expect(find.byType(AccountsEmptyState), findsOneWidget);
+      expect(find.text(l10n.accountsConnectionDeleted), findsOneWidget);
+    });
+
+    testWidgets('delete disconnected connection uses delete', (tester) async {
+      final store = _HealthStore([
+        _health('item-1', disconnectedAt: DateTime.utc(2026, 10, 3)),
+      ]);
+      final repository = _FakeAccountRepository(
+        accounts: [_account(name: 'Checking')],
+        institutions: [_institution()],
+      );
+      final deleteCalls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: store,
+        repository: repository,
+        deleteItem: (id) async {
+          deleteCalls.add(id);
+          repository.removeConnection(id);
+          store.remove(id);
+          return const Success(null);
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(deleteCalls, ['item-1']);
+      expect(find.text('Test Bank'), findsNothing);
+      expect(disconnectedTitle, findsNothing);
+    });
+
+    testWidgets('delete confirmation is separate and destructive', (
+      tester,
+    ) async {
+      await pumpLifecycle(tester, store: _HealthStore([_health('item-1')]));
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+
+      expect(
+        find.text(l10n.accountsRemoveBankConnectionDialogTitle),
+        findsOneWidget,
+      );
+      expect(find.text(l10n.accountsDisconnectDialogBody), findsNothing);
+      final confirm = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, l10n.accountsDeleteConfirm),
+      );
+      expect(
+        confirm.style?.foregroundColor?.resolve(<WidgetState>{}),
+        AppColors.error,
+      );
+    });
+
+    testWidgets('delete cancel calls nothing', (tester) async {
+      final calls = <String>[];
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([_health('item-1')]),
+        deleteItem: (id) async {
+          calls.add(id);
+          return const Success(null);
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.commonCancel));
+      await tester.pumpAndSettle();
+
+      expect(calls, isEmpty);
+      expect(find.text('Test Bank'), findsOneWidget);
+    });
+
+    testWidgets('delete failure keeps the bank, shows error and re-reads', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      await pumpLifecycle(
+        tester,
+        store: store,
+        deleteItem: (_) async => const Failure(UnknownFailure()),
+      );
+      final healthLoadsBefore = store.loadCalls;
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test Bank'), findsOneWidget);
+      expect(find.text(l10n.accountsRemoveBankConnectionError), findsOneWidget);
+      expect(find.text(l10n.accountsConnectionDeleted), findsNothing);
+      expect(store.loadCalls, healthLoadsBefore + 1);
+    });
+
+    testWidgets('partial delete failure shows the DB state, not success', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      await pumpLifecycle(
+        tester,
+        store: store,
+        deleteItem: (id) async {
+          // local_lifecycle_failed after the Disconnect half committed.
+          store.disconnect(id);
+          return const Failure(UnknownFailure());
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsRemoveBankConnectionError), findsOneWidget);
+      expect(disconnectedTitle, findsOneWidget);
+      expect(find.text('Test Bank'), findsOneWidget);
+    });
+
+    testWidgets('delete connection_not_found shows message and re-reads', (
+      tester,
+    ) async {
+      final store = _HealthStore([_health('item-1')]);
+      final repository = _FakeAccountRepository(
+        accounts: [_account(name: 'Checking')],
+        institutions: [_institution()],
+      );
+      await pumpLifecycle(
+        tester,
+        store: store,
+        repository: repository,
+        deleteItem: (id) async {
+          repository.removeConnection(id);
+          store.remove(id);
+          return const Failure(NotFoundFailure());
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsConnectionNotFound), findsOneWidget);
+      expect(find.text(l10n.accountsConnectionDeleted), findsNothing);
+      expect(find.text('Test Bank'), findsNothing);
+    });
+
+    testWidgets('delete double tap sends one request', (tester) async {
+      final completer = Completer<Result<void>>();
+      var calls = 0;
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([_health('item-1')]),
+        deleteItem: (_) {
+          calls += 1;
+          return completer.future;
+        },
+      );
+
+      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+      await tester.tap(find.text(l10n.accountsDeleteConfirm));
+      await tester.pump();
+
+      expect(calls, 1);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      completer.complete(const Failure(UnknownFailure()));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+    });
+
+    testWidgets('sync and lifecycle actions exclude each other', (
+      tester,
+    ) async {
+      final syncGate = Completer<Result<PlaidAccountsSyncSummary>>();
+      final disconnectGate = Completer<Result<void>>();
+      var syncCalls = 0;
+      var disconnectCalls = 0;
+      await pumpLifecycle(
+        tester,
+        store: _HealthStore([_health('item-1')]),
+        syncAccounts: (_) {
+          syncCalls += 1;
+          return syncGate.future;
+        },
+        disconnectItem: (_) {
+          disconnectCalls += 1;
+          return disconnectGate.future;
+        },
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.accountsBankMenuSync));
+      await tester.pump();
+
+      expect(syncCalls, 1);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+
+      syncGate.complete(
+        const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1)),
+      );
+      await tester.pumpAndSettle();
+
+      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+      await tester.pump();
+
+      expect(disconnectCalls, 1);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(syncCalls, 1);
+
+      disconnectGate.complete(const Success(null));
       await tester.pumpAndSettle();
     });
   });
@@ -1126,7 +1517,8 @@ final class _TestApp extends StatelessWidget {
     required this.repository,
     required this.child,
     this.syncAccounts,
-    this.removeItem,
+    this.disconnectItem,
+    this.deleteItem,
     this.healthStore,
     this.connectService,
   });
@@ -1134,7 +1526,8 @@ final class _TestApp extends StatelessWidget {
   final AccountRepository repository;
   final Widget child;
   final PlaidAccountsSyncCallback? syncAccounts;
-  final PlaidItemRemoveCallback? removeItem;
+  final PlaidItemLifecycleCallback? disconnectItem;
+  final PlaidItemLifecycleCallback? deleteItem;
   final _HealthStore? healthStore;
   final PlaidConnectService? connectService;
 
@@ -1151,8 +1544,12 @@ final class _TestApp extends StatelessWidget {
         ),
         if (syncAccounts != null)
           plaidAccountsSyncCallbackProvider.overrideWithValue(syncAccounts!),
-        if (removeItem != null)
-          plaidItemRemoveCallbackProvider.overrideWithValue(removeItem!),
+        if (disconnectItem != null)
+          plaidItemDisconnectCallbackProvider.overrideWithValue(
+            disconnectItem!,
+          ),
+        if (deleteItem != null)
+          plaidItemDeleteCallbackProvider.overrideWithValue(deleteItem!),
       ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -1190,6 +1587,31 @@ final class _HealthStore {
           item,
     ];
   }
+
+  /// What the server-side Disconnect leaves behind: health fields untouched,
+  /// disconnected_at set.
+  void disconnect(String connectionId) {
+    health = [
+      for (final item in health)
+        if (item.connectionId == connectionId)
+          PlaidConnectionHealth(
+            connectionId: item.connectionId,
+            status: item.status,
+            statusReason: item.statusReason,
+            pendingDisconnectAt: item.pendingDisconnectAt,
+            disconnectedAt: DateTime.utc(2026, 10, 3),
+          )
+        else
+          item,
+    ];
+  }
+
+  void remove(String connectionId) {
+    health = [
+      for (final item in health)
+        if (item.connectionId != connectionId) item,
+    ];
+  }
 }
 
 PlaidConnectionHealth _health(
@@ -1197,6 +1619,7 @@ PlaidConnectionHealth _health(
   PlaidConnectionStatus status = PlaidConnectionStatus.active,
   DateTime? consentExpiresAt,
   DateTime? pendingDisconnectAt,
+  DateTime? disconnectedAt,
 }) {
   return PlaidConnectionHealth(
     connectionId: connectionId,
@@ -1206,6 +1629,7 @@ PlaidConnectionHealth _health(
         : null,
     consentExpiresAt: consentExpiresAt,
     pendingDisconnectAt: pendingDisconnectAt,
+    disconnectedAt: disconnectedAt,
   );
 }
 

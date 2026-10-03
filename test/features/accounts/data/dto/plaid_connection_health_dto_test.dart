@@ -9,6 +9,7 @@ Map<String, dynamic> _row({
   Object? statusChangedAt,
   Object? consentExpiresAt,
   Object? pendingDisconnectAt,
+  Object? disconnectedAt,
 }) {
   return {
     'connection_id': connectionId,
@@ -17,6 +18,7 @@ Map<String, dynamic> _row({
     'status_changed_at': statusChangedAt,
     'consent_expires_at': consentExpiresAt,
     'pending_disconnect_at': pendingDisconnectAt,
+    'disconnected_at': disconnectedAt,
   };
 }
 
@@ -98,6 +100,74 @@ void main() {
       expect(health.statusChangedAt, isNull);
       expect(health.consentExpiresAt, isNull);
       expect(health.pendingDisconnectAt, isNull);
+    });
+
+    test('parses disconnected_at', () {
+      final health = plaidConnectionHealthFromJson(
+        _row(disconnectedAt: '2026-10-03T21:30:00+00:00'),
+      )!;
+
+      expect(health.disconnectedAt, DateTime.utc(2026, 10, 3, 21, 30));
+      expect(health.isDisconnected, isTrue);
+    });
+
+    test('missing disconnected_at means connected', () {
+      final health = plaidConnectionHealthFromJson(_row())!;
+
+      expect(health.disconnectedAt, isNull);
+      expect(health.isDisconnected, isFalse);
+    });
+
+    test('malformed disconnected_at becomes null', () {
+      for (final value in <Object>['not-a-date', '', 12345, true]) {
+        final health = plaidConnectionHealthFromJson(
+          _row(disconnectedAt: value),
+        )!;
+
+        expect(health.disconnectedAt, isNull);
+        expect(health.isDisconnected, isFalse);
+      }
+    });
+
+    test('disconnected keeps the stale status fields it was read with', () {
+      final health = plaidConnectionHealthFromJson(
+        _row(
+          status: 'login_required',
+          statusReason: 'login_required',
+          pendingDisconnectAt: '2026-11-15T00:00:00Z',
+          disconnectedAt: '2026-10-03T00:00:00Z',
+        ),
+      )!;
+
+      expect(health.status, PlaidConnectionStatus.loginRequired);
+      expect(health.pendingDisconnectAt, DateTime.utc(2026, 11, 15));
+      expect(health.isDisconnected, isTrue);
+    });
+  });
+
+  group('disconnected priority', () {
+    test('disconnected suppresses reconnect', () {
+      final health = PlaidConnectionHealth(
+        connectionId: 'item-1',
+        status: PlaidConnectionStatus.loginRequired,
+        statusReason: PlaidConnectionStatusReason.loginRequired,
+        disconnectedAt: DateTime.utc(2026, 10, 3),
+      );
+
+      expect(health.requiresReconnect, isFalse);
+      expect(health.requiresAccessExtension, isFalse);
+    });
+
+    test('disconnected suppresses access extension', () {
+      final health = PlaidConnectionHealth(
+        connectionId: 'item-1',
+        status: PlaidConnectionStatus.active,
+        pendingDisconnectAt: DateTime.utc(2026, 11, 15),
+        disconnectedAt: DateTime.utc(2026, 10, 3),
+      );
+
+      expect(health.requiresAccessExtension, isFalse);
+      expect(health.requiresReconnect, isFalse);
     });
   });
 

@@ -29,6 +29,29 @@ void main() {
       expect(failure, isA<PlaidReconnectUnavailableFailure>());
     });
 
+    test('connection_disconnected is a typed failure', () {
+      final failure = plaidFailureFromFunctionException(
+        _exception(409, _error('connection_disconnected')),
+      );
+
+      expect(failure, isA<PlaidConnectionDisconnectedFailure>());
+    });
+
+    test('lifecycle backend errors stay Unknown', () {
+      for (final entry in const {
+        'plaid_outcome_unknown': 502,
+        'local_lifecycle_failed': 500,
+        'supabase_config_missing': 500,
+      }.entries) {
+        expect(
+          plaidFailureFromFunctionException(
+            _exception(entry.value, _error(entry.key)),
+          ),
+          isA<UnknownFailure>(),
+        );
+      }
+    });
+
     test('connection_not_found maps to NotFoundFailure', () {
       final failure = plaidFailureFromFunctionException(
         _exception(404, _error('connection_not_found')),

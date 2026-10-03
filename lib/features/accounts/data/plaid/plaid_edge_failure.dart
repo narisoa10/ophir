@@ -24,6 +24,8 @@ AppFailure plaidFailureFromFunctionException(FunctionException exception) {
       return const PlaidItemLoginRequiredFailure();
     case 'reconnect_unavailable':
       return const PlaidReconnectUnavailableFailure();
+    case 'connection_disconnected':
+      return const PlaidConnectionDisconnectedFailure();
     case 'connection_not_found':
       return const NotFoundFailure();
   }

@@ -1385,15 +1385,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accountsBankMenuSync => 'Обновить сейчас';
 
   @override
-  String get accountsBankMenuRemoveConnection => 'Удалить подключение банка';
+  String get accountsBankMenuRemoveConnection => 'Удалить подключение';
 
   @override
   String get accountsRemoveBankConnectionDialogTitle =>
-      'Удалить подключение банка?';
+      'Удалить подключение навсегда?';
 
   @override
   String get accountsRemoveBankConnectionDialogBody =>
-      'Банк и все связанные с ним счета будут удалены из Ophir. Синхронизация прекратится, и для повторного подключения нужно будет снова пройти Plaid.';
+      'Счета этого банка и полученные из него операции будут удалены из Ophir. Ручные доходы и расходы останутся без привязки к счёту. Это действие нельзя отменить.';
 
   @override
   String get accountsRemoveBankConnectionError =>
@@ -1443,6 +1443,39 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get accountsAccessExtended => 'Доступ продлён.';
+
+  @override
+  String get accountsBankMenuDisconnect => 'Отключить банк';
+
+  @override
+  String get accountsDisconnectDialogTitle => 'Отключить банк?';
+
+  @override
+  String get accountsDisconnectDialogBody =>
+      'Ophir перестанет получать данные от этого банка. Счета и история операций сохранятся, но балансы больше не будут обновляться. Чтобы подключить этот банк снова, удалите подключение.';
+
+  @override
+  String get accountsDisconnectConfirm => 'Отключить';
+
+  @override
+  String get accountsDisconnected => 'Банк отключён.';
+
+  @override
+  String get accountsDisconnectError =>
+      'Не удалось отключить банк. Попробуйте ещё раз.';
+
+  @override
+  String get accountsDisconnectedTitle => 'Банк отключён';
+
+  @override
+  String get accountsDisconnectedBody =>
+      'Синхронизация остановлена. История сохранена, балансы не обновляются.';
+
+  @override
+  String get accountsDeleteConfirm => 'Удалить навсегда';
+
+  @override
+  String get accountsConnectionDeleted => 'Подключение удалено.';
 
   @override
   String get dashboardTitle => 'Дашборд';

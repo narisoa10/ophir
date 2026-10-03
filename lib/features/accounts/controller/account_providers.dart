@@ -5,7 +5,7 @@ import '../../../core/errors/result.dart';
 import '../data/plaid/plaid_accounts_sync_service.dart';
 import '../data/plaid/plaid_connect_service.dart';
 import '../data/plaid/plaid_connection_health_service.dart';
-import '../data/plaid/plaid_item_remove_service.dart';
+import '../data/plaid/plaid_item_lifecycle_service.dart';
 import '../data/repositories/supabase_account_repository.dart';
 import '../domain/entities/account.dart';
 import '../domain/entities/institution.dart';
@@ -27,14 +27,24 @@ final plaidAccountsSyncCallbackProvider = Provider<PlaidAccountsSyncCallback>((
   return service.syncAccounts;
 });
 
-typedef PlaidItemRemoveCallback =
+typedef PlaidItemLifecycleCallback =
     Future<Result<void>> Function(String connectionId);
 
-final plaidItemRemoveCallbackProvider = Provider<PlaidItemRemoveCallback>((
+final plaidItemLifecycleServiceProvider = Provider<PlaidItemLifecycleService>((
   ref,
 ) {
-  final service = PlaidItemRemoveService(Supabase.instance.client);
-  return service.removeItem;
+  return PlaidItemLifecycleService(Supabase.instance.client);
+});
+
+final plaidItemDisconnectCallbackProvider =
+    Provider<PlaidItemLifecycleCallback>((ref) {
+      return ref.watch(plaidItemLifecycleServiceProvider).disconnectItem;
+    });
+
+final plaidItemDeleteCallbackProvider = Provider<PlaidItemLifecycleCallback>((
+  ref,
+) {
+  return ref.watch(plaidItemLifecycleServiceProvider).deleteItem;
 });
 
 final plaidConnectServiceProvider = Provider<PlaidConnectService>((ref) {
