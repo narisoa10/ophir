@@ -1382,7 +1382,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accountsFinancialExclusionDialogConfirm => 'Не учитывать';
 
   @override
-  String get accountsBankMenuSync => 'Синхронизировать';
+  String get accountsBankMenuSync => 'Обновить сейчас';
 
   @override
   String get accountsBankMenuRemoveConnection => 'Удалить подключение банка';
@@ -1432,9 +1432,17 @@ class AppLocalizationsRu extends AppLocalizations {
       'Подключение банка не найдено. Список обновлён.';
 
   @override
-  String accountsAccessExpiresWarning(String date) {
-    return 'Доступ к банку нужно будет подтвердить до $date.';
-  }
+  String get accountsAccessExtensionRequired =>
+      'Банку требуется подтверждение доступа';
+
+  @override
+  String get accountsExtendAccessAction => 'Продлить доступ';
+
+  @override
+  String get accountsExtendingAccess => 'Продление доступа…';
+
+  @override
+  String get accountsAccessExtended => 'Доступ продлён.';
 
   @override
   String get dashboardTitle => 'Дашборд';

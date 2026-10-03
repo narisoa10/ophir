@@ -2606,7 +2606,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsBankMenuSync.
   ///
   /// In en, this message translates to:
-  /// **'Sync'**
+  /// **'Refresh now'**
   String get accountsBankMenuSync;
 
   /// No description provided for @accountsBankMenuRemoveConnection.
@@ -2687,11 +2687,29 @@ abstract class AppLocalizations {
   /// **'This bank connection was not found. The list has been refreshed.'**
   String get accountsConnectionNotFound;
 
-  /// No description provided for @accountsAccessExpiresWarning.
+  /// No description provided for @accountsAccessExtensionRequired.
   ///
   /// In en, this message translates to:
-  /// **'Bank access will need to be confirmed by {date}.'**
-  String accountsAccessExpiresWarning(String date);
+  /// **'Your bank needs you to confirm access.'**
+  String get accountsAccessExtensionRequired;
+
+  /// No description provided for @accountsExtendAccessAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Extend access'**
+  String get accountsExtendAccessAction;
+
+  /// No description provided for @accountsExtendingAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Extending access…'**
+  String get accountsExtendingAccess;
+
+  /// No description provided for @accountsAccessExtended.
+  ///
+  /// In en, this message translates to:
+  /// **'Access extended.'**
+  String get accountsAccessExtended;
 
   /// No description provided for @dashboardTitle.
   ///

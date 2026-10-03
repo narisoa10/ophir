@@ -11,6 +11,7 @@ import '../domain/entities/account.dart';
 import '../domain/entities/institution.dart';
 import '../domain/entities/plaid_connection_health.dart';
 import '../domain/repositories/account_repository.dart';
+import 'last_good_result_notifier.dart';
 
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
   return SupabaseAccountRepository(Supabase.instance.client);
@@ -50,19 +51,37 @@ final plaidConnectionHealthLoaderProvider =
     });
 
 final plaidConnectionHealthProvider =
-    FutureProvider<Result<List<PlaidConnectionHealth>>>((ref) {
-      final loadHealth = ref.watch(plaidConnectionHealthLoaderProvider);
-      return loadHealth();
-    });
+    AsyncNotifierProvider<
+      PlaidConnectionHealthNotifier,
+      Result<List<PlaidConnectionHealth>>
+    >(PlaidConnectionHealthNotifier.new);
+
+final class PlaidConnectionHealthNotifier
+    extends AsyncNotifier<Result<List<PlaidConnectionHealth>>>
+    with LastGoodResultNotifier<List<PlaidConnectionHealth>> {
+  @override
+  Future<Result<List<PlaidConnectionHealth>>> build() {
+    final loadHealth = ref.watch(plaidConnectionHealthLoaderProvider);
+    return loadHealth();
+  }
+}
 
 final accountsProvider = FutureProvider<Result<List<Account>>>((ref) {
   final repository = ref.watch(accountRepositoryProvider);
   return repository.getAccounts();
 });
 
-final accountInstitutionsProvider = FutureProvider<Result<List<Institution>>>((
-  ref,
-) {
-  final repository = ref.watch(accountRepositoryProvider);
-  return repository.getInstitutions();
-});
+final accountInstitutionsProvider =
+    AsyncNotifierProvider<AccountInstitutionsNotifier, Result<List<Institution>>>(
+      AccountInstitutionsNotifier.new,
+    );
+
+final class AccountInstitutionsNotifier
+    extends AsyncNotifier<Result<List<Institution>>>
+    with LastGoodResultNotifier<List<Institution>> {
+  @override
+  Future<Result<List<Institution>>> build() {
+    final repository = ref.watch(accountRepositoryProvider);
+    return repository.getInstitutions();
+  }
+}

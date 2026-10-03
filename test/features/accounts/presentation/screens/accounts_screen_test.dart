@@ -329,7 +329,7 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Sync'));
+      await tester.tap(find.text('Refresh now'));
       await tester.pumpAndSettle();
 
       expect(syncedConnectionIds, ['item-1']);
@@ -530,6 +530,11 @@ void main() {
       TextButton,
       l10n.accountsReconnectAction,
     );
+    final extensionBody = find.text(l10n.accountsAccessExtensionRequired);
+    final extendCta = find.widgetWithText(
+      TextButton,
+      l10n.accountsExtendAccessAction,
+    );
 
     List<Account> twoBanks() => [
       _account(name: 'Checking'),
@@ -585,17 +590,11 @@ void main() {
             functions ?? repairBackend(),
             link ?? FakePlaidLink(),
           ),
-          syncAccounts: syncAccounts,
+          syncAccounts: syncAccounts ?? _successfulSync,
           child: const AccountsScreen(),
         ),
       );
       await tester.pumpAndSettle();
-    }
-
-    String formattedDate(WidgetTester tester, DateTime date) {
-      return MaterialLocalizations.of(
-        tester.element(find.byType(AccountsScreen)),
-      ).formatMediumDate(date.toLocal());
     }
 
     testWidgets('login_required health warns only its own bank group', (
@@ -648,76 +647,11 @@ void main() {
       expect(find.byKey(const ValueKey('connection-health-item-1')), findsNothing);
     });
 
-    testWidgets('consent deadline shows soft warning with date', (
-      tester,
-    ) async {
-      final consent = DateTime.utc(2099, 12, 1);
-      await pumpScreen(
-        tester,
-        store: _HealthStore([_health('item-1', consentExpiresAt: consent)]),
-      );
-
-      expect(
-        find.text(
-          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
-        ),
-        findsOneWidget,
-      );
-      expect(reconnectCta, findsNothing);
-    });
-
-    testWidgets('pending disconnect deadline shows soft warning with date', (
-      tester,
-    ) async {
-      final disconnect = DateTime.utc(2099, 11, 15);
+    testWidgets('future consent expiry shows no warning', (tester) async {
       await pumpScreen(
         tester,
         store: _HealthStore([
-          _health('item-1', pendingDisconnectAt: disconnect),
-        ]),
-      );
-
-      expect(
-        find.text(
-          l10n.accountsAccessExpiresWarning(formattedDate(tester, disconnect)),
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('both deadlines use the nearest one', (tester) async {
-      final consent = DateTime.utc(2099, 12, 1);
-      final disconnect = DateTime.utc(2099, 11, 15);
-      await pumpScreen(
-        tester,
-        store: _HealthStore([
-          _health(
-            'item-1',
-            consentExpiresAt: consent,
-            pendingDisconnectAt: disconnect,
-          ),
-        ]),
-      );
-
-      expect(
-        find.text(
-          l10n.accountsAccessExpiresWarning(formattedDate(tester, disconnect)),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets('past deadline shows no warning', (tester) async {
-      await pumpScreen(
-        tester,
-        store: _HealthStore([
-          _health('item-1', consentExpiresAt: DateTime.utc(2000, 1, 1)),
+          _health('item-1', consentExpiresAt: DateTime.utc(2099, 12, 1)),
         ]),
       );
 
@@ -725,30 +659,193 @@ void main() {
         find.byKey(const ValueKey('connection-health-item-1')),
         findsNothing,
       );
+      expect(extensionBody, findsNothing);
+      expect(reconnectCta, findsNothing);
     });
 
-    testWidgets('login_required takes priority over deadline warning', (
+    testWidgets('pending disconnect shows soft warning with Extend CTA', (
       tester,
     ) async {
-      final consent = DateTime.utc(2099, 12, 1);
+      final link = FakePlaidLink();
       await pumpScreen(
         tester,
         store: _HealthStore([
-          PlaidConnectionHealth(
-            connectionId: 'item-1',
+          _health(
+            'item-1',
+            consentExpiresAt: DateTime.utc(2099, 12, 1),
+            pendingDisconnectAt: DateTime.utc(2099, 11, 15),
+          ),
+          _health('item-2'),
+        ]),
+        link: link,
+      );
+
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('connection-health-item-2')),
+        findsNothing,
+      );
+      expect(extensionBody, findsOneWidget);
+      expect(extendCta, findsOneWidget);
+      expect(reconnectTitle, findsNothing);
+      expect(reconnectCta, findsNothing);
+      expect(find.textContaining('2099'), findsNothing);
+      expect(link.openedTokens, isEmpty);
+    });
+
+    testWidgets('login_required takes priority over pending disconnect', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health(
+            'item-1',
             status: PlaidConnectionStatus.loginRequired,
-            consentExpiresAt: consent,
+            pendingDisconnectAt: DateTime.utc(2099, 11, 15),
           ),
         ]),
       );
 
       expect(reconnectTitle, findsOneWidget);
-      expect(
-        find.text(
-          l10n.accountsAccessExpiresWarning(formattedDate(tester, consent)),
+      expect(reconnectCta, findsOneWidget);
+      expect(extensionBody, findsNothing);
+      expect(extendCta, findsNothing);
+    });
+
+    testWidgets('reconnect_unavailable takes priority over pending disconnect', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
+        ]),
+        functions: repairBackend(
+          createLinkToken: (_) => throw edgeError(409, 'reconnect_unavailable'),
         ),
-        findsNothing,
       );
+
+      await tester.tap(extendCta);
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
+      expect(extensionBody, findsNothing);
+      expect(extendCta, findsNothing);
+    });
+
+    testWidgets('extend access success syncs, refreshes and clears warning', (
+      tester,
+    ) async {
+      final store = _HealthStore([
+        _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
+      ]);
+      final functions = repairBackend(
+        refresh: (body) {
+          store.setStatus(
+            body['connection_id'] as String,
+            PlaidConnectionStatus.active,
+          );
+          return okResponse({'status': 'active', 'status_reason': null});
+        },
+      );
+      final link = FakePlaidLink();
+      final repository = _FakeAccountRepository(
+        accounts: twoBanks(),
+        institutions: twoInstitutions(),
+      );
+      final syncedConnectionIds = <String>[];
+
+      await pumpScreen(
+        tester,
+        store: store,
+        repository: repository,
+        functions: functions,
+        link: link,
+        syncAccounts: (connectionId) async {
+          syncedConnectionIds.add(connectionId);
+          return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1));
+        },
+      );
+      final accountLoadsBefore = repository.getAccountsCalls;
+      final healthLoadsBefore = store.loadCalls;
+
+      await tester.tap(extendCta);
+      await tester.pumpAndSettle();
+
+      expect(functions.calls.first.body['connection_id'], 'item-1');
+      expect(link.openedTokens, ['link-update-token']);
+      expect(functions.functionNames, [
+        'plaid-create-link-token',
+        'plaid-refresh-item-status',
+      ]);
+      expect(syncedConnectionIds, ['item-1']);
+      expect(repository.getAccountsCalls, accountLoadsBefore + 1);
+      expect(store.loadCalls, healthLoadsBefore + 1);
+      expect(find.text(l10n.accountsAccessExtended), findsOneWidget);
+      expect(find.text(l10n.accountsReconnectSuccess), findsNothing);
+      expect(extensionBody, findsNothing);
+      expect(extendCta, findsNothing);
+    });
+
+    testWidgets('extend access cancel keeps warning without sync or exchange', (
+      tester,
+    ) async {
+      final functions = repairBackend();
+      final syncedConnectionIds = <String>[];
+
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
+        ]),
+        functions: functions,
+        link: FakePlaidLink(result: const PlaidLinkSessionExited()),
+        syncAccounts: (connectionId) async {
+          syncedConnectionIds.add(connectionId);
+          return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1));
+        },
+      );
+
+      await tester.tap(extendCta);
+      await tester.pumpAndSettle();
+
+      expect(extensionBody, findsOneWidget);
+      expect(extendCta, findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(functions.functionNames, ['plaid-create-link-token']);
+      expect(syncedConnectionIds, isEmpty);
+    });
+
+    testWidgets('extend access shows progress and ignores a second tap', (
+      tester,
+    ) async {
+      final functions = repairBackend();
+      final link = FakePlaidLink()
+        ..pending = Completer<PlaidLinkSessionResult>();
+
+      await pumpScreen(
+        tester,
+        store: _HealthStore([
+          _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
+        ]),
+        functions: functions,
+        link: link,
+      );
+
+      await tester.tap(extendCta);
+      await tester.pump();
+      await tester.tap(find.text(l10n.accountsExtendingAccess));
+      await tester.pump();
+
+      expect(link.openedTokens, hasLength(1));
+      expect(functions.functionNames, ['plaid-create-link-token']);
+
+      link.pending!.complete(const PlaidLinkSessionExited());
+      await tester.pumpAndSettle();
     });
 
     testWidgets('reconnect confirmed active removes warning after refresh', (
@@ -771,6 +868,7 @@ void main() {
         accounts: twoBanks(),
         institutions: twoInstitutions(),
       );
+      final syncedConnectionIds = <String>[];
 
       await pumpScreen(
         tester,
@@ -778,6 +876,10 @@ void main() {
         repository: repository,
         functions: functions,
         link: link,
+        syncAccounts: (connectionId) async {
+          syncedConnectionIds.add(connectionId);
+          return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1));
+        },
       );
       final accountLoadsBefore = repository.getAccountsCalls;
 
@@ -790,9 +892,46 @@ void main() {
         'plaid-create-link-token',
         'plaid-refresh-item-status',
       ]);
+      expect(syncedConnectionIds, ['item-1']);
       expect(reconnectTitle, findsNothing);
       expect(find.text(l10n.accountsReconnectSuccess), findsOneWidget);
-      expect(repository.getAccountsCalls, greaterThan(accountLoadsBefore));
+      expect(find.text(l10n.accountsAccessExtended), findsNothing);
+      expect(repository.getAccountsCalls, accountLoadsBefore + 1);
+    });
+
+    testWidgets('post-repair sync login_required keeps repair UI', (
+      tester,
+    ) async {
+      final store = _HealthStore([
+        _health('item-1', status: PlaidConnectionStatus.loginRequired),
+      ]);
+      final link = FakePlaidLink();
+
+      await pumpScreen(
+        tester,
+        store: store,
+        functions: repairBackend(
+          refresh: (body) {
+            store.setStatus(
+              body['connection_id'] as String,
+              PlaidConnectionStatus.active,
+            );
+            return okResponse({'status': 'active', 'status_reason': null});
+          },
+        ),
+        link: link,
+        syncAccounts: (connectionId) async {
+          return const Failure(PlaidItemLoginRequiredFailure());
+        },
+      );
+
+      await tester.tap(reconnectCta);
+      await tester.pumpAndSettle();
+
+      expect(reconnectCta, findsOneWidget);
+      expect(find.text(l10n.accountsReconnectSuccess), findsNothing);
+      expect(find.text(l10n.accountsReconnectRequiredTitle), findsWidgets);
+      expect(link.openedTokens, hasLength(1));
     });
 
     testWidgets('double tap does not start a second reconnect flow', (
@@ -1022,6 +1161,12 @@ final class _TestApp extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<Result<PlaidAccountsSyncSummary>> _successfulSync(
+  String connectionId,
+) async {
+  return const Success(PlaidAccountsSyncSummary(syncedAccountCount: 1));
 }
 
 final class _HealthStore {

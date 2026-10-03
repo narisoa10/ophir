@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -17,6 +18,7 @@ import '../../../../core/theme_v1/app_typography.dart';
 import '../../../../core/widgets/app_compact_switch.dart';
 import '../../controller/account_controller.dart';
 import '../../controller/account_providers.dart';
+import '../../controller/accounts_data_refresh.dart';
 import '../../data/plaid/plaid_accounts_sync_service.dart';
 import '../../data/plaid/plaid_connect_service.dart';
 import '../../domain/entities/account.dart';
@@ -43,6 +45,37 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   final Set<String> _syncLoginRequiredConnectionIds = <String>{};
   // update mode is not possible for these Items; reconnect is not offered again.
   final Set<String> _reconnectUnavailableConnectionIds = <String>{};
+  late final AppLifecycleListener _lifecycleListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _refreshAccountsDataOnResume,
+    );
+    // No-op on the first entry: the account providers are created by build,
+    // whose initial load is the only read.
+    unawaited(ref.read(accountsDataRefreshProvider).refresh());
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener.dispose();
+    super.dispose();
+  }
+
+  // Closing native Plaid Link also resumes the app; the Link flows refresh
+  // their own state when they finish.
+  bool get _isPlaidLinkFlowActive =>
+      _isConnecting || _reconnectingConnectionIds.isNotEmpty;
+
+  void _refreshAccountsDataOnResume() {
+    if (!mounted || _isPlaidLinkFlowActive) {
+      return;
+    }
+
+    unawaited(ref.read(accountsDataRefreshProvider).refresh());
+  }
 
   Future<void> _connectBank() async {
     if (_isConnecting) {
@@ -131,6 +164,27 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     await _refreshAccountsAndHealth();
   }
 
+  /// Returns whether the post-repair accounts sync still reports
+  /// item_login_required.
+  Future<bool> _syncAndRefreshAfterRepair(String connectionId) async {
+    final result = await ref.read(plaidAccountsSyncCallbackProvider)(
+      connectionId,
+    );
+    if (!mounted) {
+      return false;
+    }
+
+    final stillLoginRequired =
+        result is Failure<PlaidAccountsSyncSummary> &&
+        result.failure is PlaidItemLoginRequiredFailure;
+    if (stillLoginRequired) {
+      setState(() => _syncLoginRequiredConnectionIds.add(connectionId));
+    }
+
+    await ref.read(accountsDataRefreshProvider).refresh();
+    return stillLoginRequired;
+  }
+
   Future<void> _refreshAccountsAndHealth() async {
     ref.invalidate(accountInstitutionsProvider);
     ref.invalidate(plaidConnectionHealthProvider);
@@ -152,7 +206,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     await _syncConnectedAccounts(connectionId);
   }
 
-  Future<void> _reconnectBankConnection(String connectionId) async {
+  Future<void> _reconnectBankConnection(
+    String connectionId, {
+    bool isAccessExtension = false,
+  }) async {
     if (_reconnectingConnectionIds.contains(connectionId) ||
         _removingConnectionIds.contains(connectionId) ||
         _reconnectUnavailableConnectionIds.contains(connectionId)) {
@@ -178,8 +235,21 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         case PlaidReconnectConfirmed(:final refresh):
           if (refresh.status == PlaidConnectionStatus.active) {
             setState(() => _syncLoginRequiredConnectionIds.remove(connectionId));
-            _showMessage(l10n.accountsReconnectSuccess);
-            await _refreshAccountsAndHealth();
+            final stillLoginRequired = await _syncAndRefreshAfterRepair(
+              connectionId,
+            );
+            if (!mounted) {
+              return;
+            }
+            if (stillLoginRequired) {
+              _showMessage(l10n.accountsReconnectRequiredTitle);
+            } else {
+              _showMessage(
+                isAccessExtension
+                    ? l10n.accountsAccessExtended
+                    : l10n.accountsReconnectSuccess,
+              );
+            }
           } else {
             ref.invalidate(plaidConnectionHealthProvider);
             _showMessage(l10n.accountsReconnectStillRequired);
@@ -348,7 +418,13 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     required AccountAdapter adapter,
   }) {
     final groups = _groupAccountsByBank(accounts);
-    final now = DateTime.now();
+    final noticesByConnectionId = {
+      for (final group in groups)
+        group.connectionId: _healthNotice(
+          group.connectionId,
+          healthByConnectionId[group.connectionId],
+        ),
+    };
 
     final children = <Widget>[
       Text(
@@ -366,18 +442,19 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             accountAdapter: adapter,
             l10n: l10n,
             isRemoving: _removingConnectionIds.contains(group.connectionId),
-            healthNotice: _healthNotice(
-              group.connectionId,
-              healthByConnectionId[group.connectionId],
-              now,
-            ),
+            healthNotice: noticesByConnectionId[group.connectionId],
             isReconnecting: _reconnectingConnectionIds.contains(
               group.connectionId,
             ),
             onToggleExpanded: () => _toggleBankGroup(group.key),
             onSync: () => _syncBankConnection(group.connectionId),
             onRemove: () => _removeBankConnection(group.connectionId),
-            onReconnect: () => _reconnectBankConnection(group.connectionId),
+            onReconnect: () => _reconnectBankConnection(
+              group.connectionId,
+              isAccessExtension:
+                  noticesByConnectionId[group.connectionId]
+                      is _AccessExtensionNotice,
+            ),
             onFinancialParticipationChanged: _setFinancialParticipation,
           ),
     ];
@@ -430,7 +507,6 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   _HealthNotice? _healthNotice(
     String connectionId,
     PlaidConnectionHealth? health,
-    DateTime now,
   ) {
     if (_reconnectUnavailableConnectionIds.contains(connectionId)) {
       return const _ReconnectUnavailableNotice();
@@ -441,9 +517,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       return const _ReconnectRequiredNotice();
     }
 
-    final deadline = health?.upcomingAccessDeadline(now);
-    if (deadline != null) {
-      return _AccessDeadlineNotice(deadline);
+    if (health?.requiresAccessExtension ?? false) {
+      return const _AccessExtensionNotice();
     }
 
     return null;
@@ -687,10 +762,8 @@ final class _ReconnectUnavailableNotice extends _HealthNotice {
   const _ReconnectUnavailableNotice();
 }
 
-final class _AccessDeadlineNotice extends _HealthNotice {
-  const _AccessDeadlineNotice(this.deadline);
-
-  final DateTime deadline;
+final class _AccessExtensionNotice extends _HealthNotice {
+  const _AccessExtensionNotice();
 }
 
 class _ConnectionHealthBanner extends StatelessWidget {
@@ -721,13 +794,22 @@ class _ConnectionHealthBanner extends StatelessWidget {
         l10n.accountsReconnectRequiredTitle,
         l10n.accountsReconnectUnavailable,
       ),
-      _AccessDeadlineNotice(:final deadline) => (
+      _AccessExtensionNotice() => (
         colors.warning,
         null,
-        l10n.accountsAccessExpiresWarning(
-          MaterialLocalizations.of(context).formatMediumDate(deadline.toLocal()),
-        ),
+        l10n.accountsAccessExtensionRequired,
       ),
+    };
+    final action = switch (notice) {
+      _ReconnectRequiredNotice() => (
+        l10n.accountsReconnectAction,
+        l10n.accountsReconnecting,
+      ),
+      _AccessExtensionNotice() => (
+        l10n.accountsExtendAccessAction,
+        l10n.accountsExtendingAccess,
+      ),
+      _ReconnectUnavailableNotice() => null,
     };
 
     return Container(
@@ -750,16 +832,12 @@ class _ConnectionHealthBanner extends StatelessWidget {
             body,
             style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
           ),
-          if (notice is _ReconnectRequiredNotice)
+          if (action case (final label, final busyLabel))
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: isReconnecting ? null : onReconnect,
-                child: Text(
-                  isReconnecting
-                      ? l10n.accountsReconnecting
-                      : l10n.accountsReconnectAction,
-                ),
+                child: Text(isReconnecting ? busyLabel : label),
               ),
             ),
         ],

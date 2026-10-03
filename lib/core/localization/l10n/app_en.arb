@@ -437,7 +437,7 @@
     "accountsFinancialExclusionDialogBody": "This account will stay connected and continue updating, but its balance and transactions won\u0027t be included in financial calculations, reports, and advice.",
     "accountsFinancialExclusionDialogCancel": "Cancel",
     "accountsFinancialExclusionDialogConfirm": "Don\u0027t include",
-    "accountsBankMenuSync": "Sync",
+    "accountsBankMenuSync": "Refresh now",
     "accountsBankMenuRemoveConnection": "Remove bank connection",
     "accountsRemoveBankConnectionDialogTitle": "Remove bank connection?",
     "accountsRemoveBankConnectionDialogBody": "The bank and all related accounts will be removed from Ophir. Syncing will stop, and you\u0027ll need to go through Plaid again to reconnect it.",
@@ -451,14 +451,10 @@
     "accountsReconnectUnavailable": "This connection can no longer be restored by reconnecting.",
     "accountsReconnectFailed": "We couldn't confirm the reconnection. Please try again.",
     "accountsConnectionNotFound": "This bank connection was not found. The list has been refreshed.",
-    "accountsAccessExpiresWarning": "Bank access will need to be confirmed by {date}.",
-    "@accountsAccessExpiresWarning": {
-        "placeholders": {
-            "date": {
-                "type": "String"
-            }
-        }
-    },
+    "accountsAccessExtensionRequired": "Your bank needs you to confirm access.",
+    "accountsExtendAccessAction": "Extend access",
+    "accountsExtendingAccess": "Extending access…",
+    "accountsAccessExtended": "Access extended.",
     "dashboardTitle":  "Dashboard",
     "dashboardWelcome":  "Welcome back.",
     "dashboardHeaderGreetingMorning":  "Good morning",

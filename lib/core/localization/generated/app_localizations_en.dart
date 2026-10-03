@@ -1357,7 +1357,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountsFinancialExclusionDialogConfirm => 'Don\'t include';
 
   @override
-  String get accountsBankMenuSync => 'Sync';
+  String get accountsBankMenuSync => 'Refresh now';
 
   @override
   String get accountsBankMenuRemoveConnection => 'Remove bank connection';
@@ -1407,9 +1407,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'This bank connection was not found. The list has been refreshed.';
 
   @override
-  String accountsAccessExpiresWarning(String date) {
-    return 'Bank access will need to be confirmed by $date.';
-  }
+  String get accountsAccessExtensionRequired =>
+      'Your bank needs you to confirm access.';
+
+  @override
+  String get accountsExtendAccessAction => 'Extend access';
+
+  @override
+  String get accountsExtendingAccess => 'Extending access…';
+
+  @override
+  String get accountsAccessExtended => 'Access extended.';
 
   @override
   String get dashboardTitle => 'Dashboard';

@@ -101,38 +101,48 @@ void main() {
     });
   });
 
-  group('upcomingAccessDeadline', () {
-    final now = DateTime.utc(2026, 10, 3);
-
-    test('uses the nearest future deadline', () {
+  group('requiresAccessExtension', () {
+    test('active with pending disconnect requires extension', () {
       final health = PlaidConnectionHealth(
         connectionId: 'item-1',
         status: PlaidConnectionStatus.active,
-        consentExpiresAt: DateTime.utc(2026, 12, 1),
         pendingDisconnectAt: DateTime.utc(2026, 11, 15),
       );
 
-      expect(health.upcomingAccessDeadline(now), DateTime.utc(2026, 11, 15));
+      expect(health.requiresAccessExtension, isTrue);
+      expect(health.requiresReconnect, isFalse);
     });
 
-    test('ignores past deadlines', () {
+    test('consent expiry alone does not require extension', () {
       final health = PlaidConnectionHealth(
         connectionId: 'item-1',
         status: PlaidConnectionStatus.active,
         consentExpiresAt: DateTime.utc(2026, 12, 1),
-        pendingDisconnectAt: DateTime.utc(2026, 9, 1),
       );
 
-      expect(health.upcomingAccessDeadline(now), DateTime.utc(2026, 12, 1));
+      expect(health.requiresAccessExtension, isFalse);
+      expect(health.consentExpiresAt, DateTime.utc(2026, 12, 1));
     });
 
-    test('returns null without deadlines', () {
+    test('login_required with pending disconnect requires reconnect only', () {
+      final health = PlaidConnectionHealth(
+        connectionId: 'item-1',
+        status: PlaidConnectionStatus.loginRequired,
+        pendingDisconnectAt: DateTime.utc(2026, 11, 15),
+      );
+
+      expect(health.requiresAccessExtension, isFalse);
+      expect(health.requiresReconnect, isTrue);
+    });
+
+    test('healthy connection requires nothing', () {
       const health = PlaidConnectionHealth(
         connectionId: 'item-1',
         status: PlaidConnectionStatus.active,
       );
 
-      expect(health.upcomingAccessDeadline(now), isNull);
+      expect(health.requiresAccessExtension, isFalse);
+      expect(health.requiresReconnect, isFalse);
     });
   });
 }

@@ -26,19 +26,10 @@ final class PlaidConnectionHealth {
 
   bool get requiresReconnect => status == PlaidConnectionStatus.loginRequired;
 
-  /// The nearest Plaid access deadline that is still ahead of [now].
-  DateTime? upcomingAccessDeadline(DateTime now) {
-    DateTime? nearest;
-    for (final deadline in [consentExpiresAt, pendingDisconnectAt]) {
-      if (deadline == null || !deadline.isAfter(now)) {
-        continue;
-      }
-      if (nearest == null || deadline.isBefore(nearest)) {
-        nearest = deadline;
-      }
-    }
-    return nearest;
-  }
+  /// Plaid announced a pending disconnect for an Item that is still healthy;
+  /// update mode extends access. [consentExpiresAt] alone never asks for it.
+  bool get requiresAccessExtension =>
+      status == PlaidConnectionStatus.active && pendingDisconnectAt != null;
 }
 
 /// Server-confirmed health returned by `plaid-refresh-item-status`.
