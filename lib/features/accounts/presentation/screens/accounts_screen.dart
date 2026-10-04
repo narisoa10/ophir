@@ -15,6 +15,7 @@ import '../../../../core/theme_v1/app_radius.dart';
 import '../../../../core/theme_v1/app_spacing.dart';
 import '../../../../core/theme_v1/app_theme_colors.dart';
 import '../../../../core/theme_v1/app_typography.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_compact_switch.dart';
 import '../../controller/account_controller.dart';
 import '../../controller/account_providers.dart';
@@ -746,7 +747,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     return ListView.separated(
       itemCount: children.length,
       separatorBuilder: (context, index) {
-        return const SizedBox(height: AppSpacing.hairline);
+        return const SizedBox(height: AppSpacing.sectionGap);
       },
       itemBuilder: (context, index) => children[index],
     );
@@ -1128,9 +1129,12 @@ class _BankAccountGroupView extends StatelessWidget {
       ]);
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: children,
+    return AppCard(
+      padding: AppSpacing.listTileInsets,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
     );
   }
 }
@@ -1271,149 +1275,144 @@ class _BankGroupHeader extends StatelessWidget {
     final name = institution?.name?.trim();
     final aggregateBalance = _aggregateBalance(group.accounts);
 
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _InstitutionLogo(logoBase64: institution?.logoBase64),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: onToggleExpanded,
-                        borderRadius: AppRadius.smRadius,
-                        child: name == null || name.isEmpty
-                            ? const SizedBox.shrink()
-                            : Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyStrong.copyWith(
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: AppDimensions.buttonMdHeight,
-                      height: AppDimensions.buttonMdHeight,
-                      child: isBusy
-                          ? const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : PopupMenuButton<_BankMenuAction>(
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(Icons.more_vert),
-                              onSelected: (action) async {
-                                switch (action) {
-                                  case _BankMenuAction.sync:
-                                    await onSync();
-                                  case _BankMenuAction.disconnect:
-                                    await onDisconnect();
-                                  case _BankMenuAction.delete:
-                                    await onDelete();
-                                }
-                              },
-                              itemBuilder: (context) {
-                                // A disconnected Item has no Plaid link left
-                                // to refresh or disconnect; only Delete remains.
-                                return [
-                                  if (!isDisconnected) ...[
-                                    PopupMenuItem(
-                                      value: _BankMenuAction.sync,
-                                      child: Text(l10n.accountsBankMenuSync),
-                                    ),
-                                    PopupMenuItem(
-                                      value: _BankMenuAction.disconnect,
-                                      child: Text(
-                                        l10n.accountsBankMenuDisconnect,
-                                      ),
-                                    ),
-                                  ],
-                                  PopupMenuItem(
-                                    value: _BankMenuAction.delete,
-                                    child: Text(
-                                      l10n.accountsBankMenuRemoveConnection,
-                                      style: AppTypography.bodyMd.copyWith(
-                                        color: colors.error,
-                                      ),
-                                    ),
-                                  ),
-                                ];
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-                if (aggregateBalance != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.hairline),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _InstitutionLogo(logoBase64: institution?.logoBase64),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
                     child: InkWell(
                       onTap: onToggleExpanded,
                       borderRadius: AppRadius.smRadius,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          aggregateBalance,
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.visible,
-                          style: AppTypography.bodyMd.copyWith(
-                            color: colors.textPrimary,
+                      child: name == null || name.isEmpty
+                          ? const SizedBox.shrink()
+                          : Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyStrong.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: AppDimensions.buttonMdHeight,
+                    height: AppDimensions.buttonMdHeight,
+                    child: isBusy
+                        ? const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : PopupMenuButton<_BankMenuAction>(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.more_vert),
+                            onSelected: (action) async {
+                              switch (action) {
+                                case _BankMenuAction.sync:
+                                  await onSync();
+                                case _BankMenuAction.disconnect:
+                                  await onDisconnect();
+                                case _BankMenuAction.delete:
+                                  await onDelete();
+                              }
+                            },
+                            itemBuilder: (context) {
+                              // A disconnected Item has no Plaid link left
+                              // to refresh or disconnect; only Delete remains.
+                              return [
+                                if (!isDisconnected) ...[
+                                  PopupMenuItem(
+                                    value: _BankMenuAction.sync,
+                                    child: Text(l10n.accountsBankMenuSync),
+                                  ),
+                                  PopupMenuItem(
+                                    value: _BankMenuAction.disconnect,
+                                    child: Text(
+                                      l10n.accountsBankMenuDisconnect,
+                                    ),
+                                  ),
+                                ],
+                                PopupMenuItem(
+                                  value: _BankMenuAction.delete,
+                                  child: Text(
+                                    l10n.accountsBankMenuRemoveConnection,
+                                    style: AppTypography.bodyMd.copyWith(
+                                      color: colors.error,
+                                    ),
+                                  ),
+                                ),
+                              ];
+                            },
                           ),
+                  ),
+                ],
+              ),
+              if (aggregateBalance != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.hairline),
+                  child: InkWell(
+                    onTap: onToggleExpanded,
+                    borderRadius: AppRadius.smRadius,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        aggregateBalance,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: AppTypography.bodyMd.copyWith(
+                          color: colors.textPrimary,
                         ),
                       ),
                     ),
                   ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: onToggleExpanded,
-                        borderRadius: AppRadius.smRadius,
-                        child: Text(
-                          l10n.accountsInstitutionAccountCount(
-                            group.accounts.length,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.bodySm.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: AppDimensions.buttonMdHeight,
-                      height: AppDimensions.buttonMdHeight,
-                      child: IconButton(
-                        onPressed: onToggleExpanded,
-                        icon: Icon(
-                          isExpanded
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          color: colors.iconSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ],
-            ),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: onToggleExpanded,
+                      borderRadius: AppRadius.smRadius,
+                      child: Text(
+                        l10n.accountsInstitutionAccountCount(
+                          group.accounts.length,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodySm.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: AppDimensions.buttonMdHeight,
+                    height: AppDimensions.buttonMdHeight,
+                    child: IconButton(
+                      onPressed: onToggleExpanded,
+                      icon: Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: colors.iconSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1463,27 +1462,29 @@ class _FinancialParticipationAccountRow extends StatelessWidget {
         ? l10n.accountsFinancialParticipationIncludedStatus
         : l10n.accountsFinancialParticipationExcludedStatus;
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: AccountListTile(
-            account: accountAdapter.toPresentation(account),
-            subtitle: _AccountsScreenState._accountSubtitle(account),
-            balance: _AccountsScreenState._displayBalance(account),
-            currencyCode: _AccountsScreenState._displayCurrency(account),
-          ),
+        AccountListTile(
+          account: accountAdapter.toPresentation(account),
+          subtitle: _AccountsScreenState._accountSubtitle(account),
+          balance: _AccountsScreenState._displayBalance(account),
+          currencyCode: _AccountsScreenState._displayCurrency(account),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text(
-              statusLabel,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
+            Flexible(
+              child: Text(
+                statusLabel,
+                textAlign: TextAlign.end,
+                style: AppTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             AppCompactSwitch(
               value: account.isIncludedInFinances,
               onChanged: (value) => onChanged(account, value),

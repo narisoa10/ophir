@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/errors/app_failure.dart';
@@ -16,7 +17,9 @@ import 'package:ophir/features/accounts/domain/entities/plaid_connection_health.
 import 'package:ophir/features/accounts/domain/enums/account_type.dart';
 import 'package:ophir/features/accounts/domain/repositories/account_repository.dart';
 import 'package:ophir/features/accounts/presentation/screens/accounts_screen.dart';
+import 'package:ophir/features/accounts/presentation/widgets/account_list_tile.dart';
 import 'package:ophir/features/accounts/presentation/widgets/accounts_empty_state.dart';
+import 'package:ophir/core/widgets/app_card.dart';
 import 'package:ophir/core/widgets/app_compact_switch.dart';
 import 'package:plaid_flutter/plaid_flutter.dart';
 
@@ -2183,6 +2186,377 @@ void main() {
       expect(exchangeBodies(functions), isEmpty);
     });
   });
+
+  group('AccountsScreen account row layout', () {
+    const identity = 'checking \u2022 \u2022\u2022\u2022\u20222755';
+
+    Account checking({
+      String id = 'account-1',
+      String name = 'Checking',
+      String? mask = '2755',
+      String plaidAccountId = 'plaid-account-1',
+    }) {
+      return _account(
+        id: id,
+        name: name,
+        plaidAccountId: plaidAccountId,
+        mask: mask,
+        plaidSubtype: 'checking',
+        currentBalance: 40000.15,
+        currencyCode: 'USD',
+      );
+    }
+
+    Future<void> pumpExpanded(
+      WidgetTester tester, {
+      required List<Account> accounts,
+      Locale locale = const Locale('fr'),
+      double width = 360,
+      double textScale = 1,
+    }) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.physicalSize = Size(width * 3, 800 * 3);
+      tester.platformDispatcher.textScaleFactorTestValue = textScale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await tester.pumpWidget(
+        _TestApp(
+          locale: locale,
+          repository: _FakeAccountRepository(
+            accounts: accounts,
+            institutions: [_institution()],
+          ),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Test Bank'));
+      await tester.pump();
+    }
+
+    void expectFullyVisible(WidgetTester tester, Finder finder, double width) {
+      expect(finder, findsOneWidget);
+      expect(
+        tester.renderObject<RenderParagraph>(finder).didExceedMaxLines,
+        isFalse,
+      );
+      final rect = tester.getRect(finder);
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(width));
+    }
+
+    Finder inRow(String text) {
+      return find.descendant(
+        of: find.byType(AccountListTile),
+        matching: find.text(text),
+      );
+    }
+
+    void expectRowReadable(
+      WidgetTester tester, {
+      required Locale locale,
+      double width = 360,
+    }) {
+      final l10n = lookupAppLocalizations(locale);
+      expectFullyVisible(tester, inRow('Checking'), width);
+      expectFullyVisible(tester, inRow(identity), width);
+      expectFullyVisible(tester, inRow('40000.15 USD'), width);
+      expectFullyVisible(
+        tester,
+        find.text(l10n.accountsFinancialParticipationIncludedStatus),
+        width,
+      );
+      expect(find.byType(AppCompactSwitch), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+
+    testWidgets('narrow FR screen shows name, subtype, mask, balance and '
+        'finance status without overflow', (tester) async {
+      await pumpExpanded(tester, accounts: [checking()]);
+
+      expectRowReadable(tester, locale: const Locale('fr'));
+      expect(find.text('Inclus dans les finances'), findsOneWidget);
+
+      final identityRect = tester.getRect(find.text(identity));
+      final statusRect = tester.getRect(find.text('Inclus dans les finances'));
+      expect(statusRect.top, greaterThanOrEqualTo(identityRect.bottom));
+    });
+
+    for (final locale in const [Locale('en'), Locale('ru')]) {
+      testWidgets('narrow ${locale.languageCode} screen keeps the account row '
+          'readable', (tester) async {
+        await pumpExpanded(tester, accounts: [checking()], locale: locale);
+
+        expectRowReadable(tester, locale: locale);
+      });
+    }
+
+    testWidgets('wide screen keeps the account row readable', (tester) async {
+      await pumpExpanded(tester, accounts: [checking()], width: 800);
+
+      expectRowReadable(tester, locale: const Locale('fr'), width: 800);
+    });
+
+    testWidgets('long account name does not hide the mask line', (
+      tester,
+    ) async {
+      const longName =
+          'Plaid Platinum Standard 1.85% Interest Money Market Account '
+          'For Long Names';
+      await pumpExpanded(tester, accounts: [checking(name: longName)]);
+
+      expect(inRow(longName), findsOneWidget);
+      expectFullyVisible(tester, inRow(identity), 360);
+      expectFullyVisible(tester, inRow('40000.15 USD'), 360);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('null mask shows subtype only without placeholder digits', (
+      tester,
+    ) async {
+      await pumpExpanded(tester, accounts: [checking(mask: null)]);
+
+      expectFullyVisible(tester, inRow('checking'), 360);
+      expect(find.textContaining('\u2022'), findsNothing);
+      expect(find.textContaining('null'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('large text scale wraps instead of overflowing', (
+      tester,
+    ) async {
+      await pumpExpanded(tester, accounts: [checking()], textScale: 2);
+
+      expectRowReadable(tester, locale: const Locale('fr'));
+      await tester.tap(find.byType(AppCompactSwitch));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('multiple accounts each keep their own readable row', (
+      tester,
+    ) async {
+      await pumpExpanded(
+        tester,
+        accounts: [
+          checking(),
+          checking(
+            id: 'account-2',
+            name: 'Savings',
+            mask: '1111',
+            plaidAccountId: 'plaid-account-2',
+          ),
+          checking(
+            id: 'account-3',
+            name: 'Credit card',
+            mask: '2000',
+            plaidAccountId: 'plaid-account-3',
+          ),
+        ],
+      );
+
+      for (final mask in ['2755', '1111', '2000']) {
+        expectFullyVisible(
+          tester,
+          inRow('checking \u2022 \u2022\u2022\u2022\u2022$mask'),
+          360,
+        );
+      }
+      expect(inRow('40000.15 USD'), findsNWidgets(3));
+      expect(find.text('Inclus dans les finances'), findsNWidgets(3));
+      expect(find.byType(AppCompactSwitch), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('AccountsScreen item cards', () {
+    const longBankName =
+        'Tartan-Dominion Bank of Canada Extended Institution Name For Tests';
+
+    List<Account> twoItemAccounts({String firstName = 'Checking'}) {
+      return [
+        _account(
+          name: firstName,
+          mask: '1062',
+          plaidSubtype: 'checking',
+          currentBalance: 40000.15,
+          currencyCode: 'USD',
+        ),
+        _account(
+          id: 'account-2',
+          name: 'Credit card',
+          plaidAccountId: 'plaid-account-2',
+          mask: '2000',
+          plaidSubtype: 'credit card',
+        ),
+        _account(
+          id: 'account-3',
+          name: 'Savings',
+          institutionId: 'institution-2',
+          plaidItemId: 'item-2',
+          plaidAccountId: 'plaid-account-3',
+          mask: '4676',
+          plaidSubtype: 'savings',
+        ),
+      ];
+    }
+
+    Future<void> pumpItems(
+      WidgetTester tester, {
+      List<Account>? accounts,
+      Locale locale = const Locale('fr'),
+      double width = 360,
+      double textScale = 1,
+      String firstBankName = 'Test Bank',
+      List<String> expand = const ['Test Bank'],
+    }) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.physicalSize = Size(width * 3, 2400 * 3);
+      tester.platformDispatcher.textScaleFactorTestValue = textScale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await tester.pumpWidget(
+        _TestApp(
+          locale: locale,
+          repository: _FakeAccountRepository(
+            accounts: accounts ?? twoItemAccounts(),
+            institutions: [
+              _institution(name: firstBankName),
+              _institution(id: 'institution-2', name: 'Second Bank'),
+            ],
+          ),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+      for (final bank in expand) {
+        await tester.tap(find.text(bank));
+        await tester.pump();
+      }
+    }
+
+    Finder cardOf(String text) {
+      return find.ancestor(of: find.text(text), matching: find.byType(AppCard));
+    }
+
+    Finder inCardOf(String header, String text) {
+      return find.descendant(of: cardOf(header), matching: find.text(text));
+    }
+
+    testWidgets('each Item renders in its own card; expanded rows stay inside '
+        'their Item card', (tester) async {
+      await pumpItems(tester);
+
+      expect(find.byType(AppCard), findsNWidgets(2));
+      expect(cardOf('Test Bank'), findsOneWidget);
+      expect(cardOf('Second Bank'), findsOneWidget);
+      expect(
+        tester.widget(cardOf('Test Bank')),
+        isNot(same(tester.widget(cardOf('Second Bank')))),
+      );
+
+      expect(inCardOf('Test Bank', 'Checking'), findsOneWidget);
+      expect(
+        inCardOf('Test Bank', 'checking \u2022 \u2022\u2022\u2022\u20221062'),
+        findsOneWidget,
+      );
+      expect(inCardOf('Test Bank', 'Credit card'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: cardOf('Test Bank'),
+          matching: find.byType(AppCompactSwitch),
+        ),
+        findsNWidgets(2),
+      );
+
+      expect(find.text('Savings'), findsNothing);
+      expect(inCardOf('Second Bank', 'Second Bank'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('next Item accounts never land in the previous Item card', (
+      tester,
+    ) async {
+      await pumpItems(tester, expand: const ['Test Bank', 'Second Bank']);
+
+      expect(inCardOf('Second Bank', 'Savings'), findsOneWidget);
+      expect(inCardOf('Test Bank', 'Savings'), findsNothing);
+      expect(inCardOf('Second Bank', 'Checking'), findsNothing);
+      expect(inCardOf('Second Bank', 'Test Bank'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('connect button stays outside every bank card', (tester) async {
+      await pumpItems(tester);
+      final l10n = lookupAppLocalizations(const Locale('fr'));
+      final button = find.widgetWithText(
+        FilledButton,
+        l10n.accountsConnectBank,
+      );
+
+      expect(button, findsOneWidget);
+      expect(
+        find.ancestor(of: button, matching: find.byType(AppCard)),
+        findsNothing,
+      );
+      expect(
+        tester.getRect(button).top,
+        greaterThanOrEqualTo(tester.getRect(find.byType(ListView)).bottom),
+      );
+    });
+
+    for (final locale in const [Locale('fr'), Locale('en'), Locale('ru')]) {
+      for (final textScale in const [1.0, 2.0]) {
+        testWidgets('${locale.languageCode} at 360dp, text scale $textScale, '
+            'long names: cards keep the account row readable', (tester) async {
+          const longAccountName =
+              'Plaid Platinum Standard 1.85% Interest Money Market Account';
+          await pumpItems(
+            tester,
+            accounts: twoItemAccounts(firstName: longAccountName),
+            locale: locale,
+            textScale: textScale,
+            firstBankName: longBankName,
+            expand: const [longBankName, 'Second Bank'],
+          );
+          final l10n = lookupAppLocalizations(locale);
+
+          for (final text in [
+            'checking \u2022 \u2022\u2022\u2022\u20221062',
+            '40000.15 USD',
+          ]) {
+            final finder = find.descendant(
+              of: find.byType(AccountListTile),
+              matching: find.text(text),
+            );
+            expect(finder, findsOneWidget);
+            expect(
+              tester.renderObject<RenderParagraph>(finder).didExceedMaxLines,
+              isFalse,
+            );
+            expect(tester.getRect(finder).right, lessThanOrEqualTo(360));
+          }
+          expect(inCardOf(longBankName, longAccountName), findsOneWidget);
+          expect(
+            find.text(l10n.accountsFinancialParticipationIncludedStatus),
+            findsNWidgets(3),
+          );
+          expect(find.byType(AppCompactSwitch), findsNWidgets(3));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    testWidgets('wide screen keeps one card per Item', (tester) async {
+      await pumpItems(tester, width: 800);
+
+      expect(find.byType(AppCard), findsNWidgets(2));
+      expect(inCardOf('Test Bank', 'Checking'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
 
 final class _TestApp extends StatelessWidget {
@@ -2194,9 +2568,11 @@ final class _TestApp extends StatelessWidget {
     this.deleteItem,
     this.healthStore,
     this.connectService,
+    this.locale,
   });
 
   final AccountRepository repository;
+  final Locale? locale;
   final Widget child;
   final PlaidAccountsSyncCallback? syncAccounts;
   final PlaidItemLifecycleCallback? disconnectItem;
@@ -2225,6 +2601,7 @@ final class _TestApp extends StatelessWidget {
           plaidItemDeleteCallbackProvider.overrideWithValue(deleteItem!),
       ],
       child: MaterialApp(
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: child,
@@ -2401,6 +2778,10 @@ Account _account({
   String plaidItemId = 'item-1',
   String plaidAccountId = 'plaid-account-1',
   bool isIncludedInFinances = true,
+  String? mask = '1234',
+  String? plaidSubtype,
+  double? currentBalance = 100,
+  String currencyCode = 'CAD',
 }) {
   final now = DateTime(2026, 7, 23);
 
@@ -2409,12 +2790,13 @@ Account _account({
     userId: 'user-1',
     name: name,
     type: AccountType.bank,
-    currencyCode: 'CAD',
+    currencyCode: currencyCode,
     institutionId: institutionId,
     plaidItemId: plaidItemId,
     plaidAccountId: plaidAccountId,
-    mask: '1234',
-    currentBalance: 100,
+    mask: mask,
+    plaidSubtype: plaidSubtype,
+    currentBalance: currentBalance,
     iconKey: 'bank',
     colorKey: 'blue',
     sortOrder: 0,

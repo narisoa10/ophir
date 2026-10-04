@@ -25,28 +25,44 @@ class AccountListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appThemeColors;
     final leading = _buildLeading(colors);
-    final trailing = _buildTrailing(colors);
+    final balanceText = _buildBalance(colors);
 
-    return ListTile(
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: AppSpacing.compactListTileInsets,
-      leading: leading,
-      title: Text(
-        account.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
+    // Identity lines and balance stack vertically so none of them competes
+    // with the others for horizontal space; the mask must stay readable.
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          account.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
+        ),
+        if (subtitle != null)
+          Text(
+            subtitle!,
+            style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
+          ),
+        if (balanceText != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          balanceText,
+        ],
+      ],
+    );
+
+    return Padding(
+      padding: AppSpacing.compactListTileInsets,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (leading != null) ...[
+            leading,
+            const SizedBox(width: AppSpacing.md),
+          ],
+          Expanded(child: details),
+        ],
       ),
-      subtitle: subtitle == null
-          ? null
-          : Text(
-              subtitle!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodySm.copyWith(color: colors.textSecondary),
-            ),
-      trailing: trailing,
     );
   }
 
@@ -75,7 +91,7 @@ class AccountListTile extends StatelessWidget {
     );
   }
 
-  Widget? _buildTrailing(AppThemeColors colors) {
+  Widget? _buildBalance(AppThemeColors colors) {
     final displayBalance = balance;
     if (displayBalance == null) {
       return null;
@@ -88,9 +104,6 @@ class AccountListTile extends StatelessWidget {
 
     return Text(
       text,
-      maxLines: 1,
-      softWrap: false,
-      overflow: TextOverflow.visible,
       style: AppTypography.bodyMd.copyWith(color: colors.textPrimary),
     );
   }
