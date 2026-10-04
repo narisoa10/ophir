@@ -9,6 +9,7 @@ import {
   readJsonObject,
 } from "../_shared/http.ts";
 import {
+  ambiguousCandidates,
   classifyLink as defaultClassifyLink,
   type ExistingAccount,
   type IncomingAccount,
@@ -25,6 +26,7 @@ const MAX_ACCOUNT_ID_LENGTH = 256;
 const MAX_NAME_LENGTH = 256;
 const MAX_MASK_LENGTH = 8;
 const MAX_TYPE_LENGTH = 256;
+const MAX_DISPLAY_CANDIDATES = 50;
 
 const blockingStatuses: ReadonlySet<string> = new Set([
   "duplicate",
@@ -92,6 +94,16 @@ type V2Request = {
 };
 
 type ExchangeRequest = LegacyRequest | V2Request;
+
+type CandidateDisplay = {
+  name: string;
+  subtype: string | null;
+  mask: string | null;
+};
+
+type AccountReview =
+  | { index: number; decision: string }
+  | { index: number; decision: "ambiguous"; candidates: CandidateDisplay[] };
 
 function readNonEmptyString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -308,6 +320,37 @@ function readNullableText(
     return null;
   }
   return typeof value === "string" ? normalizeIdentityText(value) : undefined;
+}
+
+function boundedOrNull(value: string | null, maxLength: number): string | null {
+  return value !== null && value.length <= maxLength ? value : null;
+}
+
+// Only what Ophir already shows the user for their own account. Never IDs,
+// and never anything longer than a mask in the mask field.
+function candidateDisplays(
+  incoming: IncomingAccount,
+  existing: readonly ExistingAccount[],
+): CandidateDisplay[] {
+  const displays: CandidateDisplay[] = [];
+  const seen = new Set<string>();
+  for (const candidate of ambiguousCandidates(incoming, existing)) {
+    const display: CandidateDisplay = {
+      name: boundedOrNull(candidate.name, MAX_NAME_LENGTH) ?? incoming.name,
+      subtype: boundedOrNull(candidate.subtype, MAX_TYPE_LENGTH),
+      mask: boundedOrNull(candidate.mask, MAX_MASK_LENGTH),
+    };
+    const key = JSON.stringify([display.name, display.subtype, display.mask]);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    displays.push(display);
+    if (displays.length === MAX_DISPLAY_CANDIDATES) {
+      break;
+    }
+  }
+  return displays;
 }
 
 // Existing Plaid accounts of this Plaid institution, linked through their
@@ -629,13 +672,22 @@ export function createPlaidExchangeHandler(
       }
 
       if (blockingStatuses.has(classification.status)) {
-        return jsonResponse(200, {
-          status: classification.status,
-          accounts: classification.decisions.map((decision, index) => ({
-            index,
-            decision,
-          })),
-        });
+        const accounts: AccountReview[] = [];
+        for (const [index, decision] of classification.decisions.entries()) {
+          if (decision !== "ambiguous") {
+            accounts.push({ index, decision });
+            continue;
+          }
+          const candidates = candidateDisplays(
+            exchangeRequest.selectedAccounts[index],
+            existing,
+          );
+          if (candidates.length === 0) {
+            return errorResponse(500, "duplicate_check_failed");
+          }
+          accounts.push({ index, decision, candidates });
+        }
+        return jsonResponse(200, { status: classification.status, accounts });
       }
 
       if (classification.status !== "proceed") {

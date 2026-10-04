@@ -217,6 +217,12 @@ function decisions(json: Record<string, unknown>): unknown {
   return json.accounts;
 }
 
+const storedDisplay = { name: "Checking", subtype: "checking", mask: "0000" };
+
+function ambiguousReview(index = 0, candidates: Row[] = [storedDisplay]): Row {
+  return { index, decision: "ambiguous", candidates };
+}
+
 // --- v2: NEW ---------------------------------------------------------------
 
 Deno.test("1 new account exchanges and persists", async () => {
@@ -241,9 +247,23 @@ Deno.test("3 same institution but a different account exchanges", async () => {
   assertEquals(harness.exchangeCalls, 1);
 });
 
-Deno.test("4 same name with a different non-null mask is new", async () => {
+Deno.test("4 same name with a different mask and a known type conflict is new", async () => {
+  for (const conflict of [{ type: "credit" }, { subtype: "savings" }]) {
+    const harness = createHarness(oneActiveAccount());
+    const result = await harness.send(
+      v2Body([selected({ mask: "9999", ...conflict })]),
+    );
+
+    assertEquals(result.json.connection_id, connectionId);
+    assertEquals(harness.exchangeCalls, 1);
+  }
+});
+
+Deno.test("different name and different mask is new", async () => {
   const harness = createHarness(oneActiveAccount());
-  const result = await harness.send(v2Body([selected({ mask: "9999" })]));
+  const result = await harness.send(
+    v2Body([selected({ name: "Everyday Checking", mask: "9999" })]),
+  );
 
   assertEquals(result.json.connection_id, connectionId);
   assertEquals(harness.exchangeCalls, 1);
@@ -353,9 +373,114 @@ Deno.test("6 null mask with a matching name requires confirmation", async () => 
   assertEquals(result.status, 200);
   assertJsonEquals(result.json, {
     status: "confirmation_required",
-    accounts: [{ index: 0, decision: "ambiguous" }],
+    accounts: [ambiguousReview()],
   });
   assertEquals(harness.exchangeCalls, 0);
+});
+
+Deno.test("same name with a different mask and the same types requires confirmation", async () => {
+  const harness = createHarness(oneActiveAccount());
+  const result = await harness.send(v2Body([selected({ mask: "9999" })]));
+
+  assertEquals(result.status, 200);
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [ambiguousReview()],
+  });
+  assertEquals(harness.exchangeCalls, 0);
+  assert(!harness.calls.includes("persistSandboxItem"), "nothing persisted");
+});
+
+Deno.test("same name with a different mask and unknown types requires confirmation", async () => {
+  const unknownTypes: Array<{ incoming: Row; stored: Row }> = [
+    { incoming: { type: null, subtype: null }, stored: {} },
+    { incoming: {}, stored: { plaid_type: null, plaid_subtype: null } },
+    { incoming: { subtype: null }, stored: { plaid_type: null } },
+  ];
+
+  for (const { incoming, stored } of unknownTypes) {
+    const harness = createHarness(oneActiveAccount(storedAccount(stored)));
+    const result = await harness.send(
+      v2Body([selected({ mask: "9999", ...incoming })]),
+    );
+
+    assertEquals(result.json.status, "confirmation_required");
+    assertEquals(harness.exchangeCalls, 0);
+  }
+});
+
+Deno.test("name matching official_name with a different mask requires confirmation", async () => {
+  const harness = createHarness(oneActiveAccount());
+  const result = await harness.send(
+    v2Body([selected({ name: "Gold Standard Checking", mask: "9999" })]),
+  );
+
+  assertEquals(result.json.status, "confirmation_required");
+  assertEquals(harness.exchangeCalls, 0);
+});
+
+Deno.test("different-mask match on a disconnected Item stays ambiguous", async () => {
+  const harness = createHarness({
+    institutions: [institution()],
+    items: [item("item-1", "2026-10-03T00:00:00Z")],
+    accounts: [storedAccount()],
+  });
+  const result = await harness.send(v2Body([selected({ mask: "9999" })]));
+
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [ambiguousReview()],
+  });
+  assertEquals(harness.exchangeCalls, 0);
+});
+
+Deno.test("confirmed different-mask account exchanges after a full recheck", async () => {
+  const harness = createHarness(oneActiveAccount());
+  const first = await harness.send(v2Body([selected({ mask: "9999" })]));
+  assertEquals(first.json.status, "confirmation_required");
+  assertEquals(harness.exchangeCalls, 0);
+
+  const readsBefore = harness.calls.filter((c) => c === "listItemAccounts")
+    .length;
+  const confirmed = await harness.send(
+    v2Body([selected({ mask: "9999" })], { confirm_ambiguous: true }),
+  );
+
+  assertEquals(confirmed.json.connection_id, connectionId);
+  assertEquals(harness.exchangeCalls, 1);
+  assertEquals(
+    harness.calls.filter((c) => c === "listItemAccounts").length,
+    readsBefore + 1,
+  );
+});
+
+Deno.test("confirmation is refused when a strong match appeared meanwhile", async () => {
+  const appeared = [
+    { disconnectedAt: null, status: "duplicate" },
+    { disconnectedAt: "2026-10-03T00:00:00Z", status: "disconnected_existing" },
+  ];
+
+  for (const { disconnectedAt, status } of appeared) {
+    const options: HarnessOptions = {
+      institutions: [institution()],
+      items: [item("item-1", disconnectedAt)],
+      accounts: [storedAccount({ mask: "1234" })],
+    };
+    const harness = createHarness(options);
+    const first = await harness.send(v2Body([selected({ mask: "9999" })]));
+    assertEquals(first.json.status, "confirmation_required");
+
+    options.accounts!.push(
+      storedAccount({ plaid_account_id: "stored-account-2", mask: "9999" }),
+    );
+    const confirmed = await harness.send(
+      v2Body([selected({ mask: "9999" })], { confirm_ambiguous: true }),
+    );
+
+    assertEquals(confirmed.json.status, status);
+    assertEquals(harness.exchangeCalls, 0);
+    assert(!harness.calls.includes("persistSandboxItem"), "nothing persisted");
+  }
 });
 
 Deno.test("stored null or blank mask with a matching name requires confirmation", async () => {
@@ -408,9 +533,7 @@ Deno.test("9 name and mask match with conflicting type or subtype is ambiguous",
     const harness = createHarness(oneActiveAccount());
     const result = await harness.send(v2Body([selected(conflict)]));
 
-    assertJsonEquals(decisions(result.json), [
-      { index: 0, decision: "ambiguous" },
-    ]);
+    assertJsonEquals(decisions(result.json), [ambiguousReview()]);
     assertEquals(result.json.status, "confirmation_required");
     assertEquals(harness.exchangeCalls, 0);
   }
@@ -677,6 +800,7 @@ Deno.test("25 invalid internal classification never exchanges", async () => {
     },
     () => ({ status: "bogus" as never, decisions: ["new"] }),
     () => ({ status: "proceed", decisions: [] }),
+    () => ({ status: "confirmation_required", decisions: ["ambiguous"] }),
   ];
 
   for (const classifyLink of broken) {
@@ -782,11 +906,10 @@ Deno.test("22 v1 never receives the new statuses", async () => {
 
 // --- privacy and scope ---------------------------------------------------------
 
-Deno.test("23 responses never echo account ids, names, masks or tokens", async () => {
+Deno.test("23 non-ambiguous responses never echo account ids, names, masks or tokens", async () => {
   const harness = createHarness(oneActiveAccount());
   const bodies = [
     v2Body([selected()]),
-    v2Body([selected({ mask: null })]),
     v2Body([selected({ account_id: "a" }), selected({ account_id: "b", name: "Savings" })]),
     v2Body([selected({ name: "Unrelated", mask: "4242" })]),
   ];
@@ -811,6 +934,117 @@ Deno.test("23 responses never echo account ids, names, masks or tokens", async (
       assert(!result.text.includes(secret), `response leaked ${secret}`);
     }
   }
+});
+
+Deno.test("ambiguous candidates carry only the stored display name, subtype and mask", async () => {
+  const harness = createHarness({
+    institutions: [institution()],
+    items: [item()],
+    accounts: [storedAccount({ plaid_account_id: "stored-secret-id", mask: "1234" })],
+  });
+  const result = await harness.send(
+    v2Body([selected({ account_id: "incoming-secret-id", mask: "9999" })]),
+  );
+
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [
+      ambiguousReview(0, [{ name: "Checking", subtype: "checking", mask: "1234" }]),
+    ],
+  });
+  for (
+    const secret of [
+      "stored-secret-id",
+      "incoming-secret-id",
+      "item-1",
+      "institution-1",
+      "Gold Standard",
+      "depository",
+      "9999",
+      userId,
+      publicToken,
+      accessToken,
+      plaidItemId,
+      "sandbox-secret",
+    ]
+  ) {
+    assert(!result.text.includes(secret), `response leaked ${secret}`);
+  }
+});
+
+Deno.test("a stored mask longer than a mask is never returned", async () => {
+  const harness = createHarness(
+    oneActiveAccount(storedAccount({ mask: "123456789012", plaid_subtype: null })),
+  );
+  const result = await harness.send(v2Body([selected()]));
+
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [ambiguousReview(0, [{ name: "Checking", subtype: null, mask: null }])],
+  });
+  assert(!result.text.includes("123456789012"), "long mask leaked");
+});
+
+Deno.test("several similar stored accounts are all listed once", async () => {
+  const harness = createHarness({
+    institutions: [institution("item-1"), institution("item-2", "inst-2")],
+    items: [item("item-1"), item("item-2", "2026-10-03T00:00:00Z")],
+    accounts: [
+      storedAccount({ plaid_account_id: "s-1", mask: "1111" }),
+      storedAccount({ plaid_account_id: "s-2", mask: "2222" }),
+      storedAccount({ plaid_item_id: "item-2", plaid_account_id: "s-3", mask: "1111" }),
+      storedAccount({ plaid_account_id: "s-4", name: "Savings", mask: "3333" }),
+    ],
+  });
+  const result = await harness.send(v2Body([selected({ mask: "9999" })]));
+
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [
+      ambiguousReview(0, [
+        { name: "Checking", subtype: "checking", mask: "1111" },
+        { name: "Checking", subtype: "checking", mask: "2222" },
+      ]),
+    ],
+  });
+  assertEquals(harness.exchangeCalls, 0);
+});
+
+Deno.test("the candidate list is bounded", async () => {
+  const accounts = Array.from(
+    { length: 60 },
+    (_, i) =>
+      storedAccount({
+        plaid_account_id: `s-${i}`,
+        mask: String(1000 + i),
+      }),
+  );
+  const harness = createHarness({
+    institutions: [institution()],
+    items: [item()],
+    accounts,
+  });
+  const result = await harness.send(v2Body([selected({ mask: "9999" })]));
+
+  assertEquals(result.json.status, "confirmation_required");
+  assertEquals(result.json.accounts[0].candidates.length, 50);
+  assertEquals(harness.exchangeCalls, 0);
+});
+
+Deno.test("multi-account Link keeps candidates on the matching selected account", async () => {
+  const harness = createHarness(oneActiveAccount());
+  const result = await harness.send(
+    v2Body([
+      selected({ account_id: "a", name: "Savings", mask: "1111", subtype: "savings" }),
+      selected({ account_id: "b", mask: "9999" }),
+    ]),
+  );
+
+  assertJsonEquals(result.json, {
+    status: "confirmation_required",
+    accounts: [{ index: 0, decision: "new" }, ambiguousReview(1)],
+  });
+  assertEquals(harness.exchangeCalls, 0);
 });
 
 Deno.test("24 duplicate decision touches only identity reads, never transactions", async () => {
@@ -890,6 +1124,87 @@ Deno.test("classifier: the same institution alone is never a duplicate", () => {
     ],
   );
   assertEquals(decision, "new");
+});
+
+Deno.test("classifier: mask, name and type rules", () => {
+  const stored: ExistingAccount = {
+    plaidAccountId: "stored",
+    name: "Checking",
+    officialName: "Gold Checking",
+    mask: "0000",
+    type: "depository",
+    subtype: "checking",
+    itemDisconnected: false,
+  };
+  const incoming = (overrides: Partial<IncomingAccount>): IncomingAccount => ({
+    accountId: "incoming",
+    name: "Checking",
+    mask: "0000",
+    type: "depository",
+    subtype: "checking",
+    ...overrides,
+  });
+  const cases: Array<[Partial<IncomingAccount>, ExistingAccount, AccountDecision]> = [
+    [{}, stored, "duplicate"],
+    [{ mask: "9999" }, stored, "ambiguous"],
+    [{ mask: null }, stored, "ambiguous"],
+    [{ subtype: "savings" }, stored, "ambiguous"],
+    [{ mask: "9999", subtype: "savings" }, stored, "new"],
+    [{ type: "credit" }, stored, "ambiguous"],
+    [{ mask: "9999", type: "credit" }, stored, "new"],
+    [{ name: "Everyday" }, stored, "new"],
+    [{ name: "Everyday", mask: "9999" }, stored, "new"],
+    [{ name: "Gold Checking" }, stored, "duplicate"],
+    [{ name: "Gold Checking", mask: "9999" }, stored, "ambiguous"],
+    [{ name: "CHECKING", mask: "9999" }, stored, "new"],
+    [{ mask: "9999", type: null, subtype: null }, stored, "ambiguous"],
+    [{}, { ...stored, itemDisconnected: true }, "disconnected_existing"],
+    [{ mask: "9999" }, { ...stored, itemDisconnected: true }, "ambiguous"],
+  ];
+
+  for (const [overrides, candidate, expected] of cases) {
+    assertEquals(
+      classifyAccount(incoming(overrides), [candidate]),
+      expected,
+      JSON.stringify(overrides),
+    );
+  }
+});
+
+Deno.test("classifier: a strong candidate wins over a different-mask candidate", () => {
+  const weak: ExistingAccount = {
+    plaidAccountId: "weak",
+    name: "Checking",
+    officialName: null,
+    mask: "1234",
+    type: "depository",
+    subtype: "checking",
+    itemDisconnected: false,
+  };
+  const incoming: IncomingAccount = {
+    accountId: "incoming",
+    name: "Checking",
+    mask: "0000",
+    type: "depository",
+    subtype: "checking",
+  };
+
+  assertEquals(
+    classifyAccount(incoming, [weak, { ...weak, plaidAccountId: "s", mask: "0000" }]),
+    "duplicate",
+  );
+  assertEquals(
+    classifyAccount(incoming, [
+      weak,
+      { ...weak, plaidAccountId: "s", mask: "0000", itemDisconnected: true },
+    ]),
+    "disconnected_existing",
+  );
+  assertEquals(classifyAccount(incoming, [weak]), "ambiguous");
+  assertEquals(
+    classifyAccount(incoming, [weak, { ...weak, name: "Savings", mask: "5555" }]),
+    "ambiguous",
+  );
 });
 
 Deno.test("method and auth guards are unchanged", async () => {

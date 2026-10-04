@@ -81,18 +81,16 @@ function matchCandidate(
     return "ambiguous";
   }
 
+  const typesConflict = conflicts(incoming.type, candidate.type) ||
+    conflicts(incoming.subtype, candidate.subtype);
+
+  // Plaid can report a different mask for the same account on another Item,
+  // so a differing mask alone never proves a different account.
   if (incoming.mask !== candidate.mask) {
-    return "none";
+    return typesConflict ? "none" : "ambiguous";
   }
 
-  if (
-    conflicts(incoming.type, candidate.type) ||
-    conflicts(incoming.subtype, candidate.subtype)
-  ) {
-    return "ambiguous";
-  }
-
-  return "strong";
+  return typesConflict ? "ambiguous" : "strong";
 }
 
 export function classifyAccount(
@@ -127,6 +125,17 @@ export function classifyAccount(
     return "disconnected_existing";
   }
   return ambiguous ? "ambiguous" : "new";
+}
+
+// The stored accounts that make an "ambiguous" decision, so the user can
+// compare them. Says nothing about which of them, if any, is the same account.
+export function ambiguousCandidates(
+  incoming: IncomingAccount,
+  existing: readonly ExistingAccount[],
+): ExistingAccount[] {
+  return existing.filter((candidate) =>
+    matchCandidate(incoming, candidate) === "ambiguous"
+  );
 }
 
 // Returns null for anything it cannot classify, so the caller fails closed.

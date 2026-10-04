@@ -411,6 +411,10 @@ final class PlaidConnectService {
       selected.length,
       null,
     );
+    final similar = List<List<PlaidSimilarAccount>>.filled(
+      selected.length,
+      const <PlaidSimilarAccount>[],
+    );
     for (final entry in accounts) {
       if (entry is! Map) {
         return null;
@@ -425,6 +429,16 @@ final class PlaidConnectService {
         return null;
       }
       decisions[index] = decision;
+
+      if (entry.containsKey('candidates')) {
+        final candidates = decision == PlaidLinkAccountDecision.ambiguous
+            ? _parseSimilarAccounts(entry['candidates'])
+            : null;
+        if (candidates == null) {
+          return null;
+        }
+        similar[index] = candidates;
+      }
     }
 
     return [
@@ -433,8 +447,59 @@ final class PlaidConnectService {
           name: selected[i].name,
           mask: selected[i].mask,
           decision: decisions[i]!,
+          similarAccounts: similar[i],
         ),
     ];
+  }
+
+  static const _maxSimilarAccounts = 50;
+  static const _maxDisplayTextLength = 256;
+  static const _maxMaskLength = 8;
+
+  /// Returns null for anything malformed, so the whole response fails closed.
+  static List<PlaidSimilarAccount>? _parseSimilarAccounts(Object? value) {
+    if (value is! List ||
+        value.isEmpty ||
+        value.length > _maxSimilarAccounts) {
+      return null;
+    }
+
+    final result = <PlaidSimilarAccount>[];
+    for (final candidate in value) {
+      if (candidate is! Map) {
+        return null;
+      }
+      final name = _displayText(candidate['name'], _maxDisplayTextLength);
+      final subtype = candidate['subtype'];
+      final mask = candidate['mask'];
+      if (name == null ||
+          !candidate.containsKey('subtype') ||
+          !candidate.containsKey('mask') ||
+          !_isNullOrDisplayText(subtype, _maxDisplayTextLength) ||
+          !_isNullOrDisplayText(mask, _maxMaskLength)) {
+        return null;
+      }
+      result.add(
+        PlaidSimilarAccount(
+          name: name,
+          subtype: _displayText(subtype, _maxDisplayTextLength),
+          mask: _displayText(mask, _maxMaskLength),
+        ),
+      );
+    }
+    return result;
+  }
+
+  static String? _displayText(Object? value, int maxLength) {
+    if (value is! String) {
+      return null;
+    }
+    final text = value.trim();
+    return text.isEmpty || text.length > maxLength ? null : text;
+  }
+
+  static bool _isNullOrDisplayText(Object? value, int maxLength) {
+    return value == null || _displayText(value, maxLength) != null;
   }
 
   static PlaidLinkAccountDecision? _parseAccountDecision(Object? value) {
@@ -622,9 +687,27 @@ final class PlaidLinkAccountReview {
     required this.name,
     required this.mask,
     required this.decision,
+    this.similarAccounts = const <PlaidSimilarAccount>[],
   });
 
   final String name;
   final String? mask;
   final PlaidLinkAccountDecision decision;
+
+  /// Accounts already in Ophir that look like this one. Shown so the user can
+  /// compare; they do not prove that either account is the same.
+  final List<PlaidSimilarAccount> similarAccounts;
+}
+
+/// Display fields of the user's own stored account, as Ophir already shows it.
+final class PlaidSimilarAccount {
+  const PlaidSimilarAccount({
+    required this.name,
+    required this.subtype,
+    required this.mask,
+  });
+
+  final String name;
+  final String? subtype;
+  final String? mask;
 }

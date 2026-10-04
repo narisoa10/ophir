@@ -2570,7 +2570,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsPartialDuplicateDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only them.'**
+  /// **'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only the new ones.'**
   String get accountsPartialDuplicateDialogBody;
 
   /// No description provided for @accountsPartialDuplicateDialogSelectAgain.
@@ -2588,26 +2588,56 @@ abstract class AppLocalizations {
   /// No description provided for @accountsAmbiguousConnectionDialogTitle.
   ///
   /// In en, this message translates to:
-  /// **'Is this a different account?'**
+  /// **'This account may already be connected'**
   String get accountsAmbiguousConnectionDialogTitle;
 
   /// No description provided for @accountsAmbiguousConnectionDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'We can\'t tell for sure whether this account is already connected. If it\'s a different account, you can connect it. If it\'s the same one, its transactions will appear twice.'**
-  String get accountsAmbiguousConnectionDialogBody;
+  /// **'{count, plural, =1{We found a similar bank account in Ophir.} other{We found similar bank accounts in Ophir.}}'**
+  String accountsAmbiguousConnectionDialogBody(int count);
+
+  /// No description provided for @accountsAmbiguousConnectionDialogConnectingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re connecting'**
+  String get accountsAmbiguousConnectionDialogConnectingLabel;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogExistingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Already in Ophir'**
+  String get accountsAmbiguousConnectionDialogExistingLabel;
+
+  /// No description provided for @accountsAmbiguousConnectionDialogMoreCandidates.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{and 1 more similar account} other{and {count} more similar accounts}}'**
+  String accountsAmbiguousConnectionDialogMoreCandidates(int count);
+
+  /// No description provided for @accountsAmbiguousConnectionDialogCheckDigitsQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Check the last digits of the account. Is it the same account you\'re connecting now?} other{Check the last digits of these accounts. Is one of them the account you\'re connecting now?}}'**
+  String accountsAmbiguousConnectionDialogCheckDigitsQuestion(int count);
+
+  /// No description provided for @accountsAmbiguousConnectionDialogQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Is it the same account you\'re connecting now?} other{Is one of them the account you\'re connecting now?}}'**
+  String accountsAmbiguousConnectionDialogQuestion(int count);
+
+  /// No description provided for @accountsAmbiguousConnectionDialogAlreadyConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, it\'s already connected'**
+  String get accountsAmbiguousConnectionDialogAlreadyConnected;
 
   /// No description provided for @accountsAmbiguousConnectionDialogConfirm.
   ///
   /// In en, this message translates to:
-  /// **'It\'s a different account'**
+  /// **'No, it\'s a different account'**
   String get accountsAmbiguousConnectionDialogConfirm;
-
-  /// No description provided for @accountsAmbiguousConnectionDialogCancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get accountsAmbiguousConnectionDialogCancel;
 
   /// No description provided for @accountsDisconnectedExistingDialogTitle.
   ///

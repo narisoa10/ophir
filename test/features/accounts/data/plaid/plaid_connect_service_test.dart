@@ -563,6 +563,117 @@ void main() {
       }
     });
 
+    test('similar accounts stay attached to their selected account', () async {
+      final outcome = await connectWith(
+        backend(
+          (_) => okResponse({
+            'status': 'confirmation_required',
+            'accounts': [
+              {'index': 0, 'decision': 'new'},
+              {
+                'index': 1,
+                'decision': 'ambiguous',
+                'candidates': [
+                  {'name': ' Savings ', 'subtype': 'savings', 'mask': '5678'},
+                  {'name': 'Savings', 'subtype': null, 'mask': null},
+                ],
+              },
+            ],
+          }),
+        ),
+        accounts: [account(), account(id: 'b', name: 'Savings')],
+      );
+
+      final accounts = (outcome as PlaidConnectConfirmationRequired).accounts;
+      expect(accounts.first.similarAccounts, isEmpty);
+      final similar = accounts.last.similarAccounts;
+      expect(similar.map((s) => s.name), ['Savings', 'Savings']);
+      expect(similar.map((s) => s.subtype), ['savings', null]);
+      expect(similar.map((s) => s.mask), ['5678', null]);
+    });
+
+    test('ambiguous without similar accounts still needs confirmation', () async {
+      final functions = backend(
+        (_) => okResponse({
+          'status': 'confirmation_required',
+          'accounts': [
+            {'index': 0, 'decision': 'ambiguous'},
+          ],
+        }),
+      );
+      final service = fakeConnectService(functions, FakePlaidLink());
+
+      final outcome = await service.connect(locale: 'en-CA');
+
+      final accounts = (outcome as PlaidConnectConfirmationRequired).accounts;
+      expect(accounts.single.similarAccounts, isEmpty);
+      expect(exchangeBodies(functions), hasLength(1));
+    });
+
+    test('malformed similar accounts fail closed', () async {
+      const valid = {'name': 'Checking', 'subtype': 'checking', 'mask': '1234'};
+      final malformedCandidates = <Object?>[
+        null,
+        'Checking',
+        <Object?>[],
+        List.filled(51, valid),
+        [
+          {'subtype': 'checking', 'mask': '1234'},
+        ],
+        [
+          {'name': '  ', 'subtype': 'checking', 'mask': '1234'},
+        ],
+        [
+          {'name': 'x' * 257, 'subtype': 'checking', 'mask': '1234'},
+        ],
+        [
+          {'name': 'Checking', 'mask': '1234'},
+        ],
+        [
+          {'name': 'Checking', 'subtype': 'checking'},
+        ],
+        [
+          {'name': 'Checking', 'subtype': 7, 'mask': '1234'},
+        ],
+        [
+          {'name': 'Checking', 'subtype': 'checking', 'mask': 1234},
+        ],
+        [
+          {'name': 'Checking', 'subtype': 'checking', 'mask': ' '},
+        ],
+        [
+          {'name': 'Checking', 'subtype': 'checking', 'mask': '123456789'},
+        ],
+        ['not-a-map'],
+      ];
+      final responses = <Map<String, dynamic>>[
+        for (final candidates in malformedCandidates)
+          {
+            'status': 'confirmation_required',
+            'accounts': [
+              {'index': 0, 'decision': 'ambiguous', 'candidates': candidates},
+            ],
+          },
+        {
+          'status': 'duplicate',
+          'accounts': [
+            {
+              'index': 0,
+              'decision': 'duplicate',
+              'candidates': [valid],
+            },
+          ],
+        },
+      ];
+
+      for (final data in responses) {
+        final outcome = await connectWith(backend((_) => okResponse(data)));
+
+        expect(outcome, isA<PlaidConnectFailed>(), reason: '$data');
+        expect((outcome as PlaidConnectFailed).failure, isA<UnknownFailure>());
+      }
+    });
+
     test(
       'server rejection and check failure are failures, not duplicates',
       () async {

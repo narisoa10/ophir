@@ -143,8 +143,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         :final accounts,
         :final pendingLink,
       ):
-        final confirmed = await _showAmbiguousAccountsDialog(accounts);
-        if (!confirmed || !mounted) {
+        final choice = await _showAmbiguousAccountsDialog(accounts);
+        if (choice != _AmbiguousAccountChoice.differentAccount || !mounted) {
           return false;
         }
         final confirmedOutcome = await service.confirmAmbiguous(pendingLink);
@@ -226,38 +226,67 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     return selectAgain ?? false;
   }
 
-  Future<bool> _showAmbiguousAccountsDialog(
+  /// Returns null when the dialog is dismissed: nothing is connected.
+  Future<_AmbiguousAccountChoice?> _showAmbiguousAccountsDialog(
     List<PlaidLinkAccountReview> accounts,
-  ) async {
+  ) {
     final l10n = AppLocalizations.of(context);
     final ambiguous = [
       for (final account in accounts)
         if (account.decision == PlaidLinkAccountDecision.ambiguous) account,
     ];
-    final confirmed = await showDialog<bool>(
+    final similarCount = ambiguous.fold<int>(
+      0,
+      (count, account) => count + account.similarAccounts.length,
+    );
+    final count = similarCount > 0 ? similarCount : 1;
+    final anyMask = ambiguous.any(
+      (account) =>
+          account.mask != null &&
+          account.similarAccounts.any((similar) => similar.mask != null),
+    );
+
+    return showDialog<_AmbiguousAccountChoice>(
       context: context,
       builder: (dialogContext) {
+        void choose(_AmbiguousAccountChoice choice) {
+          Navigator.of(dialogContext).pop(choice);
+        }
+
         return AlertDialog(
           title: Text(l10n.accountsAmbiguousConnectionDialogTitle),
-          content: _linkReviewContent(
-            l10n,
-            l10n.accountsAmbiguousConnectionDialogBody,
-            ambiguous,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.accountsAmbiguousConnectionDialogBody(count)),
+                for (final account in ambiguous)
+                  _AmbiguousAccountComparison(account: account),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  anyMask
+                      ? l10n.accountsAmbiguousConnectionDialogCheckDigitsQuestion(
+                          count,
+                        )
+                      : l10n.accountsAmbiguousConnectionDialogQuestion(count),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(l10n.accountsAmbiguousConnectionDialogCancel),
+              onPressed: () => choose(_AmbiguousAccountChoice.alreadyConnected),
+              child: Text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
             ),
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
+              onPressed: () => choose(_AmbiguousAccountChoice.differentAccount),
               child: Text(l10n.accountsAmbiguousConnectionDialogConfirm),
             ),
           ],
         );
       },
     );
-    return confirmed ?? false;
   }
 
   Future<void> _showDisconnectedExistingDialog(
@@ -892,13 +921,18 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 
   static String? _accountSubtitle(Account account) {
+    return _identityDetails(
+      account.plaidSubtype?.trim() ?? account.plaidType?.trim(),
+      account.mask?.trim(),
+    );
+  }
+
+  static String? _identityDetails(String? type, String? mask) {
     final parts = <String>[];
-    final type = account.plaidSubtype?.trim() ?? account.plaidType?.trim();
     if (type != null && type.isNotEmpty) {
       parts.add(type);
     }
 
-    final mask = account.mask?.trim();
     if (mask != null && mask.isNotEmpty) {
       parts.add('\u2022\u2022\u2022\u2022$mask');
     }
@@ -920,6 +954,90 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 }
 
 enum _BankMenuAction { sync, disconnect, delete }
+
+enum _AmbiguousAccountChoice { alreadyConnected, differentAccount }
+
+/// The account selected in Link next to the similar accounts already in
+/// Ophir. Lines wrap instead of truncating so the last digits stay visible.
+class _AmbiguousAccountComparison extends StatelessWidget {
+  const _AmbiguousAccountComparison({required this.account});
+
+  static const _maxShownSimilarAccounts = 3;
+
+  final PlaidLinkAccountReview account;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final labelStyle = AppTypography.bodySm.copyWith(
+      color: context.appThemeColors.textSecondary,
+    );
+    final similar = account.similarAccounts;
+    final shown = similar.take(_maxShownSimilarAccounts).toList();
+    final hidden = similar.length - shown.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.accountsAmbiguousConnectionDialogConnectingLabel,
+            style: labelStyle,
+          ),
+          Text(_AccountsScreenState._linkReviewLine(l10n, account)),
+          if (shown.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              l10n.accountsAmbiguousConnectionDialogExistingLabel,
+              style: labelStyle,
+            ),
+            for (final candidate in shown)
+              _SimilarAccountLines(candidate: candidate, detailStyle: labelStyle),
+            if (hidden > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  l10n.accountsAmbiguousConnectionDialogMoreCandidates(hidden),
+                  style: labelStyle,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarAccountLines extends StatelessWidget {
+  const _SimilarAccountLines({
+    required this.candidate,
+    required this.detailStyle,
+  });
+
+  final PlaidSimilarAccount candidate;
+  final TextStyle detailStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = _AccountsScreenState._identityDetails(
+      candidate.subtype,
+      candidate.mask,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(candidate.name),
+          if (details != null) Text(details, style: detailStyle),
+        ],
+      ),
+    );
+  }
+}
 
 final class _BankAccountGroup {
   const _BankAccountGroup({

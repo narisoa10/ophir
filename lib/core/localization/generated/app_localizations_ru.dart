@@ -1361,21 +1361,82 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accountsPartialDuplicateDialogClose => 'Закрыть';
 
   @override
-  String get accountsAmbiguousConnectionDialogTitle => 'Это другой счёт?';
+  String get accountsAmbiguousConnectionDialogTitle =>
+      'Возможно, этот счёт уже подключён';
 
   @override
-  String get accountsAmbiguousConnectionDialogBody =>
-      'Не удалось точно определить, подключён ли уже этот счёт. Если это другой счёт, его можно подключить. Если тот же — его операции появятся дважды.';
+  String accountsAmbiguousConnectionDialogBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'В Ophir найдены похожие банковские счета.',
+      many: 'В Ophir найдены похожие банковские счета.',
+      few: 'В Ophir найдены похожие банковские счета.',
+      one: 'В Ophir найден похожий банковский счёт.',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get accountsAmbiguousConnectionDialogConfirm => 'Это другой счёт';
+  String get accountsAmbiguousConnectionDialogConnectingLabel =>
+      'Вы подключаете';
 
   @override
-  String get accountsAmbiguousConnectionDialogCancel => 'Отмена';
+  String get accountsAmbiguousConnectionDialogExistingLabel => 'Уже в Ophir';
+
+  @override
+  String accountsAmbiguousConnectionDialogMoreCandidates(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'и ещё $count похожих счёта',
+      many: 'и ещё $count похожих счетов',
+      few: 'и ещё $count похожих счёта',
+      one: 'и ещё $count похожий счёт',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogCheckDigitsQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?',
+      many:
+          'Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?',
+      few:
+          'Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?',
+      one:
+          'Проверьте последние цифры счёта. Это тот же счёт, который вы сейчас подключаете?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Есть ли среди них счёт, который вы сейчас подключаете?',
+      many: 'Есть ли среди них счёт, который вы сейчас подключаете?',
+      few: 'Есть ли среди них счёт, который вы сейчас подключаете?',
+      one: 'Это тот же счёт, который вы сейчас подключаете?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsAmbiguousConnectionDialogAlreadyConnected =>
+      'Да, уже подключён';
+
+  @override
+  String get accountsAmbiguousConnectionDialogConfirm => 'Нет, это другой счёт';
 
   @override
   String get accountsDisconnectedExistingDialogTitle =>
-      'Подключение было отключено';
+      'Банк этого счёта отключён';
 
   @override
   String get accountsDisconnectedExistingDialogBody =>

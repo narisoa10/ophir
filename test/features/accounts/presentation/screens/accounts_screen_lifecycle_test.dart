@@ -250,7 +250,9 @@ void main() {
       await backgroundAndResume(tester);
       expect(reads(), before);
 
-      await tester.tap(find.text(l10n.accountsAmbiguousConnectionDialogCancel));
+      await tester.tap(
+        find.text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
+      );
       await tester.pumpAndSettle();
 
       expect(reads(), before);

@@ -427,11 +427,44 @@
     "accountsPartialDuplicateDialogBody": "Эти выбранные счета уже есть в Ophir, поэтому ничего не добавлено. Чтобы подключить новые счета, выберите снова и отметьте только их.",
     "accountsPartialDuplicateDialogSelectAgain": "Выбрать снова",
     "accountsPartialDuplicateDialogClose": "Закрыть",
-    "accountsAmbiguousConnectionDialogTitle": "Это другой счёт?",
-    "accountsAmbiguousConnectionDialogBody": "Не удалось точно определить, подключён ли уже этот счёт. Если это другой счёт, его можно подключить. Если тот же — его операции появятся дважды.",
-    "accountsAmbiguousConnectionDialogConfirm": "Это другой счёт",
-    "accountsAmbiguousConnectionDialogCancel": "Отмена",
-    "accountsDisconnectedExistingDialogTitle": "Подключение было отключено",
+    "accountsAmbiguousConnectionDialogTitle": "Возможно, этот счёт уже подключён",
+    "accountsAmbiguousConnectionDialogBody": "{count, plural, one{В Ophir найден похожий банковский счёт.} few{В Ophir найдены похожие банковские счета.} many{В Ophir найдены похожие банковские счета.} other{В Ophir найдены похожие банковские счета.}}",
+    "@accountsAmbiguousConnectionDialogBody": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogConnectingLabel": "Вы подключаете",
+    "accountsAmbiguousConnectionDialogExistingLabel": "Уже в Ophir",
+    "accountsAmbiguousConnectionDialogMoreCandidates": "{count, plural, one{и ещё {count} похожий счёт} few{и ещё {count} похожих счёта} many{и ещё {count} похожих счетов} other{и ещё {count} похожих счёта}}",
+    "@accountsAmbiguousConnectionDialogMoreCandidates": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogCheckDigitsQuestion": "{count, plural, one{Проверьте последние цифры счёта. Это тот же счёт, который вы сейчас подключаете?} few{Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?} many{Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?} other{Проверьте последние цифры счетов. Есть ли среди них счёт, который вы сейчас подключаете?}}",
+    "@accountsAmbiguousConnectionDialogCheckDigitsQuestion": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogQuestion": "{count, plural, one{Это тот же счёт, который вы сейчас подключаете?} few{Есть ли среди них счёт, который вы сейчас подключаете?} many{Есть ли среди них счёт, который вы сейчас подключаете?} other{Есть ли среди них счёт, который вы сейчас подключаете?}}",
+    "@accountsAmbiguousConnectionDialogQuestion": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogAlreadyConnected": "Да, уже подключён",
+    "accountsAmbiguousConnectionDialogConfirm": "Нет, это другой счёт",
+    "accountsDisconnectedExistingDialogTitle": "Банк этого счёта отключён",
     "accountsDisconnectedExistingDialogBody": "Этот счёт уже есть в Ophir, но связь с банком была отключена. Чтобы подключить его снова, сначала удалите отключённое подключение. При удалении его сохранённая история тоже будет удалена.",
     "accountsDisconnectedExistingDialogAction": "Понятно",
     "accountsLinkAccountDisconnectedLabel": "отключено",

@@ -1601,6 +1601,26 @@ void main() {
       };
     }
 
+    const storedChecking = <String, Object?>{
+      'name': 'Checking',
+      'subtype': 'checking',
+      'mask': '1234',
+    };
+
+    Map<String, dynamic> ambiguousBody([
+      List<List<Map<String, Object?>>> candidates = const [
+        [storedChecking],
+      ],
+    ]) {
+      return {
+        'status': 'confirmation_required',
+        'accounts': [
+          for (var i = 0; i < candidates.length; i++)
+            {'index': i, 'decision': 'ambiguous', 'candidates': candidates[i]},
+        ],
+      };
+    }
+
     testWidgets('duplicate shows the already connected dialog', (tester) async {
       final functions = backend(
         (_) => okResponse(decisionBody('duplicate', ['duplicate'])),
@@ -1713,30 +1733,236 @@ void main() {
       expect(synced, ['item-new']);
     });
 
-    testWidgets('ambiguous confirm resends once with confirm_ambiguous', (
+    testWidgets('ambiguous dialog shows the similar account already in Ophir', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final functions = backend((_) => okResponse(ambiguousBody()));
+      await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      for (final text in [
+        l10n.accountsAmbiguousConnectionDialogTitle,
+        l10n.accountsAmbiguousConnectionDialogBody(1),
+        l10n.accountsAmbiguousConnectionDialogConnectingLabel,
+        'Checking \u2022\u2022\u2022\u20220000',
+        l10n.accountsAmbiguousConnectionDialogExistingLabel,
+        'Checking',
+        'checking \u2022 \u2022\u2022\u2022\u20221234',
+        l10n.accountsAmbiguousConnectionDialogCheckDigitsQuestion(1),
+        l10n.accountsAmbiguousConnectionDialogAlreadyConnected,
+        l10n.accountsAmbiguousConnectionDialogConfirm,
+      ]) {
+        expect(find.text(text), findsOneWidget, reason: text);
+      }
+      expect(find.byType(TextButton), findsNWidgets(2));
+      final digits = tester.widget<Text>(
+        find.text('checking \u2022 \u2022\u2022\u2022\u20221234'),
+      );
+      expect(digits.maxLines, isNull);
+      expect(digits.overflow, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('similar account without a mask shows no placeholder digits', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => okResponse(
+          ambiguousBody([
+            [
+              {'name': 'Checking', 'subtype': null, 'mask': null},
+            ],
+          ]),
+        ),
+      );
+      final noMask = LinkAccount(
+        id: 'plaid-account-1',
+        mask: null,
+        name: 'Checking',
+        type: 'depository',
+        subtype: 'checking',
+        verificationStatus: null,
+      );
+      await pumpConnect(tester, functions: functions, accounts: [noMask]);
+
+      await tapConnect(tester);
+
+      expect(find.text('Checking'), findsNWidgets(2));
+      expect(find.textContaining('\u2022'), findsNothing);
+      expect(find.textContaining('null'), findsNothing);
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogQuestion(1)),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogCheckDigitsQuestion(1)),
+        findsNothing,
+      );
+    });
+
+    for (final (label, incomingMask, storedMask) in [
+      ('selected account', null, '5678'),
+      ('similar account', '1234', null),
+    ]) {
+      testWidgets('without a mask on the $label the question skips digits', (
+        tester,
+      ) async {
+        final functions = backend(
+          (_) => okResponse(
+            ambiguousBody([
+              [
+                {'name': 'Checking', 'subtype': 'checking', 'mask': storedMask},
+              ],
+            ]),
+          ),
+        );
+        final selected = LinkAccount(
+          id: 'plaid-account-1',
+          mask: incomingMask,
+          name: 'Checking',
+          type: 'depository',
+          subtype: 'checking',
+          verificationStatus: null,
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          accounts: [selected],
+        );
+
+        await tapConnect(tester);
+
+        expect(
+          find.text(l10n.accountsAmbiguousConnectionDialogTitle),
+          findsOneWidget,
+        );
+        if (incomingMask == null) {
+          expect(find.text('Checking'), findsNWidgets(2));
+        } else {
+          expect(
+            find.text('Checking \u2022\u2022\u2022\u2022$incomingMask'),
+            findsOneWidget,
+          );
+        }
+        expect(
+          find.text(
+            storedMask == null
+                ? 'checking'
+                : 'checking \u2022 \u2022\u2022\u2022\u2022$storedMask',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('null'), findsNothing);
+        expect(
+          find.text(l10n.accountsAmbiguousConnectionDialogQuestion(1)),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            l10n.accountsAmbiguousConnectionDialogCheckDigitsQuestion(1),
+          ),
+          findsNothing,
+        );
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(exchangeBodies(functions).single['confirm_ambiguous'], isFalse);
+        expect(synced, isEmpty);
+      });
+    }
+
+    testWidgets('several similar accounts are listed without picking one', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => okResponse(
+          ambiguousBody([
+            [
+              for (final mask in ['1111', '2222', '3333', '4444'])
+                {'name': 'Checking', 'subtype': 'checking', 'mask': mask},
+            ],
+          ]),
+        ),
+      );
+      await pumpConnect(tester, functions: functions);
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogBody(4)),
+        findsOneWidget,
+      );
+      for (final mask in ['1111', '2222', '3333']) {
+        expect(
+          find.text('checking \u2022 \u2022\u2022\u2022\u2022$mask'),
+          findsOneWidget,
+        );
+      }
+      expect(find.textContaining('4444'), findsNothing);
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogMoreCandidates(1)),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogCheckDigitsQuestion(4)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('each selected account is shown with its own similar account', (
+      tester,
+    ) async {
+      final functions = backend(
+        (_) => okResponse(
+          ambiguousBody([
+            [storedChecking],
+            [
+              {'name': 'Savings', 'subtype': 'savings', 'mask': '5678'},
+            ],
+          ]),
+        ),
+      );
+      await pumpConnect(
+        tester,
+        functions: functions,
+        accounts: [checking, savings],
+      );
+
+      await tapConnect(tester);
+
+      expect(
+        find.text(l10n.accountsAmbiguousConnectionDialogConnectingLabel),
+        findsNWidgets(2),
+      );
+      final checkingTop = tester.getTopLeft(
+        find.text('Checking \u2022\u2022\u2022\u20220000'),
+      );
+      final storedCheckingTop = tester.getTopLeft(
+        find.text('checking \u2022 \u2022\u2022\u2022\u20221234'),
+      );
+      final savingsTop = tester.getTopLeft(
+        find.text('Savings \u2022\u2022\u2022\u20221111'),
+      );
+      final storedSavingsTop = tester.getTopLeft(
+        find.text('savings \u2022 \u2022\u2022\u2022\u20225678'),
+      );
+      expect(checkingTop.dy, lessThan(storedCheckingTop.dy));
+      expect(storedCheckingTop.dy, lessThan(savingsTop.dy));
+      expect(savingsTop.dy, lessThan(storedSavingsTop.dy));
+    });
+
+    testWidgets('different account resends once with confirm_ambiguous', (
       tester,
     ) async {
       final functions = backend((body) {
         if (body['confirm_ambiguous'] == true) {
           return okResponse({'connection_id': 'item-new'});
         }
-        return okResponse(decisionBody('confirmation_required', ['ambiguous']));
+        return okResponse(ambiguousBody());
       });
       final link = FakePlaidLink(
-        result: PlaidLinkSessionSucceeded(
-          linkSuccess(
-            accounts: [
-              LinkAccount(
-                id: 'plaid-account-1',
-                mask: null,
-                name: 'Checking',
-                type: 'depository',
-                subtype: 'checking',
-                verificationStatus: null,
-              ),
-            ],
-          ),
-        ),
+        result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
       );
       final synced = await pumpConnect(
         tester,
@@ -1745,13 +1971,6 @@ void main() {
       );
 
       await tapConnect(tester);
-
-      expect(
-        find.text(l10n.accountsAmbiguousConnectionDialogTitle),
-        findsOneWidget,
-      );
-      expect(find.text('Checking'), findsOneWidget);
-
       await tester.tap(
         find.text(l10n.accountsAmbiguousConnectionDialogConfirm),
       );
@@ -1764,21 +1983,83 @@ void main() {
       expect(synced, ['item-new']);
     });
 
-    testWidgets('ambiguous cancel exchanges nothing more', (tester) async {
-      final functions = backend(
-        (_) => okResponse(decisionBody('confirmation_required', ['ambiguous'])),
-      );
-      final synced = await pumpConnect(tester, functions: functions);
+    final closeWithoutConnecting = <String, Future<void> Function(WidgetTester)>{
+      'already connected': (tester) => tester.tap(
+        find.text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
+      ),
+      'tap outside': (tester) => tester.tapAt(const Offset(4, 4)),
+      'back': (tester) => tester.binding.handlePopRoute(),
+    };
+    for (final MapEntry(key: label, value: close)
+        in closeWithoutConnecting.entries) {
+      testWidgets('$label closes the flow without connecting', (tester) async {
+        final functions = backend((_) => okResponse(ambiguousBody()));
+        final link = FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          link: link,
+        );
 
-      await tapConnect(tester);
-      await tester.tap(find.text(l10n.accountsAmbiguousConnectionDialogCancel));
-      await tester.pumpAndSettle();
+        await tapConnect(tester);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await close(tester);
+        await tester.pumpAndSettle();
 
-      expect(exchangeBodies(functions), hasLength(1));
-      expect(exchangeBodies(functions).single['confirm_ambiguous'], isFalse);
-      expect(synced, isEmpty);
-      expect(connectButton, findsOneWidget);
-    });
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(exchangeBodies(functions).single['confirm_ambiguous'], isFalse);
+        expect(link.openedTokens, hasLength(1));
+        expect(synced, isEmpty);
+        expect(find.byType(SnackBar), findsNothing);
+        expect(connectButton, findsOneWidget);
+      });
+    }
+
+    for (final (status, title) in [
+      ('duplicate', l10n.accountsDuplicateConnectionDialogTitle),
+      (
+        'disconnected_existing',
+        l10n.accountsDisconnectedExistingDialogTitle,
+      ),
+    ]) {
+      testWidgets('different account rechecked as $status is blocked', (
+        tester,
+      ) async {
+        final functions = backend((body) {
+          if (body['confirm_ambiguous'] == true) {
+            return okResponse(decisionBody(status, [status]));
+          }
+          return okResponse(ambiguousBody());
+        });
+        final link = FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          link: link,
+        );
+
+        await tapConnect(tester);
+        await tester.tap(
+          find.text(l10n.accountsAmbiguousConnectionDialogConfirm),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text(title), findsOneWidget);
+        expect(
+          find.text(l10n.accountsAmbiguousConnectionDialogConfirm),
+          findsNothing,
+        );
+        expect(exchangeBodies(functions), hasLength(2));
+        expect(link.openedTokens, hasLength(1));
+        expect(synced, isEmpty);
+      });
+    }
 
     testWidgets('disconnected existing explains that deletion comes first', (
       tester,

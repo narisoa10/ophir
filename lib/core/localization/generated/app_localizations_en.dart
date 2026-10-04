@@ -1330,7 +1330,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsPartialDuplicateDialogBody =>
-      'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only them.';
+      'These selected accounts are already in Ophir, so nothing was added. To connect your new accounts, choose again and select only the new ones.';
 
   @override
   String get accountsPartialDuplicateDialogSelectAgain => 'Choose again';
@@ -1340,18 +1340,69 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsAmbiguousConnectionDialogTitle =>
-      'Is this a different account?';
+      'This account may already be connected';
 
   @override
-  String get accountsAmbiguousConnectionDialogBody =>
-      'We can\'t tell for sure whether this account is already connected. If it\'s a different account, you can connect it. If it\'s the same one, its transactions will appear twice.';
+  String accountsAmbiguousConnectionDialogBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'We found similar bank accounts in Ophir.',
+      one: 'We found a similar bank account in Ophir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsAmbiguousConnectionDialogConnectingLabel =>
+      'You\'re connecting';
+
+  @override
+  String get accountsAmbiguousConnectionDialogExistingLabel =>
+      'Already in Ophir';
+
+  @override
+  String accountsAmbiguousConnectionDialogMoreCandidates(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'and $count more similar accounts',
+      one: 'and 1 more similar account',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogCheckDigitsQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Check the last digits of these accounts. Is one of them the account you\'re connecting now?',
+      one:
+          'Check the last digits of the account. Is it the same account you\'re connecting now?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Is one of them the account you\'re connecting now?',
+      one: 'Is it the same account you\'re connecting now?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsAmbiguousConnectionDialogAlreadyConnected =>
+      'Yes, it\'s already connected';
 
   @override
   String get accountsAmbiguousConnectionDialogConfirm =>
-      'It\'s a different account';
-
-  @override
-  String get accountsAmbiguousConnectionDialogCancel => 'Cancel';
+      'No, it\'s a different account';
 
   @override
   String get accountsDisconnectedExistingDialogTitle =>

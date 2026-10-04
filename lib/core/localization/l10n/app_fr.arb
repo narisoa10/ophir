@@ -427,14 +427,47 @@
     "accountsPartialDuplicateDialogBody": "Ces comptes sélectionnés sont déjà dans Ophir, donc rien n\u0027a été ajouté. Pour connecter vos nouveaux comptes, recommencez en sélectionnant uniquement ceux-ci.",
     "accountsPartialDuplicateDialogSelectAgain": "Sélectionner à nouveau",
     "accountsPartialDuplicateDialogClose": "Fermer",
-    "accountsAmbiguousConnectionDialogTitle": "S\u0027agit-il d\u0027un autre compte ?",
-    "accountsAmbiguousConnectionDialogBody": "Nous ne pouvons pas déterminer avec certitude si ce compte est déjà connecté. S\u0027il s\u0027agit d\u0027un autre compte, vous pouvez le connecter. S\u0027il s\u0027agit du même, ses opérations apparaîtront en double.",
-    "accountsAmbiguousConnectionDialogConfirm": "C\u0027est un autre compte",
-    "accountsAmbiguousConnectionDialogCancel": "Annuler",
-    "accountsDisconnectedExistingDialogTitle": "Connexion désactivée",
-    "accountsDisconnectedExistingDialogBody": "Ce compte est déjà dans Ophir, mais sa connexion bancaire a été désactivée. Pour le connecter à nouveau, supprimez d\u0027abord la connexion désactivée. La suppression efface aussi son historique enregistré.",
+    "accountsAmbiguousConnectionDialogTitle": "Ce compte est peut-être déjà connecté",
+    "accountsAmbiguousConnectionDialogBody": "{count, plural, =1{Nous avons trouvé un compte bancaire semblable dans Ophir.} other{Nous avons trouvé des comptes bancaires semblables dans Ophir.}}",
+    "@accountsAmbiguousConnectionDialogBody": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogConnectingLabel": "Vous connectez",
+    "accountsAmbiguousConnectionDialogExistingLabel": "Déjà dans Ophir",
+    "accountsAmbiguousConnectionDialogMoreCandidates": "{count, plural, =1{et 1 autre compte semblable} other{et {count} autres comptes semblables}}",
+    "@accountsAmbiguousConnectionDialogMoreCandidates": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogCheckDigitsQuestion": "{count, plural, =1{Vérifiez les derniers chiffres du compte. S\u0027agit-il du compte que vous connectez en ce moment ?} other{Vérifiez les derniers chiffres de ces comptes. L\u0027un d\u0027eux est-il celui que vous connectez en ce moment ?}}",
+    "@accountsAmbiguousConnectionDialogCheckDigitsQuestion": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogQuestion": "{count, plural, =1{S\u0027agit-il du compte que vous connectez en ce moment ?} other{L\u0027un d\u0027eux est-il celui que vous connectez en ce moment ?}}",
+    "@accountsAmbiguousConnectionDialogQuestion": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "accountsAmbiguousConnectionDialogAlreadyConnected": "Oui, il est déjà connecté",
+    "accountsAmbiguousConnectionDialogConfirm": "Non, c\u0027est un autre compte",
+    "accountsDisconnectedExistingDialogTitle": "Banque déconnectée",
+    "accountsDisconnectedExistingDialogBody": "Ce compte est déjà dans Ophir, mais sa banque a été déconnectée. Pour le connecter à nouveau, supprimez d\u0027abord la connexion. La suppression efface aussi son historique enregistré.",
     "accountsDisconnectedExistingDialogAction": "Compris",
-    "accountsLinkAccountDisconnectedLabel": "désactivé",
+    "accountsLinkAccountDisconnectedLabel": "déconnecté",
     "accountsInstitutionAccountCount": "{count, plural, =1{1 compte} other{{count} comptes}}",
     "@accountsInstitutionAccountCount": {
         "placeholders": {

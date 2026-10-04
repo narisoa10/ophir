@@ -1375,31 +1375,82 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountsAmbiguousConnectionDialogTitle =>
-      'S\'agit-il d\'un autre compte ?';
+      'Ce compte est peut-être déjà connecté';
 
   @override
-  String get accountsAmbiguousConnectionDialogBody =>
-      'Nous ne pouvons pas déterminer avec certitude si ce compte est déjà connecté. S\'il s\'agit d\'un autre compte, vous pouvez le connecter. S\'il s\'agit du même, ses opérations apparaîtront en double.';
+  String accountsAmbiguousConnectionDialogBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Nous avons trouvé des comptes bancaires semblables dans Ophir.',
+      one: 'Nous avons trouvé un compte bancaire semblable dans Ophir.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsAmbiguousConnectionDialogConnectingLabel =>
+      'Vous connectez';
+
+  @override
+  String get accountsAmbiguousConnectionDialogExistingLabel =>
+      'Déjà dans Ophir';
+
+  @override
+  String accountsAmbiguousConnectionDialogMoreCandidates(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'et $count autres comptes semblables',
+      one: 'et 1 autre compte semblable',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogCheckDigitsQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Vérifiez les derniers chiffres de ces comptes. L\'un d\'eux est-il celui que vous connectez en ce moment ?',
+      one:
+          'Vérifiez les derniers chiffres du compte. S\'agit-il du compte que vous connectez en ce moment ?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String accountsAmbiguousConnectionDialogQuestion(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'L\'un d\'eux est-il celui que vous connectez en ce moment ?',
+      one: 'S\'agit-il du compte que vous connectez en ce moment ?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsAmbiguousConnectionDialogAlreadyConnected =>
+      'Oui, il est déjà connecté';
 
   @override
   String get accountsAmbiguousConnectionDialogConfirm =>
-      'C\'est un autre compte';
+      'Non, c\'est un autre compte';
 
   @override
-  String get accountsAmbiguousConnectionDialogCancel => 'Annuler';
-
-  @override
-  String get accountsDisconnectedExistingDialogTitle => 'Connexion désactivée';
+  String get accountsDisconnectedExistingDialogTitle => 'Banque déconnectée';
 
   @override
   String get accountsDisconnectedExistingDialogBody =>
-      'Ce compte est déjà dans Ophir, mais sa connexion bancaire a été désactivée. Pour le connecter à nouveau, supprimez d\'abord la connexion désactivée. La suppression efface aussi son historique enregistré.';
+      'Ce compte est déjà dans Ophir, mais sa banque a été déconnectée. Pour le connecter à nouveau, supprimez d\'abord la connexion. La suppression efface aussi son historique enregistré.';
 
   @override
   String get accountsDisconnectedExistingDialogAction => 'Compris';
 
   @override
-  String get accountsLinkAccountDisconnectedLabel => 'désactivé';
+  String get accountsLinkAccountDisconnectedLabel => 'déconnecté';
 
   @override
   String accountsInstitutionAccountCount(int count) {
