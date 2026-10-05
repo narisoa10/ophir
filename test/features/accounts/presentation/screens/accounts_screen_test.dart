@@ -1558,6 +1558,9 @@ void main() {
       required FakePlaidFunctions functions,
       FakePlaidLink? link,
       List<LinkAccount>? accounts,
+      Result<PlaidAccountsSyncSummary> syncResult = const Success(
+        PlaidAccountsSyncSummary(syncedAccountCount: 1),
+      ),
     }) async {
       final syncedConnectionIds = <String>[];
       await tester.pumpWidget(
@@ -1574,9 +1577,7 @@ void main() {
           ),
           syncAccounts: (connectionId) async {
             syncedConnectionIds.add(connectionId);
-            return const Success(
-              PlaidAccountsSyncSummary(syncedAccountCount: 1),
-            );
+            return syncResult;
           },
           child: const AccountsScreen(),
         ),
@@ -2162,6 +2163,82 @@ void main() {
       expect(synced, isEmpty);
     });
 
+    testWidgets(
+      'post-exchange duplicate shows the same already connected dialog',
+      (tester) async {
+        final functions = backend((_) => okResponse({'status': 'duplicate'}));
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          accounts: [checking, savings],
+        );
+
+        await tapConnect(tester);
+
+        expect(
+          find.text(l10n.accountsDuplicateConnectionDialogTitle),
+          findsOneWidget,
+        );
+        expect(
+          find.text(l10n.accountsDuplicateConnectionDialogBody),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.text(l10n.accountsDuplicateConnectionDialogAction),
+        );
+        await tester.pumpAndSettle();
+
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(synced, isEmpty);
+        expect(find.byType(SnackBar), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'persist failure shows the generic error and never re-exchanges',
+      (tester) async {
+        final functions = backend(
+          (_) => throw edgeError(500, 'persist_failed'),
+        );
+        final link = FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          link: link,
+        );
+
+        await tapConnect(tester);
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.failureUnknown), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(link.openedTokens, hasLength(1));
+        expect(synced, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'lost exchange response shows the network error without retry',
+      (tester) async {
+        final functions = backend((_) => throw TimeoutException('no response'));
+        final synced = await pumpConnect(tester, functions: functions);
+
+        await tapConnect(tester);
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.failureNetwork), findsOneWidget);
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(
+          functions.functionNames.where((n) => n == 'plaid-create-link-token'),
+          hasLength(1),
+        );
+        expect(synced, isEmpty);
+      },
+    );
+
     testWidgets('double tap on connect opens Link only once', (tester) async {
       final functions = backend(
         (_) => okResponse({'connection_id': 'item-new'}),
@@ -2185,6 +2262,81 @@ void main() {
       await tester.pumpAndSettle();
       expect(exchangeBodies(functions), isEmpty);
     });
+
+    final syncFailures = <String, AppFailure>{
+      'unknown': const UnknownFailure(),
+      'item_login_required': const PlaidItemLoginRequiredFailure(),
+      'connection_not_found': const NotFoundFailure(),
+      'connection_disconnected': const PlaidConnectionDisconnectedFailure(),
+    };
+    for (final MapEntry(key: label, value: failure) in syncFailures.entries) {
+      testWidgets('post-connect sync failure ($label) never connects again', (
+        tester,
+      ) async {
+        final functions = backend(
+          (_) => okResponse({'connection_id': 'item-new'}),
+        );
+        final link = FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          link: link,
+          syncResult: Failure(failure),
+        );
+
+        await tester.tap(connectButton);
+        await tester.pumpAndSettle();
+
+        expect(synced, ['item-new']);
+        expect(
+          functions.functionNames.where((n) => n == 'plaid-create-link-token'),
+          hasLength(1),
+        );
+        expect(link.openedTokens, hasLength(1));
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(tester.widget<FilledButton>(connectButton).onPressed, isNotNull);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    final pendingOutcomes = <String, Map<String, dynamic>>{
+      'connection': {'connection_id': 'item-new'},
+      'duplicate': {'status': 'duplicate'},
+    };
+    for (final MapEntry(key: label, value: body) in pendingOutcomes.entries) {
+      testWidgets('screen removed during a pending exchange ignores the late '
+          '$label answer', (tester) async {
+        final exchange = Completer<Map<String, dynamic>>();
+        final functions = backend((_) => exchange.future.then(okResponse));
+        final link = FakePlaidLink(
+          result: PlaidLinkSessionSucceeded(linkSuccess(accounts: [checking])),
+        );
+        final synced = await pumpConnect(
+          tester,
+          functions: functions,
+          link: link,
+        );
+
+        await tester.tap(connectButton);
+        await tester.pump();
+        await tester.pump();
+        expect(exchangeBodies(functions), hasLength(1));
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        exchange.complete(body);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(synced, isEmpty);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(SnackBar), findsNothing);
+        expect(exchangeBodies(functions), hasLength(1));
+        expect(link.openedTokens, hasLength(1));
+      });
+    }
   });
 
   group('AccountsScreen account row layout', () {

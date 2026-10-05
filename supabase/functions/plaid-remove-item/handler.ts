@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.112.2";
 import type { AuthenticatedUser } from "../_shared/auth.ts";
 import { authenticateRequest as defaultAuthenticateRequest } from "../_shared/auth.ts";
 import {

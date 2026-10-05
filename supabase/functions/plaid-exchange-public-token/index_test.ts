@@ -19,7 +19,8 @@ type DatabaseMethod =
   | "listPlaidItems"
   | "listItemAccounts"
   | "listInstitutionAccounts"
-  | "persistSandboxItem";
+  | "connectItem"
+  | "findPlaidItem";
 
 type Row = Record<string, unknown>;
 
@@ -37,6 +38,7 @@ type HarnessOptions = {
   failing?: DatabaseMethod;
   throwing?: DatabaseMethod;
   classifyLink?: Classify;
+  plaidExchange?: { status: number; body: string } | "network";
 };
 
 function assert(condition: boolean, message: string): void {
@@ -114,6 +116,7 @@ function createHarness(options: HarnessOptions = {}) {
   const accessedDatabaseMembers = new Set<string>();
   let exchangeCalls = 0;
   const exchangeBodies: Row[] = [];
+  const logs: { message: string; fields: Record<string, unknown> }[] = [];
 
   const respond = async (
     method: DatabaseMethod,
@@ -135,20 +138,27 @@ function createHarness(options: HarnessOptions = {}) {
     listItemAccounts: () => respond("listItemAccounts", options.accounts),
     listInstitutionAccounts: () =>
       respond("listInstitutionAccounts", options.legacyAccounts),
-    async persistSandboxItem(receivedUserId, receivedItemId, receivedToken) {
-      calls.push("persistSandboxItem");
-      if (options.throwing === "persistSandboxItem") {
+    async connectItem(params) {
+      calls.push("connectItem");
+      if (options.throwing === "connectItem") {
         throw new Error("persist exploded");
       }
-      if (
-        options.failing === "persistSandboxItem" ||
-        receivedUserId !== userId ||
-        receivedItemId !== plaidItemId ||
-        receivedToken !== accessToken
-      ) {
-        return null;
+      if (options.failing === "connectItem") {
+        return { kind: "definitively_rejected", code: "P0001" };
       }
-      return connectionId;
+      if (
+        params.userId !== userId ||
+        params.environment !== "sandbox" ||
+        params.plaidItemId !== plaidItemId ||
+        params.accessToken !== accessToken
+      ) {
+        return { kind: "uncertain", code: null };
+      }
+      return { kind: "created", connectionId, ambiguousCount: 0 };
+    },
+    findPlaidItem() {
+      calls.push("findPlaidItem");
+      return Promise.resolve({ kind: "absent" });
     },
   };
 
@@ -167,9 +177,57 @@ function createHarness(options: HarnessOptions = {}) {
         PLAID_CLIENT_ID: "client-id",
         PLAID_SANDBOX_SECRET: "sandbox-secret",
       } as Record<string, string>)[name],
-    fetch: async (_url, init) => {
+    fetch: async (url, init) => {
+      const path = new URL(url.toString()).pathname;
+      if (path === "/accounts/get") {
+        return new Response(
+          JSON.stringify({
+            accounts: [{
+              account_id: "plaid-account-fixture",
+              name: "Checking",
+              official_name: null,
+              mask: "0000",
+              type: "depository",
+              subtype: "checking",
+              balances: {
+                current: 1,
+                available: 1,
+                iso_currency_code: "CAD",
+                unofficial_currency_code: null,
+              },
+            }],
+            item: { item_id: plaidItemId, institution_id: "ins_1" },
+            request_id: "request-accounts",
+          }),
+          { status: 200 },
+        );
+      }
+      if (path === "/institutions/get_by_id") {
+        return new Response(
+          JSON.stringify({
+            institution: { institution_id: "ins_1", name: "Bank" },
+            request_id: "request-institution",
+          }),
+          { status: 200 },
+        );
+      }
+      if (path === "/item/remove") {
+        return new Response(
+          JSON.stringify({ request_id: "request-remove" }),
+          { status: 200 },
+        );
+      }
       exchangeCalls += 1;
       exchangeBodies.push(JSON.parse(String(init?.body)));
+      const plaidExchange = options.plaidExchange;
+      if (plaidExchange === "network") {
+        throw new TypeError("network down");
+      }
+      if (plaidExchange !== undefined) {
+        return new Response(plaidExchange.body, {
+          status: plaidExchange.status,
+        });
+      }
       return new Response(
         JSON.stringify({
           access_token: accessToken,
@@ -179,6 +237,7 @@ function createHarness(options: HarnessOptions = {}) {
         { status: 200 },
       );
     },
+    log: (message, fields) => logs.push({ message, fields }),
     ...(options.classifyLink ? { classifyLink: options.classifyLink } : {}),
   });
 
@@ -199,6 +258,7 @@ function createHarness(options: HarnessOptions = {}) {
     calls,
     accessedDatabaseMembers,
     exchangeBodies,
+    logs,
     get exchangeCalls() {
       return exchangeCalls;
     },
@@ -233,7 +293,7 @@ Deno.test("1 new account exchanges and persists", async () => {
   assertJsonEquals(result.json, { connection_id: connectionId });
   assertEquals(harness.exchangeCalls, 1);
   assertEquals(harness.exchangeBodies[0].public_token, publicToken);
-  assertEquals(harness.calls.at(-1), "persistSandboxItem");
+  assertEquals(harness.calls.at(-1), "connectItem");
 });
 
 Deno.test("3 same institution but a different account exchanges", async () => {
@@ -297,7 +357,7 @@ Deno.test("v2 with no stored institution skips account reads and exchanges", asy
   const harness = createHarness({});
   await harness.send(v2Body([selected()]));
 
-  assertJsonEquals(harness.calls, ["listInstitutions", "persistSandboxItem"]);
+  assertJsonEquals(harness.calls, ["listInstitutions", "connectItem"]);
   assertEquals(harness.exchangeCalls, 1);
 });
 
@@ -313,7 +373,7 @@ Deno.test("2 active duplicate blocks exchange", async () => {
     accounts: [{ index: 0, decision: "duplicate" }],
   });
   assertEquals(harness.exchangeCalls, 0);
-  assert(!harness.calls.includes("persistSandboxItem"), "nothing persisted");
+  assert(!harness.calls.includes("connectItem"), "nothing persisted");
 });
 
 Deno.test("10 name matching official_name is a duplicate", async () => {
@@ -388,7 +448,7 @@ Deno.test("same name with a different mask and the same types requires confirmat
     accounts: [ambiguousReview()],
   });
   assertEquals(harness.exchangeCalls, 0);
-  assert(!harness.calls.includes("persistSandboxItem"), "nothing persisted");
+  assert(!harness.calls.includes("connectItem"), "nothing persisted");
 });
 
 Deno.test("same name with a different mask and unknown types requires confirmation", async () => {
@@ -479,7 +539,7 @@ Deno.test("confirmation is refused when a strong match appeared meanwhile", asyn
 
     assertEquals(confirmed.json.status, status);
     assertEquals(harness.exchangeCalls, 0);
-    assert(!harness.calls.includes("persistSandboxItem"), "nothing persisted");
+    assert(!harness.calls.includes("connectItem"), "nothing persisted");
   }
 });
 
@@ -760,7 +820,7 @@ Deno.test("19 failure of every required DB read is 500 without exchange", async 
         error: { code: "duplicate_check_failed" },
       });
       assertEquals(harness.exchangeCalls, 0);
-      assert(!harness.calls.includes("persistSandboxItem"), "no persist");
+      assert(!harness.calls.includes("connectItem"), "no persist");
     }
   }
 });
@@ -817,15 +877,101 @@ Deno.test("25 invalid internal classification never exchanges", async () => {
 });
 
 Deno.test("exchange and persist failures are not reported as duplicates", async () => {
-  const persistFails = createHarness({ failing: "persistSandboxItem" });
+  const persistFails = createHarness({ failing: "connectItem" });
   const persisted = await persistFails.send(v2Body([selected()]));
   assertEquals(persisted.status, 500);
   assertEquals(persisted.json.error.code, "persist_failed");
+  assertEquals(persistFails.calls.at(-1), "findPlaidItem");
 
-  const persistThrows = createHarness({ throwing: "persistSandboxItem" });
+  const persistThrows = createHarness({ throwing: "connectItem" });
   const thrown = await persistThrows.send(v2Body([selected()]));
   assertEquals(thrown.status, 500);
   assertEquals(thrown.json.error.code, "persist_failed");
+  assertEquals(persistThrows.calls.at(-1), "findPlaidItem");
+});
+
+Deno.test("Plaid exchange failures keep the 502 contract and never persist", async () => {
+  const failures: HarnessOptions["plaidExchange"][] = [
+    "network",
+    {
+      status: 400,
+      body: JSON.stringify({
+        error_type: "INVALID_INPUT",
+        error_code: "INVALID_PUBLIC_TOKEN",
+        error_message: `token ${publicToken} is invalid`,
+        request_id: "req-exchange",
+      }),
+    },
+    { status: 502, body: "Bad Gateway" },
+    { status: 200, body: JSON.stringify({ item_id: plaidItemId }) },
+  ];
+
+  for (const plaidExchange of failures) {
+    const harness = createHarness({ plaidExchange });
+    const result = await harness.send(v2Body([selected()]));
+
+    assertEquals(result.status, 502);
+    assertEquals(result.json.error.code, "plaid_request_failed");
+    assertEquals(harness.exchangeCalls, 1);
+    assert(
+      !harness.calls.includes("connectItem"),
+      "nothing is persisted",
+    );
+    assertEquals(harness.logs.length, 1);
+    assertEquals(harness.logs[0].message, "plaid_exchange_failed");
+    assertEquals(
+      harness.logs[0].fields.operation,
+      "/item/public_token/exchange",
+    );
+    const logged = JSON.stringify(harness.logs);
+    for (
+      const secret of [publicToken, accessToken, "client-id", "sandbox-secret"]
+    ) {
+      assert(!logged.includes(secret), `log must not contain ${secret}`);
+    }
+    assert(
+      !result.text.includes(publicToken),
+      "response must not echo the token",
+    );
+  }
+});
+
+Deno.test("Plaid exchange log names the failure class", async () => {
+  const network = createHarness({ plaidExchange: "network" });
+  await network.send(v2Body([selected()]));
+  assertEquals(network.logs[0].fields.failure, "transport_error");
+  assertEquals(network.logs[0].fields.reason, "network");
+
+  const plaidError = createHarness({
+    plaidExchange: {
+      status: 400,
+      body: JSON.stringify({
+        error_type: "INVALID_INPUT",
+        error_code: "INVALID_PUBLIC_TOKEN",
+        request_id: "req-exchange",
+      }),
+    },
+  });
+  await plaidError.send(v2Body([selected()]));
+  assertEquals(plaidError.logs[0].fields.failure, "plaid_error");
+  assertEquals(plaidError.logs[0].fields.error_code, "INVALID_PUBLIC_TOKEN");
+  assertEquals(plaidError.logs[0].fields.request_id, "req-exchange");
+
+  const malformed = createHarness({
+    plaidExchange: {
+      status: 200,
+      body: JSON.stringify({ item_id: plaidItemId }),
+    },
+  });
+  await malformed.send(v2Body([selected()]));
+  assertEquals(malformed.logs[0].fields.failure, "malformed_response");
+});
+
+Deno.test("successful exchange writes no failure log", async () => {
+  const harness = createHarness({});
+  const result = await harness.send(v2Body([selected()]));
+  assertEquals(result.status, 200);
+  assertEquals(harness.logs.length, 0);
 });
 
 // --- v1 backward compatibility -------------------------------------------------
@@ -1057,7 +1203,8 @@ Deno.test("24 duplicate decision touches only identity reads, never transactions
     "listPlaidItems",
     "listItemAccounts",
     "listInstitutionAccounts",
-    "persistSandboxItem",
+    "connectItem",
+    "findPlaidItem",
   ]);
   for (const member of harness.accessedDatabaseMembers) {
     assert(allowed.has(member), `unexpected database access: ${member}`);

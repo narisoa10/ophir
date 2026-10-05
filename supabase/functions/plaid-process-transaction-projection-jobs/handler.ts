@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.112.2";
 import { authorizeInternalRequest } from "../_shared/internal_auth.ts";
 import {
   errorResponse,

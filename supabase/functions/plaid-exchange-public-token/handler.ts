@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.112.2";
 import type { AuthenticatedUser } from "../_shared/auth.ts";
 import { authenticateRequest as defaultAuthenticateRequest } from "../_shared/auth.ts";
 import {
@@ -8,6 +8,15 @@ import {
   optionsResponse,
   readJsonObject,
 } from "../_shared/http.ts";
+import { exchangePublicToken } from "../_shared/plaid_api.ts";
+import { plaidFailureLogFields } from "../_shared/plaid_http.ts";
+import {
+  type ConnectDatabase,
+  connectExchangedItem,
+  connectItemErrorResult,
+  parseConnectItemResult,
+  plaidItemLookupFromRows,
+} from "./connect_item.ts";
 import {
   ambiguousCandidates,
   classifyLink as defaultClassifyLink,
@@ -16,9 +25,6 @@ import {
   type LinkClassification,
   normalizeIdentityText,
 } from "./account_identity.ts";
-
-const PLAID_SANDBOX_PUBLIC_TOKEN_EXCHANGE_URL =
-  "https://sandbox.plaid.com/item/public_token/exchange";
 
 const CONTRACT_VERSION = 2;
 const MAX_SELECTED_ACCOUNTS = 50;
@@ -37,7 +43,7 @@ const blockingStatuses: ReadonlySet<string> = new Set([
 
 type DatabaseRow = Record<string, unknown>;
 
-export type ExchangeDatabase = {
+export type ExchangeDatabase = ConnectDatabase & {
   listInstitutions(
     userId: string,
     plaidInstitutionId: string,
@@ -54,23 +60,20 @@ export type ExchangeDatabase = {
     userId: string,
     institutionIds: string[],
   ): Promise<DatabaseRow[] | null>;
-  persistSandboxItem(
-    userId: string,
-    plaidItemId: string,
-    accessToken: string,
-  ): Promise<string | null>;
 };
 
 type HandlerDependencies = {
   authenticateRequest: (request: Request) => Promise<AuthenticatedUser | null>;
   createDatabase: () => ExchangeDatabase | null;
   fetch: typeof fetch;
+  plaidTimeoutMs: number | undefined;
   getEnv: (name: string) => string | undefined;
   classifyLink: (
     incoming: readonly IncomingAccount[],
     existing: readonly ExistingAccount[],
     confirmAmbiguous: boolean,
   ) => LinkClassification | null;
+  log: (message: string, fields: Record<string, unknown>) => void;
 };
 
 type LegacySelectedAccount = {
@@ -515,75 +518,38 @@ function createDefaultDatabase(
           .in("institution_id", institutionIds),
       );
     },
-    async persistSandboxItem(userId, plaidItemId, accessToken) {
-      const { data, error } = await supabaseAdmin.rpc(
-        "plaid_persist_sandbox_item",
+    async connectItem(params) {
+      const { data, error, status } = await supabaseAdmin.rpc(
+        "plaid_connect_item",
         {
-          p_user_id: userId,
-          p_plaid_item_id: plaidItemId,
-          p_access_token: accessToken,
+          p_user_id: params.userId,
+          p_plaid_environment: params.environment,
+          p_plaid_item_id: params.plaidItemId,
+          p_access_token: params.accessToken,
+          p_plaid_institution_id: params.plaidInstitutionId,
+          p_institution_name: params.institutionName,
+          p_logo_base64: params.logoBase64,
+          p_primary_color: params.primaryColor,
+          p_url: params.url,
+          p_balance_fetched_at: params.balanceFetchedAt,
+          p_accounts: params.accounts,
         },
       );
 
-      return error === null && typeof data === "string" && data.length > 0
-        ? data
-        : null;
+      return error === null
+        ? parseConnectItemResult(data)
+        : connectItemErrorResult(error, status);
+    },
+    async findPlaidItem(userId, environment, plaidItemId) {
+      const { data, error } = await supabaseAdmin
+        .from("plaid_items")
+        .select("id, user_id, disconnected_at")
+        .eq("plaid_environment", environment)
+        .eq("plaid_item_id", plaidItemId);
+
+      return plaidItemLookupFromRows(data, error, userId);
     },
   };
-}
-
-type PlaidExchangeResult =
-  | { ok: true; accessToken: string; itemId: string }
-  | { ok: false };
-
-async function exchangePublicToken(
-  fetchImpl: typeof fetch,
-  clientId: string,
-  secret: string,
-  publicToken: string,
-): Promise<PlaidExchangeResult> {
-  let plaidResponse: Response;
-  try {
-    plaidResponse = await fetchImpl(PLAID_SANDBOX_PUBLIC_TOKEN_EXCHANGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "PLAID-CLIENT-ID": clientId,
-        "PLAID-SECRET": secret,
-      },
-      body: JSON.stringify({ public_token: publicToken }),
-    });
-  } catch (_) {
-    return { ok: false };
-  }
-
-  let payload: Record<string, unknown>;
-  try {
-    const parsed = await plaidResponse.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false };
-    }
-    payload = parsed as Record<string, unknown>;
-  } catch (_) {
-    return { ok: false };
-  }
-
-  if (!plaidResponse.ok) {
-    return { ok: false };
-  }
-
-  const accessToken = payload.access_token;
-  const itemId = payload.item_id;
-  if (
-    typeof accessToken !== "string" ||
-    accessToken.length === 0 ||
-    typeof itemId !== "string" ||
-    itemId.length === 0
-  ) {
-    return { ok: false };
-  }
-
-  return { ok: true, accessToken, itemId };
 }
 
 export function createPlaidExchangeHandler(
@@ -597,8 +563,11 @@ export function createPlaidExchangeHandler(
     createDatabase: dependencies.createDatabase ??
       (() => createDefaultDatabase(getEnv)),
     fetch: dependencies.fetch ?? fetch,
+    plaidTimeoutMs: dependencies.plaidTimeoutMs,
     getEnv,
     classifyLink: dependencies.classifyLink ?? defaultClassifyLink,
+    log: dependencies.log ??
+      ((message, fields) => console.log(message, JSON.stringify(fields))),
   };
 
   return async (request: Request): Promise<Response> => {
@@ -706,31 +675,37 @@ export function createPlaidExchangeHandler(
       return errorResponse(500, "plaid_config_missing");
     }
 
+    const client = {
+      fetchImpl: deps.fetch,
+      environment: "sandbox",
+      credentials: { clientId, secret: sandboxSecret },
+      timeoutMs: deps.plaidTimeoutMs,
+    } as const;
     const exchange = await exchangePublicToken(
-      deps.fetch,
-      clientId,
-      sandboxSecret,
+      client,
       exchangeRequest.publicToken,
     );
-    if (!exchange.ok) {
+    if (exchange.kind !== "ok") {
+      deps.log("plaid_exchange_failed", plaidFailureLogFields(exchange));
       return errorResponse(502, "plaid_request_failed");
     }
 
-    let connectionId: string | null;
-    try {
-      connectionId = await database.persistSandboxItem(
-        user.id,
-        exchange.itemId,
-        exchange.accessToken,
-      );
-    } catch (_) {
-      connectionId = null;
+    const outcome = await connectExchangedItem({
+      client,
+      database,
+      log: deps.log,
+      userId: user.id,
+      exchange,
+    });
+    switch (outcome.kind) {
+      case "connected":
+        return jsonResponse(200, { connection_id: outcome.connectionId });
+      case "duplicate":
+        // Snapshot indexes from the RPC do not address the Link selection, so
+        // the post-exchange duplicate is reported without per-account reviews.
+        return jsonResponse(200, { status: "duplicate" });
+      case "failed":
+        return errorResponse(outcome.status, outcome.code);
     }
-
-    if (connectionId === null) {
-      return errorResponse(500, "persist_failed");
-    }
-
-    return jsonResponse(200, { connection_id: connectionId });
   };
 }

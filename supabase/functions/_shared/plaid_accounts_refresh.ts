@@ -1,15 +1,20 @@
-import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.112.2";
 import {
   isItemLoginRequiredError,
   isItemUnavailableError,
   loginRequiredObservation,
   type RecordItemHealthObservation,
 } from "./plaid_item_health.ts";
+import { plaidApiUrl, postPlaid } from "./plaid_http.ts";
 
-export const PLAID_SANDBOX_ACCOUNTS_GET_URL =
-  "https://sandbox.plaid.com/accounts/get";
-export const PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL =
-  "https://sandbox.plaid.com/institutions/get_by_id";
+export const PLAID_SANDBOX_ACCOUNTS_GET_URL = plaidApiUrl(
+  "sandbox",
+  "/accounts/get",
+);
+export const PLAID_SANDBOX_INSTITUTIONS_GET_BY_ID_URL = plaidApiUrl(
+  "sandbox",
+  "/institutions/get_by_id",
+);
 
 export type PlaidAccountPayload = {
   plaid_account_id: string;
@@ -143,44 +148,28 @@ export async function callPlaid(
   secret: string,
   body: Record<string, unknown>,
 ): Promise<PlaidCallResult> {
-  let response: Response;
+  const result = await postPlaid({
+    fetchImpl,
+    url,
+    credentials: { clientId, secret },
+    body,
+  });
 
-  try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "PLAID-CLIENT-ID": clientId,
-        "PLAID-SECRET": secret,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (_) {
-    return { kind: "failed" };
+  if (result.kind === "ok") {
+    return { kind: "ok", payload: result.payload };
   }
 
-  let payload: Record<string, unknown>;
-
-  try {
-    const parsed = readRecord(await response.json());
-    if (parsed === null) {
-      return { kind: "failed" };
-    }
-    payload = parsed;
-  } catch (_) {
-    return { kind: "failed" };
-  }
-
-  if (!response.ok) {
-    if (isItemLoginRequiredError(payload)) {
+  if (result.kind === "plaid_error") {
+    const error = { error_code: result.error.errorCode };
+    if (isItemLoginRequiredError(error)) {
       return { kind: "item_login_required" };
     }
-    return isItemUnavailableError(payload)
-      ? { kind: "item_unavailable" }
-      : { kind: "failed" };
+    if (isItemUnavailableError(error)) {
+      return { kind: "item_unavailable" };
+    }
   }
 
-  return { kind: "ok", payload };
+  return { kind: "failed" };
 }
 
 export function normalizePlaidAccounts(
