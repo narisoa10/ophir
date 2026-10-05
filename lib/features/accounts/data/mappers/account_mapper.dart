@@ -29,6 +29,7 @@ extension AccountDtoMapper on AccountDto {
       currentBalance: currentBalance,
       availableBalance: availableBalance,
       balanceFetchedAt: balanceFetchedAt,
+      plaidMissingSince: plaidMissingSince,
     );
   }
 }
@@ -60,6 +61,7 @@ extension AccountEntityMapper on Account {
       currentBalance: currentBalance,
       availableBalance: availableBalance,
       balanceFetchedAt: balanceFetchedAt,
+      plaidMissingSince: plaidMissingSince,
     );
   }
 }

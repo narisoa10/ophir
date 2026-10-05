@@ -111,6 +111,110 @@ void main() {
       expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
     });
 
+    testWidgets('account missing from Plaid shows no balance and is left out '
+        'of the bank total', (tester) async {
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [
+              _account(name: 'Checking'),
+              _account(
+                id: 'account-2',
+                name: 'Savings',
+                plaidAccountId: 'plaid-account-2',
+                currentBalance: 250,
+                plaidMissingSince: DateTime(2026, 10, 2),
+              ),
+            ],
+            institutions: [_institution()],
+          ),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('2 accounts'), findsOneWidget);
+      expect(find.text('100.00 CAD'), findsOneWidget);
+      expect(find.text('350.00 CAD'), findsNothing);
+
+      await tester.tap(find.text('Test Bank'));
+      await tester.pump();
+
+      final savingsTile = find.ancestor(
+        of: find.text('Savings'),
+        matching: find.byType(AccountListTile),
+      );
+      expect(savingsTile, findsOneWidget);
+      expect(tester.widget<AccountListTile>(savingsTile).balance, isNull);
+      expect(find.text('250.00 CAD'), findsNothing);
+      expect(find.text('100.00 CAD'), findsNWidgets(2));
+    });
+
+    testWidgets('bank total is hidden when every account is missing from '
+        'Plaid', (tester) async {
+      await tester.pumpWidget(
+        _TestApp(
+          repository: _FakeAccountRepository(
+            accounts: [
+              _account(
+                name: 'Checking',
+                plaidMissingSince: DateTime(2026, 10, 2),
+              ),
+            ],
+            institutions: [_institution()],
+          ),
+          child: const AccountsScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Test Bank'), findsOneWidget);
+      expect(find.text('1 account'), findsOneWidget);
+      expect(find.text('100.00 CAD'), findsNothing);
+
+      await tester.tap(find.text('Test Bank'));
+      await tester.pump();
+
+      expect(find.text('Checking'), findsOneWidget);
+      expect(find.text('100.00 CAD'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('missing account keeps its finance participation switch', (
+      tester,
+    ) async {
+      final repository = _FakeAccountRepository(
+        accounts: [
+          _account(
+            name: 'Checking',
+            isIncludedInFinances: false,
+            plaidMissingSince: DateTime(2026, 10, 2),
+          ),
+        ],
+        institutions: [_institution()],
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+
+      await tester.pumpWidget(
+        _TestApp(repository: repository, child: const AccountsScreen()),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Test Bank'));
+      await tester.pump();
+
+      expect(
+        find.text(l10n.accountsFinancialParticipationExcludedStatus),
+        findsOneWidget,
+      );
+      await tester.tap(find.byType(AppCompactSwitch));
+      await tester.pumpAndSettle();
+
+      expect(repository.participationUpdates, [
+        const _ParticipationUpdate('account-1', true),
+      ]);
+      expect(repository.accounts.single.plaidMissingSince, isNotNull);
+    });
+
     testWidgets('bank group expands and collapses', (tester) async {
       await tester.pumpWidget(
         _TestApp(
@@ -2444,6 +2548,38 @@ void main() {
       });
     }
 
+    for (final locale in const [Locale('fr'), Locale('en'), Locale('ru')]) {
+      testWidgets('narrow ${locale.languageCode} screen keeps a missing '
+          'account row readable without a balance', (tester) async {
+        await pumpExpanded(
+          tester,
+          accounts: [
+            _account(
+              name: 'Checking',
+              mask: '2755',
+              plaidSubtype: 'checking',
+              currentBalance: 40000.15,
+              currencyCode: 'USD',
+              plaidMissingSince: DateTime(2026, 10, 2),
+            ),
+          ],
+          locale: locale,
+        );
+
+        final l10n = lookupAppLocalizations(locale);
+        expectFullyVisible(tester, inRow('Checking'), 360);
+        expectFullyVisible(tester, inRow(identity), 360);
+        expectFullyVisible(
+          tester,
+          find.text(l10n.accountsFinancialParticipationIncludedStatus),
+          360,
+        );
+        expect(find.textContaining('40000.15'), findsNothing);
+        expect(find.byType(AppCompactSwitch), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('wide screen keeps the account row readable', (tester) async {
       await pumpExpanded(tester, accounts: [checking()], width: 800);
 
@@ -2934,6 +3070,7 @@ Account _account({
   String? plaidSubtype,
   double? currentBalance = 100,
   String currencyCode = 'CAD',
+  DateTime? plaidMissingSince,
 }) {
   final now = DateTime(2026, 7, 23);
 
@@ -2956,6 +3093,7 @@ Account _account({
     isIncludedInFinances: isIncludedInFinances,
     createdAt: now,
     updatedAt: now,
+    plaidMissingSince: plaidMissingSince,
   );
 }
 
@@ -2985,6 +3123,7 @@ Account _copyAccount(Account account, {required bool isIncludedInFinances}) {
     currentBalance: account.currentBalance,
     availableBalance: account.availableBalance,
     balanceFetchedAt: account.balanceFetchedAt,
+    plaidMissingSince: account.plaidMissingSince,
   );
 }
 

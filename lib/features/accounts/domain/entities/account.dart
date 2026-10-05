@@ -29,6 +29,7 @@ final class Account {
     this.currentBalance,
     this.availableBalance,
     this.balanceFetchedAt,
+    this.plaidMissingSince,
   });
 
   final String id;
@@ -61,4 +62,8 @@ final class Account {
   final double? currentBalance;
   final double? availableBalance;
   final DateTime? balanceFetchedAt;
+
+  /// Since when Plaid no longer returns this account for its connection. Not a
+  /// closed or deleted state; null while Plaid returns it.
+  final DateTime? plaidMissingSince;
 }

@@ -79,6 +79,52 @@ void main() {
       expect(dto.isIncludedInFinances, isFalse);
       expect(entity.isIncludedInFinances, isFalse);
       expect(entity.plaidAccountId, 'plaid-account-1');
+      expect(dto.plaidMissingSince, isNull);
+      expect(entity.plaidMissingSince, isNull);
+    });
+
+    test('reads plaid_missing_since from json', () {
+      final dto = AccountDto.fromJson({
+        'id': 'account-1',
+        'user_id': 'user-1',
+        'name': 'Checking',
+        'sort_order': 0,
+        'is_archived': false,
+        'created_at': '2026-07-23T00:00:00.000Z',
+        'updated_at': '2026-07-23T00:00:00.000Z',
+        'plaid_account_id': 'plaid-account-1',
+        'current_balance': 120,
+        'balance_fetched_at': '2026-10-01T10:00:00.000Z',
+        'plaid_missing_since': '2026-10-02T10:00:00.000Z',
+      });
+
+      final entity = dto.toEntity();
+
+      expect(
+        entity.plaidMissingSince,
+        DateTime.utc(2026, 10, 2, 10).toLocal(),
+      );
+      expect(entity.currentBalance, 120);
+      expect(entity.plaidMissingSince!.isUtc, isFalse);
+    });
+
+    test('round-trips plaid_missing_since', () {
+      final now = DateTime(2026, 7, 23);
+      final missingSince = DateTime(2026, 10, 2, 6);
+      final account = Account(
+        id: 'account-1',
+        userId: 'user-1',
+        name: 'Checking',
+        plaidAccountId: 'plaid-account-1',
+        sortOrder: 0,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+        plaidMissingSince: missingSince,
+      );
+
+      expect(account.toDto().plaidMissingSince, missingSince);
+      expect(account.toDto().toEntity().plaidMissingSince, missingSince);
     });
   });
 }

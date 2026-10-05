@@ -24,6 +24,7 @@ final class AccountDto {
     this.currentBalance,
     this.availableBalance,
     this.balanceFetchedAt,
+    this.plaidMissingSince,
   });
 
   final String id;
@@ -50,6 +51,7 @@ final class AccountDto {
   final double? currentBalance;
   final double? availableBalance;
   final DateTime? balanceFetchedAt;
+  final DateTime? plaidMissingSince;
 
   factory AccountDto.fromJson(Map<String, dynamic> json) {
     final type = json['type'];
@@ -57,6 +59,7 @@ final class AccountDto {
     final currentBalance = json['current_balance'];
     final availableBalance = json['available_balance'];
     final balanceFetchedAt = json['balance_fetched_at'];
+    final plaidMissingSince = json['plaid_missing_since'];
 
     return AccountDto(
       id: json['id'] as String,
@@ -91,6 +94,9 @@ final class AccountDto {
       balanceFetchedAt: balanceFetchedAt == null
           ? null
           : DateTime.parse(balanceFetchedAt as String).toLocal(),
+      plaidMissingSince: plaidMissingSince == null
+          ? null
+          : DateTime.parse(plaidMissingSince as String).toLocal(),
     );
   }
 }

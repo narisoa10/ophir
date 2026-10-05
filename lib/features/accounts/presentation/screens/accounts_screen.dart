@@ -945,7 +945,11 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     return parts.join(' \u2022 ');
   }
 
+  // The last balance of an account Plaid no longer returns is not current.
   static double? _displayBalance(Account account) {
+    if (account.plaidMissingSince != null) {
+      return null;
+    }
     return account.currentBalance;
   }
 
@@ -1417,17 +1421,22 @@ class _BankGroupHeader extends StatelessWidget {
   }
 
   String? _aggregateBalance(List<Account> accounts) {
-    if (accounts.isEmpty) {
+    final presentAccounts = accounts
+        .where((account) => account.plaidMissingSince == null)
+        .toList(growable: false);
+    if (presentAccounts.isEmpty) {
       return null;
     }
 
-    final currency = _AccountsScreenState._displayCurrency(accounts.first);
+    final currency = _AccountsScreenState._displayCurrency(
+      presentAccounts.first,
+    );
     if (currency == null) {
       return null;
     }
 
     var total = 0.0;
-    for (final account in accounts) {
+    for (final account in presentAccounts) {
       final balance = _AccountsScreenState._displayBalance(account);
       if (balance == null ||
           _AccountsScreenState._displayCurrency(account) != currency) {

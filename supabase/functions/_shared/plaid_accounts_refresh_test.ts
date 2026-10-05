@@ -250,6 +250,20 @@ Deno.test("automatic refresh uses the full /accounts/get snapshot and persists e
   assertEquals(state.persisted[0].connectionId, connectionId);
 });
 
+Deno.test("accepted empty /accounts/get snapshot is persisted as an empty account set", async () => {
+  const { database, state } = fakeDatabase();
+  const result = await refresh({ responder: accountsOk([]), database });
+
+  assertJsonEquals(result, {
+    kind: "refreshed",
+    syncedAccountCount: 0,
+    institutionName: "Stored Bank",
+  });
+  assertEquals(state.persisted.length, 1);
+  assertJsonEquals(state.persisted[0].accounts, []);
+  assertEquals(state.persisted[0].connectionId, connectionId);
+});
+
 Deno.test("quiet account without transactions keeps its fresh balance in the snapshot", async () => {
   const { database, state } = fakeDatabase();
   await refresh({

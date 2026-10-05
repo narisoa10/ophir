@@ -379,7 +379,8 @@ async function equivalenceScenario(sql: Sql): Promise<Record<string, unknown>[]>
 Deno.test("suppression gate without frozen authority matches the previous behavior", options, async () => {
   let previous: Record<string, unknown>[] = [];
   await withDatabase("p23a_equiv_old", async (db) => {
-    for (const name of listMigrations().filter((name) => name !== LIFECYCLE_MIGRATION)) {
+    // Later migrations build on the lifecycle schema (plaid_items.disconnected_at).
+    for (const name of listMigrations().filter((name) => name < LIFECYCLE_MIGRATION)) {
       await applyMigration(db.sql, name);
     }
     previous = await equivalenceScenario(db.sql);
