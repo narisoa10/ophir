@@ -545,7 +545,7 @@ Deno.test("T11: RPC contract unchanged; authenticated cannot write presence", op
       select pg_get_function_identity_arguments(p.oid) as args, pg_get_function_result(p.oid) as result,
              p.prosecdef, p.proconfig
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public' and p.proname = 'plaid_persist_accounts_sync'`;
+      where p.oid = ${SIGNATURE}::regprocedure`;
     assertEquals(
       definition.args,
       "p_user_id uuid, p_connection_id uuid, p_plaid_institution_id text, p_institution_name text, " +

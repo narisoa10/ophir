@@ -47,6 +47,8 @@ export type PersistAccountsSyncArgs = {
   primaryColor: string | null;
   institutionUrl: string | null;
   balanceFetchedAt: string;
+  // When the /accounts/get request of this snapshot started; the freshness watermark.
+  accountsObservedAt: string;
   accounts: PlaidAccountPayload[];
 };
 
@@ -56,9 +58,10 @@ export type AccountsRefreshDatabase = {
     connectionId: string,
   ): Promise<string | null>;
   // "disconnected": the Item was disconnected before the snapshot was written.
+  // "superseded": a snapshot observed later was already accepted; nothing written.
   persistAccountsSync(
     args: PersistAccountsSyncArgs,
-  ): Promise<number | "disconnected" | null>;
+  ): Promise<number | "disconnected" | "superseded" | null>;
   recordItemHealthObservation: RecordItemHealthObservation;
   // null: the Item has no stored institution row yet.
   getStoredInstitution?(
@@ -80,6 +83,7 @@ export type PlaidAccountsRefreshResult =
   }
   | { kind: "connection_not_found" }
   | { kind: "connection_disconnected" }
+  | { kind: "snapshot_superseded" }
   | { kind: "item_login_required" }
   | { kind: "item_unavailable" }
   | { kind: "plaid_request_failed" }
@@ -92,6 +96,13 @@ export function isPlaidItemDisconnectedRpcError(
   error: { message?: string } | null,
 ): boolean {
   return error?.message?.includes("plaid_item_disconnected") === true;
+}
+
+// plaid_persist_accounts_sync refuses a snapshot not newer than the Item watermark.
+export function isPlaidAccountsSnapshotSupersededRpcError(
+  error: { message?: string } | null,
+): boolean {
+  return error?.message?.includes("plaid_accounts_snapshot_superseded") === true;
 }
 
 export type PlaidCallResult =
@@ -356,6 +367,7 @@ export async function refreshPlaidAccountsForItem(params: {
     return { kind: "connection_not_found" };
   }
 
+  // Taken once, before /accounts/get: orders this snapshot against concurrent ones.
   const accountsRequestedAt = params.now().toISOString();
   const accountsResult = await callPlaid(
     params.fetchImpl,
@@ -423,12 +435,17 @@ export async function refreshPlaidAccountsForItem(params: {
     logoBase64: institution.logoBase64,
     primaryColor: institution.primaryColor,
     institutionUrl: institution.institutionUrl,
-    balanceFetchedAt: new Date().toISOString(),
+    balanceFetchedAt: params.now().toISOString(),
+    accountsObservedAt: accountsRequestedAt,
     accounts,
   });
 
   if (syncedAccountCount === "disconnected") {
     return { kind: "connection_disconnected" };
+  }
+
+  if (syncedAccountCount === "superseded") {
+    return { kind: "snapshot_superseded" };
   }
 
   if (syncedAccountCount === null) {
@@ -440,6 +457,36 @@ export async function refreshPlaidAccountsForItem(params: {
     syncedAccountCount,
     institutionName: institution.institutionName,
   };
+}
+
+export async function persistAccountsSyncRpc(
+  supabaseAdmin: SupabaseClient,
+  args: PersistAccountsSyncArgs,
+): Promise<number | "disconnected" | "superseded" | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "plaid_persist_accounts_sync",
+    {
+      p_user_id: args.userId,
+      p_connection_id: args.connectionId,
+      p_plaid_institution_id: args.plaidInstitutionId,
+      p_institution_name: args.institutionName,
+      p_logo_base64: args.logoBase64,
+      p_primary_color: args.primaryColor,
+      p_url: args.institutionUrl,
+      p_balance_fetched_at: args.balanceFetchedAt,
+      p_accounts: args.accounts,
+      p_accounts_observed_at: args.accountsObservedAt,
+    },
+  );
+
+  if (error !== null) {
+    if (isPlaidAccountsSnapshotSupersededRpcError(error)) {
+      return "superseded";
+    }
+    return isPlaidItemDisconnectedRpcError(error) ? "disconnected" : null;
+  }
+
+  return typeof data === "number" ? data : null;
 }
 
 export async function readStoredInstitutionRow(

@@ -13,7 +13,7 @@ import {
 } from "../_shared/http.ts";
 import {
   type AccountsRefreshDatabase,
-  isPlaidItemDisconnectedRpcError,
+  persistAccountsSyncRpc,
   type PlaidAccountsRefreshResult,
   readStoredInstitutionRow,
   refreshPlaidAccountsForItem,
@@ -413,27 +413,8 @@ function createDefaultAccountsRefreshDatabase(
       return data;
     },
 
-    async persistAccountsSync(args) {
-      const { data, error } = await supabaseAdmin.rpc(
-        "plaid_persist_accounts_sync",
-        {
-          p_user_id: args.userId,
-          p_connection_id: args.connectionId,
-          p_plaid_institution_id: args.plaidInstitutionId,
-          p_institution_name: args.institutionName,
-          p_logo_base64: args.logoBase64,
-          p_primary_color: args.primaryColor,
-          p_url: args.institutionUrl,
-          p_balance_fetched_at: args.balanceFetchedAt,
-          p_accounts: args.accounts,
-        },
-      );
-
-      if (error !== null) {
-        return isPlaidItemDisconnectedRpcError(error) ? "disconnected" : null;
-      }
-
-      return typeof data === "number" ? data : null;
+    persistAccountsSync(args) {
+      return persistAccountsSyncRpc(supabaseAdmin, args);
     },
 
     recordItemHealthObservation(observation) {
@@ -663,6 +644,13 @@ export function createPlaidProcessTransactionSyncJobsHandler(
             run_id: runId,
             outcome,
           });
+          // Benign: a later snapshot of the Item is already persisted; no retry.
+          if (outcome === "snapshot_superseded") {
+            deps.log("accounts_snapshot_superseded", {
+              run_id: runId,
+              source: "transaction_sync_job",
+            });
+          }
         }
         continue;
       }

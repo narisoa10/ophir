@@ -26,6 +26,8 @@ type HarnessOptions = {
   malformedAccounts?: boolean;
   persistSucceeds?: boolean;
   persistDisconnected?: boolean;
+  persistSuperseded?: boolean;
+  now?: () => Date;
   bootstrapStatus?: "synced" | "deferred";
   bootstrapThrows?: boolean;
   accountsOverride?: Record<string, unknown>[];
@@ -41,6 +43,7 @@ type PersistArgs = {
   primaryColor: string | null;
   institutionUrl: string | null;
   balanceFetchedAt: string;
+  accountsObservedAt: string;
 };
 
 function assert(condition: boolean, message: string): void {
@@ -153,9 +156,13 @@ function createHarness(options: HarnessOptions = {}) {
           primaryColor: args.primaryColor,
           institutionUrl: args.institutionUrl,
           balanceFetchedAt: args.balanceFetchedAt,
+          accountsObservedAt: args.accountsObservedAt,
         };
         if (options.persistDisconnected) {
           return "disconnected";
+        }
+        if (options.persistSuperseded) {
+          return "superseded";
         }
         return persistSucceeds ? args.accounts.length : null;
       },
@@ -233,7 +240,7 @@ function createHarness(options: HarnessOptions = {}) {
         },
       );
     },
-    now: () => new Date("2026-10-03T12:00:00.000Z"),
+    now: options.now ?? (() => new Date("2026-10-03T12:00:00.000Z")),
     getEnv: (name) => {
       if (name === "PLAID_CLIENT_ID") {
         return "client-id";
@@ -761,6 +768,68 @@ Deno.test("manual Sync of an Item disconnected mid-refresh fails closed with 409
   assertEquals(calls.includes("record_observation"), false);
   assert(!text.includes(accessToken), "response exposed access token");
   assert(!text.includes("sandbox-secret"), "response exposed Plaid secret");
+});
+
+Deno.test("manual Sync superseded by a newer snapshot returns 200 with 0/null and still bootstraps", async () => {
+  const { handler, request, calls, bootstrapCalls, observations } = createHarness({
+    persistSuperseded: true,
+  });
+
+  const response = await handler(request);
+  const text = await response.text();
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    text,
+    JSON.stringify({
+      synced_account_count: 0,
+      institution_name: null,
+      transactions_bootstrap_status: "synced",
+    }),
+  );
+  // One /accounts/get, no retry, no health write.
+  assertEquals(
+    calls.join(","),
+    "get_access_token,plaid_accounts,plaid_institution,persist_accounts,bootstrap_transactions",
+  );
+  assertEquals(bootstrapCalls.length, 1);
+  assertEquals(observations.length, 0);
+  assert(!text.includes(accessToken), "response exposed access token");
+  assert(!text.includes("sandbox-secret"), "response exposed Plaid secret");
+});
+
+Deno.test("manual Sync superseded keeps the deferred bootstrap status", async () => {
+  const { handler, request } = createHarness({
+    persistSuperseded: true,
+    bootstrapThrows: true,
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  const body = await response.json();
+  assertEquals(body.synced_account_count, 0);
+  assertEquals(body.institution_name, null);
+  assertEquals(body.transactions_bootstrap_status, "deferred");
+});
+
+Deno.test("manual Sync passes the observation time taken before /accounts/get", async () => {
+  // Every now() call advances the clock by one second.
+  let ticks = 0;
+  const harness = createHarness({
+    now: () => new Date(Date.parse("2026-10-03T12:00:00.000Z") + 1000 * ticks++),
+  });
+
+  const response = await harness.handler(harness.request);
+
+  assertEquals(response.status, 200);
+  assertEquals(harness.calls.filter((call) => call === "plaid_accounts").length, 1);
+  const persistArgs = harness.getPersistArgs()!;
+  assertEquals(persistArgs.accountsObservedAt, "2026-10-03T12:00:00.000Z");
+  assert(
+    Date.parse(persistArgs.balanceFetchedAt) > Date.parse(persistArgs.accountsObservedAt),
+    "balance time must be taken at persist, after the observation time",
+  );
 });
 
 Deno.test("malformed accounts payload keeps the 502 plaid_payload_invalid contract", async () => {

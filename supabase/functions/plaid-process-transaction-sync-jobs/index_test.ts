@@ -734,6 +734,7 @@ function accountsRefreshFake(options: {
   tokenAvailable?: boolean;
   persistSucceeds?: boolean;
   persistDisconnected?: boolean;
+  persistSuperseded?: boolean;
   storedInstitution?: "row" | "failed";
   throwsOnToken?: boolean;
 } = {}): AccountsRefreshFake {
@@ -765,6 +766,9 @@ function accountsRefreshFake(options: {
         });
         if (options.persistDisconnected) {
           return Promise.resolve("disconnected");
+        }
+        if (options.persistSuperseded) {
+          return Promise.resolve("superseded");
         }
         return Promise.resolve(
           (options.persistSucceeds ?? true) ? args.accounts.length : null,
@@ -1032,6 +1036,51 @@ Deno.test("C snapshot refused after a concurrent Disconnect keeps the job succee
   assertEquals(fake.observations.length, 0);
   assertEquals(calls.filter((call) => call === "plaid_accounts_get").length, 1);
   assertEquals(refreshOutcomes(logs).join(","), "connection_disconnected");
+});
+
+Deno.test("C superseded accounts snapshot is benign: job succeeded, no retry, structured event", async () => {
+  const fake = accountsRefreshFake({ persistSuperseded: true });
+  const { handler, request, calls, syncJobs, logs } = createHarness({
+    claimedJobs: [job()],
+    plaidCredentials: true,
+    accountsDatabase: fake.factory,
+    fetch: plaidAccountsFetch("ok"),
+  });
+
+  const response = await handler(request);
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertPrimaryJobSucceeded(body, calls, syncJobs);
+  assertEquals(fake.persisted.length, 1);
+  assertEquals(fake.observations.length, 0);
+  assertEquals(calls.filter((call) => call === "plaid_accounts_get").length, 1);
+  assertEquals(refreshOutcomes(logs).join(","), "snapshot_superseded");
+  const events = logs.filter((entry) => entry.message === "accounts_snapshot_superseded");
+  assertEquals(events.length, 1);
+  assertEquals(Object.keys(events[0].fields).sort().join(","), "run_id,source");
+  assertEquals(events[0].fields.source, "transaction_sync_job");
+  assert(!JSON.stringify(logs).includes(accessToken), "log exposed access token");
+  assert(!JSON.stringify(events).includes(connectionId), "event exposed connection id");
+});
+
+Deno.test("C only a superseded snapshot emits accounts_snapshot_superseded", async () => {
+  for (const options of [{}, { persistDisconnected: true }, { persistSucceeds: false }]) {
+    const fake = accountsRefreshFake(options);
+    const { handler, request, logs } = createHarness({
+      claimedJobs: [job()],
+      plaidCredentials: true,
+      accountsDatabase: fake.factory,
+      fetch: plaidAccountsFetch("ok"),
+    });
+
+    await handler(request);
+
+    assertEquals(
+      logs.filter((entry) => entry.message === "accounts_snapshot_superseded").length,
+      0,
+    );
+  }
 });
 
 Deno.test("D ITEM_LOGIN_REQUIRED records health without persist or job retry", async () => {

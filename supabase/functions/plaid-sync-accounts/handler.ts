@@ -15,7 +15,7 @@ import {
 import { recordItemHealthObservationRpc } from "../_shared/plaid_item_health.ts";
 import {
   type AccountsRefreshDatabase,
-  isPlaidItemDisconnectedRpcError,
+  persistAccountsSyncRpc,
   type PlaidAccountsRefreshResult,
   refreshPlaidAccountsForItem,
 } from "../_shared/plaid_accounts_refresh.ts";
@@ -77,27 +77,8 @@ function createDefaultDatabase(
       return data;
     },
 
-    async persistAccountsSync(args) {
-      const { data, error } = await supabaseAdmin.rpc(
-        "plaid_persist_accounts_sync",
-        {
-          p_user_id: args.userId,
-          p_connection_id: args.connectionId,
-          p_plaid_institution_id: args.plaidInstitutionId,
-          p_institution_name: args.institutionName,
-          p_logo_base64: args.logoBase64,
-          p_primary_color: args.primaryColor,
-          p_url: args.institutionUrl,
-          p_balance_fetched_at: args.balanceFetchedAt,
-          p_accounts: args.accounts,
-        },
-      );
-
-      if (error !== null) {
-        return isPlaidItemDisconnectedRpcError(error) ? "disconnected" : null;
-      }
-
-      return typeof data === "number" ? data : null;
+    persistAccountsSync(args) {
+      return persistAccountsSyncRpc(supabaseAdmin, args);
     },
 
     recordItemHealthObservation(observation) {
@@ -133,7 +114,10 @@ function createDefaultTransactionBootstrap(
 }
 
 function refreshFailureResponse(
-  result: Exclude<PlaidAccountsRefreshResult, { kind: "refreshed" }>,
+  result: Exclude<
+    PlaidAccountsRefreshResult,
+    { kind: "refreshed" } | { kind: "snapshot_superseded" }
+  >,
 ): Response {
   switch (result.kind) {
     case "connection_not_found":
@@ -223,7 +207,8 @@ export function createPlaidSyncAccountsHandler(
       institutionSource: "plaid",
     });
 
-    if (refresh.kind !== "refreshed") {
+    // A superseded snapshot is not a failure: a later one is already persisted.
+    if (refresh.kind !== "refreshed" && refresh.kind !== "snapshot_superseded") {
       return refreshFailureResponse(refresh);
     }
 
@@ -238,8 +223,12 @@ export function createPlaidSyncAccountsHandler(
     }
 
     return jsonResponse(200, {
-      synced_account_count: refresh.syncedAccountCount,
-      institution_name: refresh.institutionName,
+      synced_account_count: refresh.kind === "refreshed"
+        ? refresh.syncedAccountCount
+        : 0,
+      institution_name: refresh.kind === "refreshed"
+        ? refresh.institutionName
+        : null,
       transactions_bootstrap_status: transactionsBootstrapStatus,
     });
   };

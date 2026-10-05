@@ -1,14 +1,17 @@
 import {
   type AccountsRefreshDatabase,
   type InstitutionMetadataSource,
+  isPlaidAccountsSnapshotSupersededRpcError,
   isPlaidItemDisconnectedRpcError,
   normalizePlaidAccounts,
   type PersistAccountsSyncArgs,
+  persistAccountsSyncRpc,
   type PlaidAccountsRefreshResult,
   refreshPlaidAccountsForItem,
   type StoredInstitution,
 } from "./plaid_accounts_refresh.ts";
 import type { ItemHealthObservation } from "./plaid_item_health.ts";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.112.2";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const connectionId = "22222222-2222-4222-8222-222222222222";
@@ -131,7 +134,7 @@ type FakeDatabaseState = {
 function fakeDatabase(options: {
   accessToken?: string | null;
   stored?: StoredInstitution | null | "failed" | "throw";
-  persistResult?: number | "disconnected" | null;
+  persistResult?: number | "disconnected" | "superseded" | null;
   observationResult?: "applied" | "not_found" | null;
   withoutInstitutionLookup?: boolean;
 } = {}): { database: AccountsRefreshDatabase; state: FakeDatabaseState } {
@@ -564,6 +567,119 @@ Deno.test("only the plaid_item_disconnected RPC error is classified as disconnec
   );
   assertEquals(isPlaidItemDisconnectedRpcError({}), false);
   assertEquals(isPlaidItemDisconnectedRpcError(null), false);
+});
+
+Deno.test("observation time is read once, right before /accounts/get; balance time at persist", async () => {
+  // Every now() call advances the clock by one second.
+  let ticks = 0;
+  const clock = () => new Date(now.getTime() + 1000 * ticks++);
+  const events: string[] = [];
+  const { database, state } = fakeDatabase();
+  const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) => {
+    events.push(`fetch ${new URL(input.toString()).pathname} at tick ${ticks}`);
+    return fakeFetch(accountsOk([account("a1")]), [])(input, init);
+  }) as typeof fetch;
+
+  const result = await refreshPlaidAccountsForItem({
+    userId,
+    connectionId,
+    database,
+    fetchImpl,
+    clientId,
+    secret: plaidSecret,
+    now: clock,
+    institutionSource: "stored",
+  });
+
+  assertEquals(result.kind, "refreshed");
+  assertJsonEquals(events, ["fetch /accounts/get at tick 1"]);
+  assertEquals(state.persisted.length, 1);
+  // Tick 0 was read before the request; tick 1 after the response, at persist.
+  assertEquals(state.persisted[0].accountsObservedAt, "2026-10-03T12:00:00.000Z");
+  assertEquals(state.persisted[0].balanceFetchedAt, "2026-10-03T12:00:01.000Z");
+  assertEquals(ticks, 2);
+});
+
+Deno.test("snapshot superseded by a newer one is snapshot_superseded: no retry, no health write", async () => {
+  const calls: FetchCall[] = [];
+  const { database, state } = fakeDatabase({ persistResult: "superseded" });
+  const result = await refresh({
+    responder: accountsOk([account("a1")]),
+    database,
+    calls,
+  });
+
+  assertJsonEquals(result, { kind: "snapshot_superseded" });
+  assertEquals(state.persisted.length, 1);
+  assertEquals(state.observations.length, 0);
+  assertEquals(state.tokenRequests, 1);
+  assertEquals(calls.filter((c) => c.url.includes("/accounts/get")).length, 1);
+  assertEquals(calls.length, 1);
+  assertNoSecrets(result);
+});
+
+Deno.test("persistAccountsSyncRpc sends the observation time as its own named argument and maps errors", async () => {
+  const sent: Array<{ fn: string; params: Record<string, unknown> }> = [];
+  const client = (response: { data: unknown; error: { message: string } | null }) =>
+    ({
+      rpc(fn: string, params: Record<string, unknown>) {
+        sent.push({ fn, params });
+        return Promise.resolve(response);
+      },
+    }) as unknown as SupabaseClient;
+  const args: PersistAccountsSyncArgs = {
+    userId,
+    connectionId,
+    plaidInstitutionId: "ins_1",
+    institutionName: "Bank",
+    logoBase64: null,
+    primaryColor: null,
+    institutionUrl: null,
+    balanceFetchedAt: "2026-10-03T12:00:05.000Z",
+    accountsObservedAt: "2026-10-03T12:00:00.000Z",
+    accounts: [],
+  };
+
+  assertEquals(await persistAccountsSyncRpc(client({ data: 2, error: null }), args), 2);
+  assertEquals(sent[0].fn, "plaid_persist_accounts_sync");
+  assertJsonEquals(Object.keys(sent[0].params).sort(), [
+    "p_accounts",
+    "p_accounts_observed_at",
+    "p_balance_fetched_at",
+    "p_connection_id",
+    "p_institution_name",
+    "p_logo_base64",
+    "p_plaid_institution_id",
+    "p_primary_color",
+    "p_url",
+    "p_user_id",
+  ]);
+  assertEquals(sent[0].params.p_accounts_observed_at, "2026-10-03T12:00:00.000Z");
+  assertEquals(sent[0].params.p_balance_fetched_at, "2026-10-03T12:00:05.000Z");
+
+  const superseded = client({ data: null, error: { message: "plaid_accounts_snapshot_superseded" } });
+  assertEquals(await persistAccountsSyncRpc(superseded, args), "superseded");
+  const disconnected = client({ data: null, error: { message: "plaid_item_disconnected" } });
+  assertEquals(await persistAccountsSyncRpc(disconnected, args), "disconnected");
+  const invalid = client({ data: null, error: { message: "invalid_accounts_observed_at" } });
+  assertEquals(await persistAccountsSyncRpc(invalid, args), null);
+  assertEquals(await persistAccountsSyncRpc(client({ data: "2", error: null }), args), null);
+});
+
+Deno.test("only the plaid_accounts_snapshot_superseded RPC error is classified as superseded", () => {
+  assertEquals(
+    isPlaidAccountsSnapshotSupersededRpcError({ message: "plaid_accounts_snapshot_superseded" }),
+    true,
+  );
+  for (const message of ["plaid_item_disconnected", "invalid_accounts_observed_at", "plaid_item_not_found"]) {
+    assertEquals(isPlaidAccountsSnapshotSupersededRpcError({ message }), false, message);
+  }
+  assertEquals(isPlaidAccountsSnapshotSupersededRpcError({}), false);
+  assertEquals(isPlaidAccountsSnapshotSupersededRpcError(null), false);
+  assertEquals(
+    isPlaidItemDisconnectedRpcError({ message: "plaid_accounts_snapshot_superseded" }),
+    false,
+  );
 });
 
 Deno.test("access token and Plaid credentials never appear in results or persist args", async () => {
