@@ -3,9 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/database/app_database_provider.dart';
-import '../../../core/errors/result.dart';
-import '../../profile/controller/profile_providers.dart';
-import '../../profile/domain/entities/profile.dart';
 import '../data/repositories/local_budget_planning_repository.dart';
 import '../domain/entities/budget_household.dart';
 import '../domain/entities/budget_income_source.dart';
@@ -38,16 +35,9 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
 
   final BudgetSetupMode mode;
 
-  String? _currencyCode;
-
-  String? get currencyCode => _currencyCode;
-
   @override
   Future<BudgetSetup?> build() async {
     final userId = _currentUserId();
-    final profileCurrencyCode = await _loadProfileCurrencyCode();
-    _currencyCode = profileCurrencyCode;
-
     final localRepository = _localRepository(userId);
     final localSetup = await localRepository.getCurrentSetup();
 
@@ -58,10 +48,7 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
       return localSetup;
     }
 
-    final migratedDraft = await _migrateLegacyDraft(
-      userId: userId,
-      fallbackCurrencyCode: profileCurrencyCode,
-    );
+    final migratedDraft = await _migrateLegacyDraft(userId);
 
     if (migratedDraft != null) {
       return migratedDraft;
@@ -72,21 +59,10 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
         .getCurrentSetup();
 
     if (persistedSetup != null) {
-      await localRepository.saveSetupWithCurrency(
-        persistedSetup,
-        profileCurrencyCode,
-      );
-
-      return await localRepository.getCurrentSetup() ?? persistedSetup;
+      return localRepository.saveSetup(persistedSetup);
     }
 
-    final initialSetup = _initialSetup(userId);
-    await localRepository.saveSetupWithCurrency(
-      initialSetup,
-      profileCurrencyCode,
-    );
-
-    return await localRepository.getCurrentSetup() ?? initialSetup;
+    return localRepository.saveSetup(_initialSetup(userId));
   }
 
   Future<void> saveHouseholdDraftAndGoNext(BudgetHousehold household) async {
@@ -169,13 +145,7 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
     );
     final localRepository = _localRepository(draft.userId);
 
-    await localRepository.saveSetupWithCurrency(
-      completedDraft,
-      _requiredCurrencyCode(),
-    );
-    state = AsyncData(
-      await localRepository.getCurrentSetup() ?? completedDraft,
-    );
+    state = AsyncData(await localRepository.saveSetup(completedDraft));
 
     try {
       final repository = ref.read(supabaseBudgetPlanningRepositoryProvider);
@@ -342,15 +312,10 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
     if (mode == BudgetSetupMode.edit) {
       return;
     }
-    await _localRepository(
-      setup.userId,
-    ).saveSetupWithCurrency(setup, _requiredCurrencyCode());
+    await _localRepository(setup.userId).saveSetup(setup);
   }
 
-  Future<BudgetSetup?> _migrateLegacyDraft({
-    required String userId,
-    required String fallbackCurrencyCode,
-  }) async {
+  Future<BudgetSetup?> _migrateLegacyDraft(String userId) async {
     final storage = ref.read(budgetSetupDraftStorageProvider);
     final draft = await storage.loadDraft(userId);
 
@@ -358,23 +323,18 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
       return null;
     }
 
-    _currencyCode = draft.currencyCode.isNotEmpty
-        ? draft.currencyCode
-        : fallbackCurrencyCode;
-
-    final setup = _setupFromDraft(draft);
-    final localRepository = _localRepository(userId);
-    await localRepository.saveSetupWithCurrency(setup, _requiredCurrencyCode());
+    final savedSetup = await _localRepository(
+      userId,
+    ).saveSetup(_setupFromDraft(draft));
     await storage.clearDraft(userId);
 
-    return await localRepository.getCurrentSetup() ?? setup;
+    return savedSetup;
   }
 
   LocalBudgetPlanningRepository _localRepository(String userId) {
     return LocalBudgetPlanningRepository(
       database: ref.read(appDatabaseProvider),
       userId: userId,
-      currencyCode: _requiredCurrencyCode,
     );
   }
 
@@ -384,26 +344,5 @@ final class BudgetSetupController extends AsyncNotifier<BudgetSetup?> {
 
   int _clampStep(int currentStep) {
     return currentStep.clamp(0, 3).toInt();
-  }
-
-  Future<String> _loadProfileCurrencyCode() async {
-    final repository = ref.read(profileRepositoryProvider);
-    final profileResult = await repository.getCurrentProfile();
-
-    if (profileResult is Success<Profile>) {
-      return profileResult.value.currencyCode;
-    }
-
-    throw StateError('Unable to load current profile currency.');
-  }
-
-  String _requiredCurrencyCode() {
-    final value = _currencyCode;
-
-    if (value == null || value.isEmpty) {
-      throw StateError('Budget setup currency code is required.');
-    }
-
-    return value;
   }
 }

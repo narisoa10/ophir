@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/categories/app_categories.dart';
 import 'package:ophir/core/database/app_database.dart';
 import 'package:ophir/core/database/app_database_provider.dart';
-import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/features/budget_planning/controller/budget_planning_providers.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_controller.dart';
 import 'package:ophir/features/budget_planning/domain/enums/budget_setup_mode.dart';
@@ -18,9 +17,6 @@ import 'package:ophir/features/budget_planning/domain/enums/budget_data_confiden
 import 'package:ophir/features/budget_planning/domain/enums/budget_data_source.dart';
 import 'package:ophir/features/budget_planning/domain/enums/budget_frequency.dart';
 import 'package:ophir/features/budget_planning/domain/repositories/budget_planning_repository.dart';
-import 'package:ophir/features/profile/controller/profile_providers.dart';
-import 'package:ophir/features/profile/domain/entities/profile.dart';
-import 'package:ophir/features/profile/domain/repositories/profile_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -35,10 +31,7 @@ void main() {
       final repository = _FakeBudgetPlanningRepository(
         getCurrentSetupError: StateError('Supabase should not be called'),
       );
-      await database.saveBudgetSetupWithCurrency(
-        _setup(id: 'local-setup', currentStep: 2),
-        'CAD',
-      );
+      await database.saveBudgetSetup(_setup(id: 'local-setup', currentStep: 2));
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
 
@@ -80,16 +73,9 @@ void main() {
       );
       expect(localSetup?.incomeSources.single.name, 'Main salary');
       expect(await const BudgetSetupDraftStorage().loadDraft('user-1'), isNull);
-      expect(
-        container
-            .read(
-              budgetSetupControllerProvider(
-                BudgetSetupMode.onboarding,
-              ).notifier,
-            )
-            .currencyCode,
-        'EUR',
-      );
+      // The draft-level code is legacy; items keep their own currency.
+      expect(localSetup?.incomeSources.single.currencyCode, 'CAD');
+      expect(localSetup?.currencyCode, 'CAD');
     });
 
     test('uses Supabase fallback and stores result in Drift', () async {
@@ -269,7 +255,7 @@ void main() {
           incomeSources: [_incomeSource(id: 'inc-1', amount: 1000)],
         );
 
-        await database.saveBudgetSetupWithCurrency(initialSetup, 'CAD');
+        await database.saveBudgetSetup(initialSetup);
 
         final repository = _FakeBudgetPlanningRepository(
           currentSetup: initialSetup,
@@ -319,7 +305,7 @@ void main() {
           currentStep: 3,
           incomeSources: [_incomeSource(id: 'inc-1', amount: 1000)],
         );
-        await database.saveBudgetSetupWithCurrency(initialSetup, 'CAD');
+        await database.saveBudgetSetup(initialSetup);
 
         final repository = _FakeBudgetPlanningRepository(
           currentSetup: initialSetup,
@@ -369,16 +355,12 @@ ProviderContainer _container({
   required AppDatabase database,
   required _FakeBudgetPlanningRepository repository,
   String userId = 'user-1',
-  String currencyCode = 'CAD',
 }) {
   return ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       budgetSetupUserIdProvider.overrideWithValue(userId),
       supabaseBudgetPlanningRepositoryProvider.overrideWithValue(repository),
-      profileRepositoryProvider.overrideWithValue(
-        _FakeProfileRepository(currencyCode: currencyCode),
-      ),
     ],
   );
 }
@@ -462,40 +444,6 @@ final class _FakeBudgetPlanningRepository implements BudgetPlanningRepository {
     if (currentSetup?.id == setupId) {
       currentSetup = null;
     }
-  }
-}
-
-final class _FakeProfileRepository implements ProfileRepository {
-  const _FakeProfileRepository({required this.currencyCode});
-
-  final String currencyCode;
-
-  @override
-  Future<Result<Profile>> getCurrentProfile() async {
-    final now = DateTime.utc(2026);
-
-    return Success(
-      Profile(
-        id: 'user-1',
-        email: 'user@example.com',
-        locale: 'en',
-        currencyCode: currencyCode,
-        timezone: 'America/Toronto',
-        onboardingCompleted: true,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-  }
-
-  @override
-  Future<Result<Profile>> updateProfile(Profile profile) async {
-    return Success(profile);
-  }
-
-  @override
-  Stream<Result<Profile>> watchCurrentProfile() {
-    throw UnimplementedError();
   }
 }
 

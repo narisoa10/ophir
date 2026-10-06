@@ -5,9 +5,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/currency/product_currency.dart';
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/app_failure_localization.dart';
 import '../../../../core/errors/result.dart';
+import '../../../../core/formatters/app_money_formatter.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/theme_v1/app_colors.dart';
 import '../../../../core/theme_v1/app_dimensions.dart';
@@ -25,6 +27,7 @@ import '../../data/plaid/plaid_connect_service.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/entities/institution.dart';
 import '../../domain/entities/plaid_connection_health.dart';
+import '../../domain/services/account_financial_participation_policy.dart';
 import '../adapters/account_adapter.dart';
 import '../widgets/account_list_tile.dart';
 import '../widgets/accounts_empty_state.dart';
@@ -278,7 +281,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           actions: [
             TextButton(
               onPressed: () => choose(_AmbiguousAccountChoice.alreadyConnected),
-              child: Text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
+              child: Text(
+                l10n.accountsAmbiguousConnectionDialogAlreadyConnected,
+              ),
             ),
             TextButton(
               onPressed: () => choose(_AmbiguousAccountChoice.differentAccount),
@@ -450,7 +455,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           break;
         case PlaidReconnectConfirmed(:final refresh):
           if (refresh.status == PlaidConnectionStatus.active) {
-            setState(() => _syncLoginRequiredConnectionIds.remove(connectionId));
+            setState(
+              () => _syncLoginRequiredConnectionIds.remove(connectionId),
+            );
             final stillLoginRequired = await _syncAndRefreshAfterRepair(
               connectionId,
             );
@@ -780,9 +787,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           return const {};
         }
 
-        return {
-          for (final health in result.value) health.connectionId: health,
-        };
+        return {for (final health in result.value) health.connectionId: health};
       },
       error: (error, stackTrace) => const {},
       loading: () => const {},
@@ -999,7 +1004,10 @@ class _AmbiguousAccountComparison extends StatelessWidget {
               style: labelStyle,
             ),
             for (final candidate in shown)
-              _SimilarAccountLines(candidate: candidate, detailStyle: labelStyle),
+              _SimilarAccountLines(
+                candidate: candidate,
+                detailStyle: labelStyle,
+              ),
             if (hidden > 0)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -1277,7 +1285,10 @@ class _BankGroupHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appThemeColors;
     final name = institution?.name?.trim();
-    final aggregateBalance = _aggregateBalance(group.accounts);
+    final aggregateBalance = _aggregateBalance(
+      group.accounts,
+      AppLocalizations.of(context).localeName,
+    );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1420,7 +1431,7 @@ class _BankGroupHeader extends StatelessWidget {
     );
   }
 
-  String? _aggregateBalance(List<Account> accounts) {
+  String? _aggregateBalance(List<Account> accounts, String locale) {
     final presentAccounts = accounts
         .where((account) => account.plaidMissingSince == null)
         .toList(growable: false);
@@ -1446,7 +1457,7 @@ class _BankGroupHeader extends StatelessWidget {
       total += balance;
     }
 
-    return '${total.toStringAsFixed(2)} $currency';
+    return formatMoney(total, currency, locale: locale);
   }
 }
 
@@ -1464,10 +1475,17 @@ class _FinancialParticipationAccountRow extends StatelessWidget {
   final Future<void> Function(Account account, bool isIncludedInFinances)
   onChanged;
 
+  static const _participationPolicy = AccountFinancialParticipationPolicy();
+
   @override
   Widget build(BuildContext context) {
     final colors = context.appThemeColors;
-    final statusLabel = account.isIncludedInFinances
+    final isCurrencySupported = _participationPolicy.isCurrencySupported(
+      account,
+    );
+    final statusLabel = !isCurrencySupported
+        ? l10n.accountsUnsupportedCurrencyStatus(productCurrencyCode)
+        : account.isIncludedInFinances
         ? l10n.accountsFinancialParticipationIncludedStatus
         : l10n.accountsFinancialParticipationExcludedStatus;
 
@@ -1493,12 +1511,14 @@ class _FinancialParticipationAccountRow extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            AppCompactSwitch(
-              value: account.isIncludedInFinances,
-              onChanged: (value) => onChanged(account, value),
-              semanticLabel: statusLabel,
-            ),
+            if (isCurrencySupported) ...[
+              const SizedBox(width: AppSpacing.sm),
+              AppCompactSwitch(
+                value: account.isIncludedInFinances,
+                onChanged: (value) => onChanged(account, value),
+                semanticLabel: statusLabel,
+              ),
+            ],
           ],
         ),
       ],

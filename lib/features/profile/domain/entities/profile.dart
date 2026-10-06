@@ -6,7 +6,6 @@ final class Profile {
     required this.id,
     required this.email,
     required this.locale,
-    required this.currencyCode,
     required this.timezone,
     required this.onboardingCompleted,
     required this.createdAt,
@@ -20,7 +19,6 @@ final class Profile {
   final String? fullName;
   final String? avatarUrl;
   final String locale;
-  final String currencyCode;
   final String timezone;
   final bool onboardingCompleted;
   final DateTime createdAt;
@@ -31,7 +29,6 @@ final class Profile {
     String? fullName,
     String? avatarUrl,
     String? locale,
-    String? currencyCode,
     String? timezone,
     bool? onboardingCompleted,
     DateTime? createdAt,
@@ -43,7 +40,6 @@ final class Profile {
       fullName: fullName ?? this.fullName,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       locale: locale ?? this.locale,
-      currencyCode: currencyCode ?? this.currencyCode,
       timezone: timezone ?? this.timezone,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       createdAt: createdAt ?? this.createdAt,

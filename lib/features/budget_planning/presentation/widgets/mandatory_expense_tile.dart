@@ -8,7 +8,7 @@ import '../../../../core/theme_v1/app_category_colors.dart';
 import '../../../../core/theme_v1/app_theme_colors.dart';
 import '../../../../core/widgets/app_financial_list_tile.dart';
 import '../../domain/entities/budget_obligation.dart';
-import '../../domain/enums/budget_frequency.dart';
+import '../mappers/budget_frequency_localization.dart';
 
 class MandatoryExpenseTile extends StatelessWidget {
   const MandatoryExpenseTile({
@@ -59,9 +59,9 @@ class MandatoryExpenseTile extends StatelessWidget {
     final amount = formatMoney(
       value.amount,
       currencyCode,
-      showPositiveSign: false,
+      locale: l10n.localeName,
     );
-    final frequency = _frequencyLabel(value.frequency, l10n);
+    final frequency = value.frequency.localized(l10n);
     final date = value.nextDueDate == null
         ? null
         : MaterialLocalizations.of(
@@ -75,20 +75,6 @@ class MandatoryExpenseTile extends StatelessWidget {
     ].join(' \u2022 ');
   }
 
-  String _frequencyLabel(BudgetFrequency frequency, AppLocalizations l10n) {
-    return switch (frequency) {
-      BudgetFrequency.daily => l10n.budgetFrequencyDaily,
-      BudgetFrequency.weekly => l10n.budgetFrequencyWeekly,
-      BudgetFrequency.biweekly => l10n.budgetFrequencyBiweekly,
-      BudgetFrequency.semiMonthly => l10n.budgetFrequencySemiMonthly,
-      BudgetFrequency.monthly => l10n.budgetFrequencyMonthly,
-      BudgetFrequency.everyNMonths => l10n.budgetFrequencyEveryNMonths,
-      BudgetFrequency.timesPerYear => l10n.budgetFrequencyTimesPerYear,
-      BudgetFrequency.yearly => l10n.budgetFrequencyYearly,
-      BudgetFrequency.irregular => l10n.budgetFrequencyIrregular,
-    };
-  }
-
   String _housingSummary(AppLocalizations l10n) {
     final value = obligation;
 
@@ -99,9 +85,9 @@ class MandatoryExpenseTile extends StatelessWidget {
     final amount = formatMoney(
       value.amount,
       currencyCode,
-      showPositiveSign: false,
+      locale: l10n.localeName,
     );
-    final frequency = _frequencyLabel(value.frequency, l10n);
+    final frequency = value.frequency.localized(l10n);
 
     return '$amount \u2022 $frequency';
   }

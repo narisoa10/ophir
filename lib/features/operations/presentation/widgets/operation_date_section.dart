@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/currency/product_currency.dart';
 import '../../../../core/formatters/app_money_formatter.dart';
 import '../../../../core/icons/app_icons.dart';
+import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/theme_v1/app_theme_colors.dart';
 import '../../../../core/theme_v1/app_radius.dart';
 import '../../../../core/theme_v1/app_shadows.dart';
@@ -50,7 +52,8 @@ class OperationDateSection extends StatelessWidget {
                   Text(
                     formatMoney(
                       runningBalanceAfterDate,
-                      _currencyCode(operations),
+                      productCurrencyCode,
+                      locale: AppLocalizations.of(context).localeName,
                       showPositiveSign: true,
                     ),
                     style: AppTypography.currencyStrong,
@@ -90,9 +93,5 @@ class OperationDateSection extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _currencyCode(List<Operation> operations) {
-    return operations.isEmpty ? 'CAD' : operations.first.currencyCode;
   }
 }

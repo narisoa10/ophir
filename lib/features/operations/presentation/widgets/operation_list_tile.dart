@@ -93,7 +93,10 @@ class OperationListTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.inlineGap),
-            Text(_formattedAmount(operation), style: AppTypography.currency),
+            Text(
+              _formattedAmount(operation, l10n.localeName),
+              style: AppTypography.currency,
+            ),
           ],
         ),
       ),
@@ -116,7 +119,7 @@ class OperationListTile extends StatelessWidget {
     };
   }
 
-  String _formattedAmount(Operation operation) {
+  String _formattedAmount(Operation operation, String locale) {
     final signedAmount = switch (operation.type) {
       OperationType.expense => -operation.amount,
       OperationType.income => operation.amount,
@@ -126,6 +129,7 @@ class OperationListTile extends StatelessWidget {
     return formatMoney(
       signedAmount,
       operation.currencyCode,
+      locale: locale,
       showPositiveSign: operation.type == OperationType.income,
     );
   }

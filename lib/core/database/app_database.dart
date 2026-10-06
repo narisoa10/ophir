@@ -14,6 +14,7 @@ import '../../features/operations/domain/enums/operation_source.dart';
 import '../../features/operations/domain/enums/operation_type.dart';
 import '../../features/operations/domain/utils/operation_calendar_date.dart';
 import '../categories/app_categories.dart';
+import '../currency/product_currency.dart';
 import 'tables/budget_income_sources_table.dart';
 import 'tables/budget_obligations_table.dart';
 import 'tables/budget_setups_table.dart';
@@ -37,7 +38,7 @@ final class AppDatabase extends _$AppDatabase {
   static const syncFailed = 'failed';
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -77,6 +78,16 @@ final class AppDatabase extends _$AppDatabase {
           await customStatement(
             'ALTER TABLE operations '
             'ADD COLUMN category_overridden INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+
+        if (from < 6) {
+          // Budgets are product data, which the server keeps in the product
+          // currency; a cached budget may still carry the legacy label it
+          // inherited from the old profile default. Amounts are unchanged.
+          await customStatement(
+            'UPDATE budget_setups SET currency_code = ? WHERE currency_code <> ?',
+            [productCurrencyCode, productCurrencyCode],
           );
         }
       },
@@ -252,49 +263,19 @@ final class AppDatabase extends _$AppDatabase {
         .asyncMap((_) => getBudgetObligations(userId));
   }
 
-  Future<void> saveBudgetSetup(
-    BudgetSetup setup,
-    List<BudgetIncomeSource> incomeSources,
-    List<BudgetObligation> obligations,
-  ) {
-    return _saveBudgetSetupWithCurrency(
-      setup,
-      incomeSources,
-      obligations,
-      _currencyCodeFromSetup(setup),
-    );
-  }
-
-  Future<void> saveBudgetSetupWithCurrency(
-    BudgetSetup setup,
-    String currencyCode,
-  ) {
-    return _saveBudgetSetupWithCurrency(
-      setup,
-      setup.incomeSources,
-      setup.obligations,
-      currencyCode,
-    );
-  }
-
-  Future<void> _saveBudgetSetupWithCurrency(
-    BudgetSetup setup,
-    List<BudgetIncomeSource> incomeSources,
-    List<BudgetObligation> obligations,
-    String currencyCode,
-  ) {
+  Future<void> saveBudgetSetup(BudgetSetup setup) {
     return transaction(() async {
       await into(budgetSetups).insertOnConflictUpdate(
-        _setupCompanion(setup, currencyCode: currencyCode),
+        _setupCompanion(setup, currencyCode: setup.currencyCode),
       );
       await _replaceBudgetIncomeSources(
         setup.userId,
-        incomeSources,
+        setup.incomeSources,
         syncStatus: syncPending,
       );
       await _replaceBudgetObligations(
         setup.userId,
-        obligations,
+        setup.obligations,
         syncStatus: syncPending,
       );
     });
@@ -305,6 +286,10 @@ final class AppDatabase extends _$AppDatabase {
     List<BudgetIncomeSource> incomeSources,
   ) async {
     await transaction(() async {
+      await _requireBudgetCurrency(
+        userId,
+        incomeSources.map((incomeSource) => incomeSource.currencyCode),
+      );
       await _replaceBudgetIncomeSources(
         userId,
         incomeSources,
@@ -319,6 +304,10 @@ final class AppDatabase extends _$AppDatabase {
     List<BudgetObligation> obligations,
   ) async {
     await transaction(() async {
+      await _requireBudgetCurrency(
+        userId,
+        obligations.map((obligation) => obligation.currencyCode),
+      );
       await _replaceBudgetObligations(
         userId,
         obligations,
@@ -516,19 +505,22 @@ final class AppDatabase extends _$AppDatabase {
       budgetSetups,
     )..where((table) => table.userId.equals(userId))).getSingleOrNull();
 
-    return row?.currencyCode ?? 'CAD';
+    return row?.currencyCode ?? productCurrencyCode;
   }
 
-  String _currencyCodeFromSetup(BudgetSetup setup) {
-    if (setup.incomeSources.isNotEmpty) {
-      return setup.incomeSources.first.currencyCode;
-    }
+  // Items are stored without a currency and read back in the setup currency,
+  // so an item in any other currency would be silently relabeled.
+  Future<void> _requireBudgetCurrency(
+    String userId,
+    Iterable<String> currencyCodes,
+  ) async {
+    final budgetCurrencyCode = await _currencyCodeFor(userId);
 
-    if (setup.obligations.isNotEmpty) {
-      return setup.obligations.first.currencyCode;
+    if (currencyCodes.any((code) => code != budgetCurrencyCode)) {
+      throw StateError(
+        'Budget items must be in the budget currency $budgetCurrencyCode.',
+      );
     }
-
-    return 'CAD';
   }
 
   Future<void> _touchSetup(String userId, {required String syncStatus}) async {

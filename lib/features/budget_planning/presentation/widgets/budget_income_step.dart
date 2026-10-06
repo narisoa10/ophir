@@ -14,7 +14,7 @@ import '../../../../core/theme_v1/app_typography.dart';
 import '../../../../core/widgets/app_financial_list_tile.dart';
 import '../../domain/entities/budget_income_source.dart';
 import '../../domain/entities/budget_setup.dart';
-import '../../domain/enums/budget_frequency.dart';
+import '../mappers/budget_frequency_localization.dart';
 import 'budget_income_editor_sheet.dart';
 
 class BudgetIncomeStep extends StatefulWidget {
@@ -111,20 +111,6 @@ class BudgetIncomeStepState extends State<BudgetIncomeStep> {
     });
   }
 
-  String _frequencyLabel(BudgetFrequency frequency, AppLocalizations l10n) {
-    return switch (frequency) {
-      BudgetFrequency.daily => l10n.budgetFrequencyDaily,
-      BudgetFrequency.weekly => l10n.budgetFrequencyWeekly,
-      BudgetFrequency.biweekly => l10n.budgetFrequencyBiweekly,
-      BudgetFrequency.semiMonthly => l10n.budgetFrequencySemiMonthly,
-      BudgetFrequency.monthly => l10n.budgetFrequencyMonthly,
-      BudgetFrequency.everyNMonths => l10n.budgetFrequencyEveryNMonths,
-      BudgetFrequency.timesPerYear => l10n.budgetFrequencyTimesPerYear,
-      BudgetFrequency.yearly => l10n.budgetFrequencyYearly,
-      BudgetFrequency.irregular => l10n.budgetFrequencyIrregular,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -188,10 +174,10 @@ class BudgetIncomeStepState extends State<BudgetIncomeStep> {
     final amount = formatMoney(
       income.amount,
       currencyCode,
-      showPositiveSign: false,
+      locale: l10n.localeName,
     );
 
-    return '$amount / ${_frequencyLabel(income.frequency, l10n)}';
+    return '$amount / ${income.frequency.localized(l10n)}';
   }
 }
 

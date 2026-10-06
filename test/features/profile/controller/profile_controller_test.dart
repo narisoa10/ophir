@@ -74,7 +74,6 @@ final class _FakeProfileRepository implements ProfileRepository {
     id: 'user-1',
     email: 'user@example.com',
     locale: 'en',
-    currencyCode: 'USD',
     timezone: 'UTC',
     onboardingCompleted: true,
     createdAt: DateTime(2026),

@@ -9,14 +9,11 @@ final class LocalBudgetPlanningRepository implements BudgetPlanningRepository {
   const LocalBudgetPlanningRepository({
     required AppDatabase database,
     required String userId,
-    required String Function() currencyCode,
   }) : _database = database,
-       _userId = userId,
-       _currencyCode = currencyCode;
+       _userId = userId;
 
   final AppDatabase _database;
   final String _userId;
-  final String Function() _currencyCode;
 
   @override
   Future<BudgetSetup?> getCurrentSetup() {
@@ -51,13 +48,9 @@ final class LocalBudgetPlanningRepository implements BudgetPlanningRepository {
 
   @override
   Future<BudgetSetup> saveSetup(BudgetSetup setup) async {
-    await saveSetupWithCurrency(setup, _currencyCode());
+    await _database.saveBudgetSetup(setup);
 
     return await getCurrentSetup() ?? setup;
-  }
-
-  Future<void> saveSetupWithCurrency(BudgetSetup setup, String currencyCode) {
-    return _database.saveBudgetSetupWithCurrency(setup, currencyCode);
   }
 
   @override
@@ -99,7 +92,7 @@ final class LocalBudgetPlanningRepository implements BudgetPlanningRepository {
       updatedAt: now,
     );
 
-    await saveSetupWithCurrency(completedSetup, _currencyCode());
+    await _database.saveBudgetSetup(completedSetup);
 
     return await getCurrentSetup() ?? completedSetup;
   }

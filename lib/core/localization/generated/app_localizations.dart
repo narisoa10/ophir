@@ -586,12 +586,6 @@ abstract class AppLocalizations {
   /// **'Appearance'**
   String get settingsAppearanceTitle;
 
-  /// No description provided for @settingsAppearanceSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Theme and display preferences'**
-  String get settingsAppearanceSubtitle;
-
   /// No description provided for @settingsAppearanceCurrentSystem.
   ///
   /// In en, this message translates to:
@@ -751,8 +745,8 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAppVersionValue.
   ///
   /// In en, this message translates to:
-  /// **'Version 1.0.0'**
-  String get settingsAppVersionValue;
+  /// **'Version {version}'**
+  String settingsAppVersionValue(String version);
 
   /// No description provided for @settingsTermsOfServiceTitle.
   ///
@@ -982,335 +976,11 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get commonCancel;
 
-  /// No description provided for @categoryRent.
-  ///
-  /// In en, this message translates to:
-  /// **'Rent'**
-  String get categoryRent;
-
-  /// No description provided for @categoryMortgage.
-  ///
-  /// In en, this message translates to:
-  /// **'Mortgage'**
-  String get categoryMortgage;
-
-  /// No description provided for @categoryUtilities.
-  ///
-  /// In en, this message translates to:
-  /// **'Utilities'**
-  String get categoryUtilities;
-
-  /// No description provided for @categoryInsurance.
-  ///
-  /// In en, this message translates to:
-  /// **'Insurance'**
-  String get categoryInsurance;
-
-  /// No description provided for @categoryGroceries.
-  ///
-  /// In en, this message translates to:
-  /// **'Groceries'**
-  String get categoryGroceries;
-
-  /// No description provided for @categoryRestaurants.
-  ///
-  /// In en, this message translates to:
-  /// **'Restaurants'**
-  String get categoryRestaurants;
-
-  /// No description provided for @categoryCoffee.
-  ///
-  /// In en, this message translates to:
-  /// **'Coffee'**
-  String get categoryCoffee;
-
-  /// No description provided for @categoryFuel.
-  ///
-  /// In en, this message translates to:
-  /// **'Fuel'**
-  String get categoryFuel;
-
-  /// No description provided for @categoryPublicTransit.
-  ///
-  /// In en, this message translates to:
-  /// **'Public transit'**
-  String get categoryPublicTransit;
-
-  /// No description provided for @categoryCar.
-  ///
-  /// In en, this message translates to:
-  /// **'Car'**
-  String get categoryCar;
-
-  /// No description provided for @categoryHealth.
-  ///
-  /// In en, this message translates to:
-  /// **'Health'**
-  String get categoryHealth;
-
-  /// No description provided for @categoryPharmacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Pharmacy'**
-  String get categoryPharmacy;
-
-  /// No description provided for @categoryShopping.
-  ///
-  /// In en, this message translates to:
-  /// **'Shopping'**
-  String get categoryShopping;
-
-  /// No description provided for @categoryEntertainment.
-  ///
-  /// In en, this message translates to:
-  /// **'Entertainment'**
-  String get categoryEntertainment;
-
-  /// No description provided for @categorySubscriptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Subscriptions'**
-  String get categorySubscriptions;
-
-  /// No description provided for @categoryTravel.
-  ///
-  /// In en, this message translates to:
-  /// **'Travel'**
-  String get categoryTravel;
-
-  /// No description provided for @categoryEducation.
-  ///
-  /// In en, this message translates to:
-  /// **'Education'**
-  String get categoryEducation;
-
-  /// No description provided for @categoryDebtPayment.
-  ///
-  /// In en, this message translates to:
-  /// **'Debt payment'**
-  String get categoryDebtPayment;
-
-  /// No description provided for @categoryBankFees.
-  ///
-  /// In en, this message translates to:
-  /// **'Bank fees'**
-  String get categoryBankFees;
-
-  /// No description provided for @categorySavings.
-  ///
-  /// In en, this message translates to:
-  /// **'Savings'**
-  String get categorySavings;
-
-  /// No description provided for @categoryInvestments.
-  ///
-  /// In en, this message translates to:
-  /// **'Investments'**
-  String get categoryInvestments;
-
-  /// No description provided for @categoryOtherExpense.
-  ///
-  /// In en, this message translates to:
-  /// **'Other expense'**
-  String get categoryOtherExpense;
-
-  /// No description provided for @categorySalary.
-  ///
-  /// In en, this message translates to:
-  /// **'Salary'**
-  String get categorySalary;
-
-  /// No description provided for @categoryBusiness.
-  ///
-  /// In en, this message translates to:
-  /// **'Business'**
-  String get categoryBusiness;
-
-  /// No description provided for @categoryBenefits.
-  ///
-  /// In en, this message translates to:
-  /// **'Benefits'**
-  String get categoryBenefits;
-
-  /// No description provided for @categoryDividends.
-  ///
-  /// In en, this message translates to:
-  /// **'Dividends'**
-  String get categoryDividends;
-
-  /// No description provided for @categoryOtherIncome.
-  ///
-  /// In en, this message translates to:
-  /// **'Other income'**
-  String get categoryOtherIncome;
-
   /// No description provided for @categoryExampleDefault.
   ///
   /// In en, this message translates to:
   /// **'Ex. Operation detail'**
   String get categoryExampleDefault;
-
-  /// No description provided for @categoryExampleRent.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. July rent'**
-  String get categoryExampleRent;
-
-  /// No description provided for @categoryExampleMortgage.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Mortgage payment'**
-  String get categoryExampleMortgage;
-
-  /// No description provided for @categoryExampleUtilities.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Electricity bill'**
-  String get categoryExampleUtilities;
-
-  /// No description provided for @categoryExampleInsurance.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Home insurance'**
-  String get categoryExampleInsurance;
-
-  /// No description provided for @categoryExampleGroceries.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Costco'**
-  String get categoryExampleGroceries;
-
-  /// No description provided for @categoryExampleRestaurants.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Restaurant'**
-  String get categoryExampleRestaurants;
-
-  /// No description provided for @categoryExampleCoffee.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Starbucks'**
-  String get categoryExampleCoffee;
-
-  /// No description provided for @categoryExampleFuel.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Gas'**
-  String get categoryExampleFuel;
-
-  /// No description provided for @categoryExamplePublicTransit.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Bus pass'**
-  String get categoryExamplePublicTransit;
-
-  /// No description provided for @categoryExampleCar.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Car maintenance'**
-  String get categoryExampleCar;
-
-  /// No description provided for @categoryExampleHealth.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Doctor visit'**
-  String get categoryExampleHealth;
-
-  /// No description provided for @categoryExamplePharmacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Pharmacy'**
-  String get categoryExamplePharmacy;
-
-  /// No description provided for @categoryExampleShopping.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Amazon'**
-  String get categoryExampleShopping;
-
-  /// No description provided for @categoryExampleEntertainment.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Movie ticket'**
-  String get categoryExampleEntertainment;
-
-  /// No description provided for @categoryExampleSubscriptions.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Netflix'**
-  String get categoryExampleSubscriptions;
-
-  /// No description provided for @categoryExampleTravel.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Flight ticket'**
-  String get categoryExampleTravel;
-
-  /// No description provided for @categoryExampleEducation.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Course'**
-  String get categoryExampleEducation;
-
-  /// No description provided for @categoryExampleDebtPayment.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Credit card payment'**
-  String get categoryExampleDebtPayment;
-
-  /// No description provided for @categoryExampleBankFees.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Bank fee'**
-  String get categoryExampleBankFees;
-
-  /// No description provided for @categoryExampleSavings.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Monthly savings'**
-  String get categoryExampleSavings;
-
-  /// No description provided for @categoryExampleInvestments.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Wealthsimple'**
-  String get categoryExampleInvestments;
-
-  /// No description provided for @categoryExampleOtherExpense.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Other expense'**
-  String get categoryExampleOtherExpense;
-
-  /// No description provided for @categoryExampleSalary.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. June salary'**
-  String get categoryExampleSalary;
-
-  /// No description provided for @categoryExampleBusiness.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Client payment'**
-  String get categoryExampleBusiness;
-
-  /// No description provided for @categoryExampleBenefits.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Benefit payment'**
-  String get categoryExampleBenefits;
-
-  /// No description provided for @categoryExampleDividends.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Dividends'**
-  String get categoryExampleDividends;
-
-  /// No description provided for @categoryExampleOtherIncome.
-  ///
-  /// In en, this message translates to:
-  /// **'Ex. Other income'**
-  String get categoryExampleOtherIncome;
 
   /// No description provided for @categoryGroupExpenseHousing.
   ///
@@ -2357,23 +2027,11 @@ abstract class AppLocalizations {
   /// **'Add income'**
   String get operationAddIncomeTitle;
 
-  /// No description provided for @operationEditTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit operation'**
-  String get operationEditTitle;
-
   /// No description provided for @operationNameHint.
   ///
   /// In en, this message translates to:
   /// **'Operation name'**
   String get operationNameHint;
-
-  /// No description provided for @operationDate.
-  ///
-  /// In en, this message translates to:
-  /// **'Date'**
-  String get operationDate;
 
   /// No description provided for @operationNextDate.
   ///
@@ -2398,12 +2056,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No categories available.'**
   String get operationCategoryPickerEmpty;
-
-  /// No description provided for @commonApply.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply'**
-  String get commonApply;
 
   /// No description provided for @operationArchiveTitle.
   ///
@@ -2512,12 +2164,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Description'**
   String get operationDescriptionHint;
-
-  /// No description provided for @commonSaving.
-  ///
-  /// In en, this message translates to:
-  /// **'Saving...'**
-  String get commonSaving;
 
   /// No description provided for @operationAmountRequired.
   ///
@@ -2680,6 +2326,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Excluded from finances'**
   String get accountsFinancialParticipationExcludedStatus;
+
+  /// No description provided for @accountsUnsupportedCurrencyStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Ophir supports {currency} accounts only'**
+  String accountsUnsupportedCurrencyStatus(String currency);
 
   /// No description provided for @accountsFinancialExclusionDialogTitle.
   ///
@@ -2879,12 +2531,6 @@ abstract class AppLocalizations {
   /// **'Dashboard'**
   String get dashboardTitle;
 
-  /// No description provided for @dashboardWelcome.
-  ///
-  /// In en, this message translates to:
-  /// **'Welcome back.'**
-  String get dashboardWelcome;
-
   /// No description provided for @dashboardHeaderGreetingMorning.
   ///
   /// In en, this message translates to:
@@ -2963,23 +2609,17 @@ abstract class AppLocalizations {
   /// **'This field is required.'**
   String get budgetRequiredField;
 
-  /// No description provided for @budgetInvalidNonNegativeAmount.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter a valid amount.'**
-  String get budgetInvalidNonNegativeAmount;
-
-  /// No description provided for @budgetSetupLoadError.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to load budget setup.'**
-  String get budgetSetupLoadError;
-
   /// No description provided for @budgetSetupDraftLoadError.
   ///
   /// In en, this message translates to:
   /// **'Unable to load budget setup draft.'**
   String get budgetSetupDraftLoadError;
+
+  /// No description provided for @budgetSetupStatusLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to verify budget setup status.'**
+  String get budgetSetupStatusLoadError;
 
   /// No description provided for @budgetRetry.
   ///
@@ -3083,12 +2723,6 @@ abstract class AppLocalizations {
   /// **'Income'**
   String get budgetIncomeTitle;
 
-  /// No description provided for @budgetIncomeEditorTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Income source'**
-  String get budgetIncomeEditorTitle;
-
   /// No description provided for @budgetIncomeName.
   ///
   /// In en, this message translates to:
@@ -3100,12 +2734,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Income type'**
   String get budgetIncomeType;
-
-  /// No description provided for @budgetIncomeCategory.
-  ///
-  /// In en, this message translates to:
-  /// **'Income category'**
-  String get budgetIncomeCategory;
 
   /// No description provided for @budgetIncomeSelectCategory.
   ///
@@ -3136,12 +2764,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add income source'**
   String get budgetIncomeAddSource;
-
-  /// No description provided for @budgetIncomeRemoveSource.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove income source'**
-  String get budgetIncomeRemoveSource;
 
   /// No description provided for @budgetFrequencyDaily.
   ///
@@ -3245,23 +2867,11 @@ abstract class AppLocalizations {
   /// **'Pending'**
   String get operationPendingBadge;
 
-  /// No description provided for @operationCategorySuggestions.
-  ///
-  /// In en, this message translates to:
-  /// **'Suggestions'**
-  String get operationCategorySuggestions;
-
   /// No description provided for @categoryRuleRememberTitle.
   ///
   /// In en, this message translates to:
   /// **'Remember this category?'**
   String get categoryRuleRememberTitle;
-
-  /// No description provided for @categoryRuleRememberMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Remember this category for future similar operations from this merchant?'**
-  String categoryRuleRememberMessage(String merchant, String category);
 
   /// No description provided for @categoryRuleRememberOnlyThis.
   ///
@@ -3292,6 +2902,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No saved rules yet. Categorize a bank transaction and choose Remember.'**
   String get categoryRulesEmpty;
+
+  /// No description provided for @categoryRulesUnknownCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown category'**
+  String get categoryRulesUnknownCategory;
 
   /// No description provided for @dashboardCategorizationActionTitle.
   ///

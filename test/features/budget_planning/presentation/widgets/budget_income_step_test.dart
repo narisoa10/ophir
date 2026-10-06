@@ -131,7 +131,7 @@ void main() {
 
       expect(find.text('Primary job'), findsOneWidget);
       expect(
-        find.text('1000.00 CAD / ${_l10n.budgetFrequencyMonthly}'),
+        find.text('1,000.00 CAD / ${_l10n.budgetFrequencyMonthly}'),
         findsOneWidget,
       );
     });

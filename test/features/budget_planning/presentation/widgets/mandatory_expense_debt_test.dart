@@ -10,6 +10,7 @@ import 'package:ophir/features/budget_planning/domain/enums/budget_frequency.dar
 import 'package:ophir/features/budget_planning/presentation/widgets/mandatory_expense_sections/mandatory_expense_debt.dart';
 
 final _l10n = lookupAppLocalizations(const Locale('en'));
+const _headerAmount = '500.00 CAD';
 
 void main() {
   group('MandatoryExpenseDebt', () {
@@ -36,7 +37,7 @@ void main() {
       );
 
       expect(find.text(_l10n.budgetDebtTitle), findsOneWidget);
-      expect(find.text('0.00 CAD'), findsOneWidget);
+      expect(find.text(_headerAmount), findsOneWidget);
       expect(find.byType(AppFinancialListTile), findsNWidgets(3));
       expect(find.text('RBC Visa'), findsOneWidget);
       expect(find.text('Toyota Loan'), findsOneWidget);
@@ -59,7 +60,7 @@ void main() {
       );
 
       expect(find.text(_l10n.budgetDebtTitle), findsOneWidget);
-      expect(find.text('0.00 CAD'), findsOneWidget);
+      expect(find.text(_headerAmount), findsOneWidget);
       expect(find.byType(AppFinancialListTile), findsOneWidget);
       expect(find.text('RBC Visa'), findsNothing);
       expect(find.text(_l10n.budgetDebtAdd), findsNothing);
@@ -83,6 +84,7 @@ Future<void> _pumpDebtSection(
       home: Scaffold(
         body: MandatoryExpenseDebt(
           obligations: obligations,
+          formattedAmount: _headerAmount,
           isExpanded: isExpanded,
           onToggle: onToggle ?? () {},
           currencyCode: 'CAD',

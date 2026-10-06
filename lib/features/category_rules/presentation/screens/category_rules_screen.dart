@@ -61,7 +61,7 @@ class CategoryRulesScreen extends ConsumerWidget {
                 ),
                 title: Text(rule.merchantKey, style: AppTypography.bodyStrong),
                 subtitle: Text(
-                  category?.name(l10n) ?? rule.categoryId,
+                  category?.name(l10n) ?? l10n.categoryRulesUnknownCategory,
                   style: AppTypography.caption,
                 ),
                 trailing: IconButton(

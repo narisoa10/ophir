@@ -23,12 +23,36 @@ void main() {
 
       expect(activeAccounts, [included]);
     });
+
+    test('supports only CAD accounts', () {
+      expect(policy.isCurrencySupported(_account()), isTrue);
+      expect(
+        policy.isCurrencySupported(_account(currencyCode: 'USD')),
+        isFalse,
+      );
+      expect(
+        policy.isCurrencySupported(
+          _account(currencyCode: null, unofficialCurrencyCode: 'BTC'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a non-CAD account is never financially active', () {
+      final cad = _account(id: 'cad');
+      final usd = _account(id: 'usd', currencyCode: 'USD');
+
+      expect(policy.isFinanciallyActive(usd), isFalse);
+      expect(policy.financiallyActiveAccounts([cad, usd]), [cad]);
+    });
   });
 }
 
 Account _account({
   String id = 'account-1',
-  required bool isIncludedInFinances,
+  bool isIncludedInFinances = true,
+  String? currencyCode = 'CAD',
+  String? unofficialCurrencyCode,
 }) {
   final now = DateTime(2026, 8, 10);
 
@@ -39,6 +63,8 @@ Account _account({
     sortOrder: 0,
     isArchived: false,
     isIncludedInFinances: isIncludedInFinances,
+    currencyCode: currencyCode,
+    unofficialCurrencyCode: unofficialCurrencyCode,
     createdAt: now,
     updatedAt: now,
   );

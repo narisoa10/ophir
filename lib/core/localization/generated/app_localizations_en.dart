@@ -274,9 +274,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAppearanceTitle => 'Appearance';
 
   @override
-  String get settingsAppearanceSubtitle => 'Theme and display preferences';
-
-  @override
   String get settingsAppearanceCurrentSystem => 'Theme: System';
 
   @override
@@ -358,7 +355,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAboutOphirTitle => 'About Ophir';
 
   @override
-  String get settingsAppVersionValue => 'Version 1.0.0';
+  String settingsAppVersionValue(String version) {
+    return 'Version $version';
+  }
 
   @override
   String get settingsTermsOfServiceTitle => 'Terms of Service';
@@ -475,169 +474,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonCancel => 'Cancel';
 
   @override
-  String get categoryRent => 'Rent';
-
-  @override
-  String get categoryMortgage => 'Mortgage';
-
-  @override
-  String get categoryUtilities => 'Utilities';
-
-  @override
-  String get categoryInsurance => 'Insurance';
-
-  @override
-  String get categoryGroceries => 'Groceries';
-
-  @override
-  String get categoryRestaurants => 'Restaurants';
-
-  @override
-  String get categoryCoffee => 'Coffee';
-
-  @override
-  String get categoryFuel => 'Fuel';
-
-  @override
-  String get categoryPublicTransit => 'Public transit';
-
-  @override
-  String get categoryCar => 'Car';
-
-  @override
-  String get categoryHealth => 'Health';
-
-  @override
-  String get categoryPharmacy => 'Pharmacy';
-
-  @override
-  String get categoryShopping => 'Shopping';
-
-  @override
-  String get categoryEntertainment => 'Entertainment';
-
-  @override
-  String get categorySubscriptions => 'Subscriptions';
-
-  @override
-  String get categoryTravel => 'Travel';
-
-  @override
-  String get categoryEducation => 'Education';
-
-  @override
-  String get categoryDebtPayment => 'Debt payment';
-
-  @override
-  String get categoryBankFees => 'Bank fees';
-
-  @override
-  String get categorySavings => 'Savings';
-
-  @override
-  String get categoryInvestments => 'Investments';
-
-  @override
-  String get categoryOtherExpense => 'Other expense';
-
-  @override
-  String get categorySalary => 'Salary';
-
-  @override
-  String get categoryBusiness => 'Business';
-
-  @override
-  String get categoryBenefits => 'Benefits';
-
-  @override
-  String get categoryDividends => 'Dividends';
-
-  @override
-  String get categoryOtherIncome => 'Other income';
-
-  @override
   String get categoryExampleDefault => 'Ex. Operation detail';
-
-  @override
-  String get categoryExampleRent => 'Ex. July rent';
-
-  @override
-  String get categoryExampleMortgage => 'Ex. Mortgage payment';
-
-  @override
-  String get categoryExampleUtilities => 'Ex. Electricity bill';
-
-  @override
-  String get categoryExampleInsurance => 'Ex. Home insurance';
-
-  @override
-  String get categoryExampleGroceries => 'Ex. Costco';
-
-  @override
-  String get categoryExampleRestaurants => 'Ex. Restaurant';
-
-  @override
-  String get categoryExampleCoffee => 'Ex. Starbucks';
-
-  @override
-  String get categoryExampleFuel => 'Ex. Gas';
-
-  @override
-  String get categoryExamplePublicTransit => 'Ex. Bus pass';
-
-  @override
-  String get categoryExampleCar => 'Ex. Car maintenance';
-
-  @override
-  String get categoryExampleHealth => 'Ex. Doctor visit';
-
-  @override
-  String get categoryExamplePharmacy => 'Ex. Pharmacy';
-
-  @override
-  String get categoryExampleShopping => 'Ex. Amazon';
-
-  @override
-  String get categoryExampleEntertainment => 'Ex. Movie ticket';
-
-  @override
-  String get categoryExampleSubscriptions => 'Ex. Netflix';
-
-  @override
-  String get categoryExampleTravel => 'Ex. Flight ticket';
-
-  @override
-  String get categoryExampleEducation => 'Ex. Course';
-
-  @override
-  String get categoryExampleDebtPayment => 'Ex. Credit card payment';
-
-  @override
-  String get categoryExampleBankFees => 'Ex. Bank fee';
-
-  @override
-  String get categoryExampleSavings => 'Ex. Monthly savings';
-
-  @override
-  String get categoryExampleInvestments => 'Ex. Wealthsimple';
-
-  @override
-  String get categoryExampleOtherExpense => 'Ex. Other expense';
-
-  @override
-  String get categoryExampleSalary => 'Ex. June salary';
-
-  @override
-  String get categoryExampleBusiness => 'Ex. Client payment';
-
-  @override
-  String get categoryExampleBenefits => 'Ex. Benefit payment';
-
-  @override
-  String get categoryExampleDividends => 'Ex. Dividends';
-
-  @override
-  String get categoryExampleOtherIncome => 'Ex. Other income';
 
   @override
   String get categoryGroupExpenseHousing => 'Housing';
@@ -1214,13 +1051,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get operationAddIncomeTitle => 'Add income';
 
   @override
-  String get operationEditTitle => 'Edit operation';
-
-  @override
   String get operationNameHint => 'Operation name';
-
-  @override
-  String get operationDate => 'Date';
 
   @override
   String get operationNextDate => 'Next operation date';
@@ -1233,9 +1064,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operationCategoryPickerEmpty => 'No categories available.';
-
-  @override
-  String get commonApply => 'Apply';
 
   @override
   String get operationArchiveTitle => 'Delete operation?';
@@ -1296,9 +1124,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operationDescriptionHint => 'Description';
-
-  @override
-  String get commonSaving => 'Saving...';
 
   @override
   String get operationAmountRequired => 'Enter a valid amount.';
@@ -1438,6 +1263,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Excluded from finances';
 
   @override
+  String accountsUnsupportedCurrencyStatus(String currency) {
+    return 'Ophir supports $currency accounts only';
+  }
+
+  @override
   String get accountsFinancialExclusionDialogTitle => 'Exclude from finances?';
 
   @override
@@ -1550,9 +1380,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dashboardTitle => 'Dashboard';
 
   @override
-  String get dashboardWelcome => 'Welcome back.';
-
-  @override
   String get dashboardHeaderGreetingMorning => 'Good morning';
 
   @override
@@ -1594,13 +1421,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get budgetRequiredField => 'This field is required.';
 
   @override
-  String get budgetInvalidNonNegativeAmount => 'Enter a valid amount.';
-
-  @override
-  String get budgetSetupLoadError => 'Unable to load budget setup.';
-
-  @override
   String get budgetSetupDraftLoadError => 'Unable to load budget setup draft.';
+
+  @override
+  String get budgetSetupStatusLoadError =>
+      'Unable to verify budget setup status.';
 
   @override
   String get budgetRetry => 'Retry';
@@ -1654,16 +1479,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get budgetIncomeTitle => 'Income';
 
   @override
-  String get budgetIncomeEditorTitle => 'Income source';
-
-  @override
   String get budgetIncomeName => 'Income source name';
 
   @override
   String get budgetIncomeType => 'Income type';
-
-  @override
-  String get budgetIncomeCategory => 'Income category';
 
   @override
   String get budgetIncomeSelectCategory => 'Select income category';
@@ -1679,9 +1498,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get budgetIncomeAddSource => 'Add income source';
-
-  @override
-  String get budgetIncomeRemoveSource => 'Remove income source';
 
   @override
   String get budgetFrequencyDaily => 'Daily';
@@ -1745,15 +1561,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get operationPendingBadge => 'Pending';
 
   @override
-  String get operationCategorySuggestions => 'Suggestions';
-
-  @override
   String get categoryRuleRememberTitle => 'Remember this category?';
-
-  @override
-  String categoryRuleRememberMessage(String merchant, String category) {
-    return 'Remember this category for future similar operations from this merchant?';
-  }
 
   @override
   String get categoryRuleRememberOnlyThis => 'Only this one';
@@ -1770,6 +1578,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get categoryRulesEmpty =>
       'No saved rules yet. Categorize a bank transaction and choose Remember.';
+
+  @override
+  String get categoryRulesUnknownCategory => 'Unknown category';
 
   @override
   String get dashboardCategorizationActionTitle => 'Review transactions';

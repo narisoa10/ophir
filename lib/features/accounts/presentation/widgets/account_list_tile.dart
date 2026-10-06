@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/formatters/app_money_formatter.dart';
+import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/theme_v1/app_category_colors.dart';
 import '../../../../core/theme_v1/app_theme_colors.dart';
 import '../../../../core/theme_v1/app_dimensions.dart';
@@ -25,7 +27,10 @@ class AccountListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appThemeColors;
     final leading = _buildLeading(colors);
-    final balanceText = _buildBalance(colors);
+    final balanceText = _buildBalance(
+      colors,
+      AppLocalizations.of(context).localeName,
+    );
 
     // Identity lines and balance stack vertically so none of them competes
     // with the others for horizontal space; the mask must stay readable.
@@ -91,7 +96,7 @@ class AccountListTile extends StatelessWidget {
     );
   }
 
-  Widget? _buildBalance(AppThemeColors colors) {
+  Widget? _buildBalance(AppThemeColors colors, String locale) {
     final displayBalance = balance;
     if (displayBalance == null) {
       return null;
@@ -99,8 +104,8 @@ class AccountListTile extends StatelessWidget {
 
     final currency = currencyCode;
     final text = currency == null
-        ? displayBalance.toStringAsFixed(2)
-        : '${displayBalance.toStringAsFixed(2)} $currency';
+        ? formatAmount(displayBalance, locale: locale)
+        : formatMoney(displayBalance, currency, locale: locale);
 
     return Text(
       text,

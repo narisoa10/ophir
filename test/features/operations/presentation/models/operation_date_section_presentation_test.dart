@@ -61,6 +61,45 @@ void main() {
         expect(sections.last.runningBalanceAfterDate, 15);
       },
     );
+
+    test('running balance is CAD only: an operation in another currency is '
+        'listed but never added', () {
+      final sections = operationDateSectionsFor([
+        _operation(
+          id: 'cad-expense',
+          amount: 10,
+          occurredAt: DateTime(2026),
+          type: OperationType.expense,
+        ),
+        _operation(
+          id: 'usd-income',
+          amount: 1000,
+          occurredAt: DateTime(2026),
+          type: OperationType.income,
+          currencyCode: 'USD',
+        ),
+        _operation(
+          id: 'cad-income',
+          amount: 25,
+          occurredAt: DateTime(2026, 1, 2),
+          type: OperationType.income,
+        ),
+        _operation(
+          id: 'usd-expense',
+          amount: 300,
+          occurredAt: DateTime(2026, 1, 2),
+          type: OperationType.expense,
+          currencyCode: 'USD',
+        ),
+      ]);
+
+      expect(sections.first.operations.map((operation) => operation.id), [
+        'cad-expense',
+        'usd-income',
+      ]);
+      expect(sections.first.runningBalanceAfterDate, -10);
+      expect(sections.last.runningBalanceAfterDate, 15);
+    });
   });
 }
 
@@ -69,6 +108,7 @@ Operation _operation({
   required double amount,
   required DateTime occurredAt,
   required OperationType type,
+  String currencyCode = 'CAD',
 }) {
   final now = DateTime.utc(2026);
 
@@ -77,7 +117,7 @@ Operation _operation({
     userId: 'user',
     type: type,
     amount: amount,
-    currencyCode: 'CAD',
+    currencyCode: currencyCode,
     occurredAt: occurredAt,
     recurrence: OperationRecurrence.none,
     isRecurring: false,

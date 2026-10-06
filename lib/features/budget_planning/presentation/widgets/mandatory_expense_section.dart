@@ -18,7 +18,7 @@ class MandatoryExpenseSection extends StatelessWidget {
     required this.iconKey,
     required this.categories,
     required this.selectedCount,
-    this.formattedAmount = '0.00 CAD',
+    required this.formattedAmount,
     required this.isExpanded,
     required this.onToggle,
     required this.currencyCode,
@@ -141,7 +141,7 @@ class _TitheExpenseTile extends StatelessWidget {
     final amount = formatMoney(
       value.amount,
       currencyCode,
-      showPositiveSign: false,
+      locale: l10n.localeName,
     );
 
     return '$amount \u2022 ${l10n.budgetFrequencyMonthly}';

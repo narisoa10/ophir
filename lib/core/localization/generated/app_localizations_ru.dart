@@ -278,9 +278,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsAppearanceTitle => 'Оформление';
 
   @override
-  String get settingsAppearanceSubtitle => 'Тема и параметры отображения';
-
-  @override
   String get settingsAppearanceCurrentSystem => 'Тема: системная';
 
   @override
@@ -363,7 +360,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get settingsAboutOphirTitle => 'О приложении Ophir';
 
   @override
-  String get settingsAppVersionValue => 'Версия 1.0.0';
+  String settingsAppVersionValue(String version) {
+    return 'Версия $version';
+  }
 
   @override
   String get settingsTermsOfServiceTitle => 'Условия сервиса';
@@ -481,169 +480,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get commonCancel => 'Отмена';
 
   @override
-  String get categoryRent => 'Аренда';
-
-  @override
-  String get categoryMortgage => 'Ипотека';
-
-  @override
-  String get categoryUtilities => 'Коммунальные услуги';
-
-  @override
-  String get categoryInsurance => 'Страхование';
-
-  @override
-  String get categoryGroceries => 'Продукты';
-
-  @override
-  String get categoryRestaurants => 'Рестораны';
-
-  @override
-  String get categoryCoffee => 'Кофе';
-
-  @override
-  String get categoryFuel => 'Топливо';
-
-  @override
-  String get categoryPublicTransit => 'Общественный транспорт';
-
-  @override
-  String get categoryCar => 'Автомобиль';
-
-  @override
-  String get categoryHealth => 'Здоровье';
-
-  @override
-  String get categoryPharmacy => 'Аптека';
-
-  @override
-  String get categoryShopping => 'Покупки';
-
-  @override
-  String get categoryEntertainment => 'Развлечения';
-
-  @override
-  String get categorySubscriptions => 'Подписки';
-
-  @override
-  String get categoryTravel => 'Путешествия';
-
-  @override
-  String get categoryEducation => 'Образование';
-
-  @override
-  String get categoryDebtPayment => 'Платёж по долгу';
-
-  @override
-  String get categoryBankFees => 'Банковские комиссии';
-
-  @override
-  String get categorySavings => 'Сбережения';
-
-  @override
-  String get categoryInvestments => 'Инвестиции';
-
-  @override
-  String get categoryOtherExpense => 'Прочий расход';
-
-  @override
-  String get categorySalary => 'Зарплата';
-
-  @override
-  String get categoryBusiness => 'Бизнес';
-
-  @override
-  String get categoryBenefits => 'Пособия';
-
-  @override
-  String get categoryDividends => 'Дивиденды';
-
-  @override
-  String get categoryOtherIncome => 'Прочий доход';
-
-  @override
   String get categoryExampleDefault => 'Например: Детали операции';
-
-  @override
-  String get categoryExampleRent => 'Например: Аренда за июль';
-
-  @override
-  String get categoryExampleMortgage => 'Например: Платёж по ипотеке';
-
-  @override
-  String get categoryExampleUtilities => 'Например: Электричество';
-
-  @override
-  String get categoryExampleInsurance => 'Например: Страховка жилья';
-
-  @override
-  String get categoryExampleGroceries => 'Например: Costco';
-
-  @override
-  String get categoryExampleRestaurants => 'Например: Ресторан';
-
-  @override
-  String get categoryExampleCoffee => 'Например: Кофе';
-
-  @override
-  String get categoryExampleFuel => 'Например: Бензин';
-
-  @override
-  String get categoryExamplePublicTransit => 'Например: Проездной';
-
-  @override
-  String get categoryExampleCar => 'Например: Обслуживание авто';
-
-  @override
-  String get categoryExampleHealth => 'Например: Врач';
-
-  @override
-  String get categoryExamplePharmacy => 'Например: Аптека';
-
-  @override
-  String get categoryExampleShopping => 'Например: Amazon';
-
-  @override
-  String get categoryExampleEntertainment => 'Например: Кино';
-
-  @override
-  String get categoryExampleSubscriptions => 'Например: Netflix';
-
-  @override
-  String get categoryExampleTravel => 'Например: Авиабилет';
-
-  @override
-  String get categoryExampleEducation => 'Например: Курс';
-
-  @override
-  String get categoryExampleDebtPayment => 'Например: Платёж по кредитке';
-
-  @override
-  String get categoryExampleBankFees => 'Например: Банковская комиссия';
-
-  @override
-  String get categoryExampleSavings => 'Например: Ежемесячное сбережение';
-
-  @override
-  String get categoryExampleInvestments => 'Например: Wealthsimple';
-
-  @override
-  String get categoryExampleOtherExpense => 'Например: Прочий расход';
-
-  @override
-  String get categoryExampleSalary => 'Например: Зарплата за июнь';
-
-  @override
-  String get categoryExampleBusiness => 'Например: Оплата от клиента';
-
-  @override
-  String get categoryExampleBenefits => 'Например: Пособие';
-
-  @override
-  String get categoryExampleDividends => 'Например: Дивиденды';
-
-  @override
-  String get categoryExampleOtherIncome => 'Например: Прочий доход';
 
   @override
   String get categoryGroupExpenseHousing => 'Жильё';
@@ -1236,13 +1073,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get operationAddIncomeTitle => 'Добавить доход';
 
   @override
-  String get operationEditTitle => 'Редактировать операцию';
-
-  @override
   String get operationNameHint => 'Название операции';
-
-  @override
-  String get operationDate => 'Дата';
 
   @override
   String get operationNextDate => 'Следующая дата операции';
@@ -1255,9 +1086,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get operationCategoryPickerEmpty => 'Нет доступных категорий.';
-
-  @override
-  String get commonApply => 'Применить';
 
   @override
   String get operationArchiveTitle => 'Удалить операцию?';
@@ -1319,9 +1147,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get operationDescriptionHint => 'Описание';
-
-  @override
-  String get commonSaving => 'Сохранение...';
 
   @override
   String get operationAmountRequired => 'Введите корректную сумму.';
@@ -1470,6 +1295,11 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не учитывается в финансах';
 
   @override
+  String accountsUnsupportedCurrencyStatus(String currency) {
+    return 'Ophir поддерживает только счета в $currency';
+  }
+
+  @override
   String get accountsFinancialExclusionDialogTitle =>
       'Не учитывать в финансах?';
 
@@ -1583,9 +1413,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get dashboardTitle => 'Дашборд';
 
   @override
-  String get dashboardWelcome => 'С возвращением.';
-
-  @override
   String get dashboardHeaderGreetingMorning => 'Доброе утро';
 
   @override
@@ -1627,14 +1454,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get budgetRequiredField => 'Поле обязательно.';
 
   @override
-  String get budgetInvalidNonNegativeAmount => 'Введите корректную сумму.';
-
-  @override
-  String get budgetSetupLoadError => 'Не удалось загрузить настройку бюджета.';
-
-  @override
   String get budgetSetupDraftLoadError =>
       'Не удалось загрузить черновик настройки бюджета.';
+
+  @override
+  String get budgetSetupStatusLoadError =>
+      'Не удалось проверить статус настройки бюджета.';
 
   @override
   String get budgetRetry => 'Повторить';
@@ -1688,16 +1513,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get budgetIncomeTitle => 'Доходы';
 
   @override
-  String get budgetIncomeEditorTitle => 'Источник дохода';
-
-  @override
   String get budgetIncomeName => 'Название источника дохода';
 
   @override
   String get budgetIncomeType => 'Тип дохода';
-
-  @override
-  String get budgetIncomeCategory => 'Категория дохода';
 
   @override
   String get budgetIncomeSelectCategory => 'Выбрать категорию дохода';
@@ -1713,9 +1532,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get budgetIncomeAddSource => 'Добавить источник дохода';
-
-  @override
-  String get budgetIncomeRemoveSource => 'Удалить источник дохода';
 
   @override
   String get budgetFrequencyDaily => 'Ежедневно';
@@ -1781,15 +1597,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get operationPendingBadge => 'Ожидает';
 
   @override
-  String get operationCategorySuggestions => 'Предложения';
-
-  @override
   String get categoryRuleRememberTitle => 'Запомнить эту категорию?';
-
-  @override
-  String categoryRuleRememberMessage(String merchant, String category) {
-    return 'Запомнить эту категорию для будущих похожих операций этого продавца?';
-  }
 
   @override
   String get categoryRuleRememberOnlyThis => 'Только эту';
@@ -1806,6 +1614,9 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get categoryRulesEmpty =>
       'Правил пока нет. Категоризируйте банковскую операцию и выберите «Запомнить».';
+
+  @override
+  String get categoryRulesUnknownCategory => 'Неизвестная категория';
 
   @override
   String get dashboardCategorizationActionTitle => 'Разобрать операции';

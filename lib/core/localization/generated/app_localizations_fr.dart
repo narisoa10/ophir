@@ -280,9 +280,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsAppearanceTitle => 'Apparence';
 
   @override
-  String get settingsAppearanceSubtitle => 'Thème et préférences d’affichage';
-
-  @override
   String get settingsAppearanceCurrentSystem => 'Thème : système';
 
   @override
@@ -366,7 +363,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsAboutOphirTitle => 'À propos d’Ophir';
 
   @override
-  String get settingsAppVersionValue => 'Version 1.0.0';
+  String settingsAppVersionValue(String version) {
+    return 'Version $version';
+  }
 
   @override
   String get settingsTermsOfServiceTitle => 'Conditions de service';
@@ -484,169 +483,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get commonCancel => 'Annuler';
 
   @override
-  String get categoryRent => 'Loyer';
-
-  @override
-  String get categoryMortgage => 'Hypothèque';
-
-  @override
-  String get categoryUtilities => 'Services publics';
-
-  @override
-  String get categoryInsurance => 'Assurance';
-
-  @override
-  String get categoryGroceries => 'Épicerie';
-
-  @override
-  String get categoryRestaurants => 'Restaurants';
-
-  @override
-  String get categoryCoffee => 'Café';
-
-  @override
-  String get categoryFuel => 'Carburant';
-
-  @override
-  String get categoryPublicTransit => 'Transport en commun';
-
-  @override
-  String get categoryCar => 'Voiture';
-
-  @override
-  String get categoryHealth => 'Santé';
-
-  @override
-  String get categoryPharmacy => 'Pharmacie';
-
-  @override
-  String get categoryShopping => 'Achats';
-
-  @override
-  String get categoryEntertainment => 'Divertissement';
-
-  @override
-  String get categorySubscriptions => 'Abonnements';
-
-  @override
-  String get categoryTravel => 'Voyages';
-
-  @override
-  String get categoryEducation => 'Éducation';
-
-  @override
-  String get categoryDebtPayment => 'Paiement de dette';
-
-  @override
-  String get categoryBankFees => 'Frais bancaires';
-
-  @override
-  String get categorySavings => 'Épargne';
-
-  @override
-  String get categoryInvestments => 'Investissements';
-
-  @override
-  String get categoryOtherExpense => 'Autre dépense';
-
-  @override
-  String get categorySalary => 'Salaire';
-
-  @override
-  String get categoryBusiness => 'Entreprise';
-
-  @override
-  String get categoryBenefits => 'Prestations';
-
-  @override
-  String get categoryDividends => 'Dividendes';
-
-  @override
-  String get categoryOtherIncome => 'Autre revenu';
-
-  @override
   String get categoryExampleDefault => 'Ex. Détail de l\'opération';
-
-  @override
-  String get categoryExampleRent => 'Ex. Loyer de juillet';
-
-  @override
-  String get categoryExampleMortgage => 'Ex. Hypothèque';
-
-  @override
-  String get categoryExampleUtilities => 'Ex. Hydro-Québec';
-
-  @override
-  String get categoryExampleInsurance => 'Ex. Assurance habitation';
-
-  @override
-  String get categoryExampleGroceries => 'Ex. Costco';
-
-  @override
-  String get categoryExampleRestaurants => 'Ex. Restaurant';
-
-  @override
-  String get categoryExampleCoffee => 'Ex. Tim Hortons';
-
-  @override
-  String get categoryExampleFuel => 'Ex. Essence';
-
-  @override
-  String get categoryExamplePublicTransit => 'Ex. STM';
-
-  @override
-  String get categoryExampleCar => 'Ex. Entretien voiture';
-
-  @override
-  String get categoryExampleHealth => 'Ex. Consultation médicale';
-
-  @override
-  String get categoryExamplePharmacy => 'Ex. Pharmacie';
-
-  @override
-  String get categoryExampleShopping => 'Ex. Amazon';
-
-  @override
-  String get categoryExampleEntertainment => 'Ex. Cinéma';
-
-  @override
-  String get categoryExampleSubscriptions => 'Ex. Netflix';
-
-  @override
-  String get categoryExampleTravel => 'Ex. Billet d\'avion';
-
-  @override
-  String get categoryExampleEducation => 'Ex. Cours';
-
-  @override
-  String get categoryExampleDebtPayment => 'Ex. Paiement carte de crédit';
-
-  @override
-  String get categoryExampleBankFees => 'Ex. Frais bancaires';
-
-  @override
-  String get categoryExampleSavings => 'Ex. Épargne mensuelle';
-
-  @override
-  String get categoryExampleInvestments => 'Ex. Wealthsimple';
-
-  @override
-  String get categoryExampleOtherExpense => 'Ex. Autre dépense';
-
-  @override
-  String get categoryExampleSalary => 'Ex. Salaire de juin';
-
-  @override
-  String get categoryExampleBusiness => 'Ex. Revenu client';
-
-  @override
-  String get categoryExampleBenefits => 'Ex. Allocation';
-
-  @override
-  String get categoryExampleDividends => 'Ex. Dividendes';
-
-  @override
-  String get categoryExampleOtherIncome => 'Ex. Autre revenu';
 
   @override
   String get categoryGroupExpenseHousing => 'Logement';
@@ -1248,13 +1085,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get operationAddIncomeTitle => 'Ajouter un revenu';
 
   @override
-  String get operationEditTitle => 'Modifier l’opération';
-
-  @override
   String get operationNameHint => 'Nom de l’opération';
-
-  @override
-  String get operationDate => 'Date';
 
   @override
   String get operationNextDate => 'Prochaine date d’opération';
@@ -1267,9 +1098,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get operationCategoryPickerEmpty => 'Aucune catégorie disponible.';
-
-  @override
-  String get commonApply => 'Appliquer';
 
   @override
   String get operationArchiveTitle => 'Supprimer l’opération ?';
@@ -1331,9 +1159,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get operationDescriptionHint => 'Description';
-
-  @override
-  String get commonSaving => 'Enregistrement...';
 
   @override
   String get operationAmountRequired => 'Veuillez saisir un montant valide.';
@@ -1402,7 +1227,7 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other: 'et $count autres comptes semblables',
-      one: 'et 1 autre compte semblable',
+      one: 'et $count autre compte semblable',
     );
     return '$_temp0';
   }
@@ -1458,7 +1283,7 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count comptes',
-      one: '1 compte',
+      one: '$count compte',
     );
     return '$_temp0';
   }
@@ -1470,6 +1295,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get accountsFinancialParticipationExcludedStatus =>
       'Exclu des finances';
+
+  @override
+  String accountsUnsupportedCurrencyStatus(String currency) {
+    return 'Ophir prend en charge uniquement les comptes en $currency';
+  }
 
   @override
   String get accountsFinancialExclusionDialogTitle =>
@@ -1585,9 +1415,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get dashboardTitle => 'Tableau de bord';
 
   @override
-  String get dashboardWelcome => 'Bon retour.';
-
-  @override
   String get dashboardHeaderGreetingMorning => 'Bonjour';
 
   @override
@@ -1630,15 +1457,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get budgetRequiredField => 'Ce champ est requis.';
 
   @override
-  String get budgetInvalidNonNegativeAmount => 'Entrez un montant valide.';
-
-  @override
-  String get budgetSetupLoadError =>
-      'Impossible de charger la configuration du budget.';
-
-  @override
   String get budgetSetupDraftLoadError =>
       'Impossible de charger le brouillon de configuration du budget.';
+
+  @override
+  String get budgetSetupStatusLoadError =>
+      'Impossible de vérifier l’état de la configuration du budget.';
 
   @override
   String get budgetRetry => 'Réessayer';
@@ -1692,16 +1516,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get budgetIncomeTitle => 'Revenus';
 
   @override
-  String get budgetIncomeEditorTitle => 'Source de revenu';
-
-  @override
   String get budgetIncomeName => 'Nom de la source de revenu';
 
   @override
   String get budgetIncomeType => 'Type de revenu';
-
-  @override
-  String get budgetIncomeCategory => 'Catégorie de revenu';
 
   @override
   String get budgetIncomeSelectCategory =>
@@ -1718,9 +1536,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get budgetIncomeAddSource => 'Ajouter une source de revenu';
-
-  @override
-  String get budgetIncomeRemoveSource => 'Supprimer la source de revenu';
 
   @override
   String get budgetFrequencyDaily => 'Quotidien';
@@ -1768,7 +1583,7 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count à catégoriser',
-      one: '1 à catégoriser',
+      one: '$count à catégoriser',
     );
     return '$_temp0';
   }
@@ -1784,15 +1599,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get operationPendingBadge => 'En attente';
 
   @override
-  String get operationCategorySuggestions => 'Suggestions';
-
-  @override
   String get categoryRuleRememberTitle => 'Se souvenir de cette catégorie ?';
-
-  @override
-  String categoryRuleRememberMessage(String merchant, String category) {
-    return 'Mémoriser cette catégorie pour les futures opérations similaires de ce marchand ?';
-  }
 
   @override
   String get categoryRuleRememberOnlyThis => 'Seulement celle-ci';
@@ -1810,6 +1617,9 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get categoryRulesEmpty =>
       'Aucune règle enregistrée. Catégorisez une transaction bancaire et choisissez Se souvenir.';
+
+  @override
+  String get categoryRulesUnknownCategory => 'Catégorie inconnue';
 
   @override
   String get dashboardCategorizationActionTitle => 'Revoir les transactions';

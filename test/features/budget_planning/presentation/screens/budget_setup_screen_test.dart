@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/categories/app_categories.dart';
 import 'package:ophir/core/database/app_database.dart';
 import 'package:ophir/core/database/app_database_provider.dart';
-import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/core/localization/generated/app_localizations.dart';
 import 'package:ophir/features/budget_planning/controller/budget_planning_providers.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_controller.dart';
@@ -19,9 +18,6 @@ import 'package:ophir/features/budget_planning/domain/enums/budget_frequency.dar
 import 'package:ophir/features/budget_planning/domain/repositories/budget_planning_repository.dart';
 import 'package:ophir/features/budget_planning/domain/enums/budget_setup_mode.dart';
 import 'package:ophir/features/budget_planning/presentation/screens/budget_setup_screen.dart';
-import 'package:ophir/features/profile/controller/profile_providers.dart';
-import 'package:ophir/features/profile/domain/entities/profile.dart';
-import 'package:ophir/features/profile/domain/repositories/profile_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -134,7 +130,7 @@ void main() {
         addTearDown(database.close);
 
         final initialSetup = _setup(currentStep: 3);
-        await database.saveBudgetSetupWithCurrency(initialSetup, 'CAD');
+        await database.saveBudgetSetup(initialSetup);
 
         final container = ProviderContainer(
           overrides: [
@@ -142,9 +138,6 @@ void main() {
             budgetSetupUserIdProvider.overrideWithValue('user-1'),
             supabaseBudgetPlanningRepositoryProvider.overrideWithValue(
               _FakeBudgetPlanningRepository(),
-            ),
-            profileRepositoryProvider.overrideWithValue(
-              const _FakeProfileRepository(),
             ),
           ],
         );
@@ -224,7 +217,7 @@ void main() {
       addTearDown(database.close);
 
       final initialSetup = _setup(currentStep: 0);
-      await database.saveBudgetSetupWithCurrency(initialSetup, 'CAD');
+      await database.saveBudgetSetup(initialSetup);
 
       final container = ProviderContainer(
         overrides: [
@@ -232,9 +225,6 @@ void main() {
           budgetSetupUserIdProvider.overrideWithValue('user-1'),
           supabaseBudgetPlanningRepositoryProvider.overrideWithValue(
             _FakeBudgetPlanningRepository(),
-          ),
-          profileRepositoryProvider.overrideWithValue(
-            const _FakeProfileRepository(),
           ),
         ],
       );
@@ -315,10 +305,7 @@ Future<void> _pumpScreen(
   final database = AppDatabase(NativeDatabase.memory());
   addTearDown(database.close);
 
-  await database.saveBudgetSetupWithCurrency(
-    _setup(currentStep: currentStep),
-    'CAD',
-  );
+  await database.saveBudgetSetup(_setup(currentStep: currentStep));
 
   await tester.pumpWidget(
     ProviderScope(
@@ -327,9 +314,6 @@ Future<void> _pumpScreen(
         budgetSetupUserIdProvider.overrideWithValue('user-1'),
         supabaseBudgetPlanningRepositoryProvider.overrideWithValue(
           _FakeBudgetPlanningRepository(),
-        ),
-        profileRepositoryProvider.overrideWithValue(
-          const _FakeProfileRepository(),
         ),
       ],
       child: MaterialApp(
@@ -433,36 +417,4 @@ final class _FakeBudgetPlanningRepository implements BudgetPlanningRepository {
 
   @override
   Future<void> deleteSetup(String setupId) async {}
-}
-
-final class _FakeProfileRepository implements ProfileRepository {
-  const _FakeProfileRepository();
-
-  @override
-  Future<Result<Profile>> getCurrentProfile() async {
-    final now = DateTime.utc(2026);
-
-    return Success(
-      Profile(
-        id: 'user-1',
-        email: 'user@example.com',
-        locale: 'en',
-        currencyCode: 'CAD',
-        timezone: 'America/Toronto',
-        onboardingCompleted: true,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-  }
-
-  @override
-  Future<Result<Profile>> updateProfile(Profile profile) async {
-    return Success(profile);
-  }
-
-  @override
-  Stream<Result<Profile>> watchCurrentProfile() {
-    return const Stream.empty();
-  }
 }

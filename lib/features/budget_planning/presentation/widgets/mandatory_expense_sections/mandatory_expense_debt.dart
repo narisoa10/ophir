@@ -14,12 +14,12 @@ import '../../../../../core/theme_v1/app_typography.dart';
 import '../../../../../core/widgets/app_category_group_section.dart';
 import '../../../../../core/widgets/app_financial_list_tile.dart';
 import '../../../domain/entities/budget_obligation.dart';
-import '../../../domain/enums/budget_frequency.dart';
+import '../../mappers/budget_frequency_localization.dart';
 
 class MandatoryExpenseDebt extends StatelessWidget {
   const MandatoryExpenseDebt({
     required this.obligations,
-    this.formattedAmount = '0.00 CAD',
+    required this.formattedAmount,
     required this.isExpanded,
     required this.onToggle,
     required this.currencyCode,
@@ -117,24 +117,10 @@ class _DebtTile extends StatelessWidget {
     final amount = formatMoney(
       obligation.amount,
       currencyCode,
-      showPositiveSign: false,
+      locale: l10n.localeName,
     );
 
-    return '$amount \u2022 ${_frequencyLabel(obligation.frequency, l10n)}';
-  }
-
-  String _frequencyLabel(BudgetFrequency frequency, AppLocalizations l10n) {
-    return switch (frequency) {
-      BudgetFrequency.daily => l10n.budgetFrequencyDaily,
-      BudgetFrequency.weekly => l10n.budgetFrequencyWeekly,
-      BudgetFrequency.biweekly => l10n.budgetFrequencyBiweekly,
-      BudgetFrequency.semiMonthly => l10n.budgetFrequencySemiMonthly,
-      BudgetFrequency.monthly => l10n.budgetFrequencyMonthly,
-      BudgetFrequency.everyNMonths => l10n.budgetFrequencyEveryNMonths,
-      BudgetFrequency.timesPerYear => l10n.budgetFrequencyTimesPerYear,
-      BudgetFrequency.yearly => l10n.budgetFrequencyYearly,
-      BudgetFrequency.irregular => l10n.budgetFrequencyIrregular,
-    };
+    return '$amount \u2022 ${obligation.frequency.localized(l10n)}';
   }
 }
 

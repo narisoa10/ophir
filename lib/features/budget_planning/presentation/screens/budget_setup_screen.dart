@@ -207,10 +207,6 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
             final currentStep = _BudgetSetupStep.fromIndex(
               setup?.currentStep ?? _BudgetSetupStep.first.index,
             );
-            final currencyCode = ref
-                .read(budgetSetupControllerProvider(widget.mode).notifier)
-                .currencyCode;
-
             return SingleChildScrollView(
               padding: AppSpacing.screen,
               child: Column(
@@ -226,26 +222,20 @@ class _BudgetSetupScreenState extends ConsumerState<BudgetSetupScreen> {
                       key: _householdStepKey,
                       setup: setup,
                     ),
-                    _BudgetSetupStep.income
-                        when setup != null &&
-                            currencyCode != null &&
-                            currencyCode.isNotEmpty =>
+                    _BudgetSetupStep.income when setup != null =>
                       BudgetIncomeStep(
                         key: _incomeStepKey,
                         setup: setup,
-                        currencyCode: currencyCode,
+                        currencyCode: setup.currencyCode,
                       ),
                     _BudgetSetupStep.income => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                    _BudgetSetupStep.mandatoryExpenses
-                        when setup != null &&
-                            currencyCode != null &&
-                            currencyCode.isNotEmpty =>
+                    _BudgetSetupStep.mandatoryExpenses when setup != null =>
                       BudgetMandatoryExpensesStep(
                         key: _mandatoryExpensesStepKey,
                         setup: setup,
-                        currencyCode: currencyCode,
+                        currencyCode: setup.currencyCode,
                       ),
                     _BudgetSetupStep.mandatoryExpenses => const Center(
                       child: CircularProgressIndicator(),

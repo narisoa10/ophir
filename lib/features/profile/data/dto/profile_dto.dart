@@ -3,7 +3,6 @@ final class ProfileDto {
     required this.id,
     required this.email,
     required this.locale,
-    required this.currencyCode,
     required this.timezone,
     required this.onboardingCompleted,
     required this.createdAt,
@@ -17,7 +16,6 @@ final class ProfileDto {
   final String? fullName;
   final String? avatarUrl;
   final String locale;
-  final String currencyCode;
   final String timezone;
   final bool onboardingCompleted;
   final DateTime createdAt;
@@ -30,7 +28,6 @@ final class ProfileDto {
       fullName: json['full_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       locale: json['locale'] as String,
-      currencyCode: json['currency_code'] as String,
       timezone: json['timezone'] as String,
       onboardingCompleted: json['onboarding_completed'] as bool,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
@@ -43,7 +40,6 @@ final class ProfileDto {
       'full_name': fullName,
       'avatar_url': avatarUrl,
       'locale': locale,
-      'currency_code': currencyCode,
       'timezone': timezone,
       'onboarding_completed': onboardingCompleted,
     };

@@ -215,6 +215,50 @@ void main() {
       expect(repository.accounts.single.plaidMissingSince, isNotNull);
     });
 
+    testWidgets('non-CAD account keeps its currency, cannot join finances and '
+        'says only CAD accounts are supported', (tester) async {
+      final repository = _FakeAccountRepository(
+        accounts: [
+          _account(name: 'Checking'),
+          _account(
+            id: 'account-2',
+            name: 'US Checking',
+            plaidAccountId: 'plaid-account-2',
+            currentBalance: 250,
+            currencyCode: 'USD',
+          ),
+        ],
+        institutions: [_institution()],
+      );
+      final l10n = lookupAppLocalizations(const Locale('en'));
+
+      await tester.pumpWidget(
+        _TestApp(repository: repository, child: const AccountsScreen()),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('350.00'), findsNothing);
+      expect(find.text('100.00 CAD'), findsNothing);
+
+      await tester.tap(find.text('Test Bank'));
+      await tester.pump();
+
+      expect(find.text('250.00 USD'), findsOneWidget);
+      expect(find.text('100.00 CAD'), findsOneWidget);
+      expect(find.text('Ophir supports CAD accounts only'), findsOneWidget);
+      expect(
+        find.text(l10n.accountsUnsupportedCurrencyStatus('CAD')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(l10n.accountsFinancialParticipationIncludedStatus),
+        findsOneWidget,
+      );
+      expect(find.byType(AppCompactSwitch), findsOneWidget);
+      expect(repository.participationUpdates, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('bank group expands and collapses', (tester) async {
       await tester.pumpWidget(
         _TestApp(
@@ -550,7 +594,8 @@ void main() {
           syncAccounts: syncAccounts ?? _successfulSync,
           disconnectItem:
               disconnectItem ?? (_) async => const Failure(UnknownFailure()),
-          deleteItem: deleteItem ?? (_) async => const Failure(UnknownFailure()),
+          deleteItem:
+              deleteItem ?? (_) async => const Failure(UnknownFailure()),
           child: const AccountsScreen(),
         ),
       );
@@ -702,23 +747,24 @@ void main() {
       expect(find.text(l10n.accountsDisconnected), findsOneWidget);
     });
 
-    testWidgets('disconnected UI comes from the DB, not from the action result', (
-      tester,
-    ) async {
-      final store = _HealthStore([_health('item-1')]);
-      await pumpLifecycle(
-        tester,
-        store: store,
-        disconnectItem: (_) async => const Success(null),
-      );
+    testWidgets(
+      'disconnected UI comes from the DB, not from the action result',
+      (tester) async {
+        final store = _HealthStore([_health('item-1')]);
+        await pumpLifecycle(
+          tester,
+          store: store,
+          disconnectItem: (_) async => const Success(null),
+        );
 
-      await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
-      await tester.tap(find.text(l10n.accountsDisconnectConfirm));
-      await tester.pumpAndSettle();
+        await chooseMenu(tester, l10n.accountsBankMenuDisconnect);
+        await tester.tap(find.text(l10n.accountsDisconnectConfirm));
+        await tester.pumpAndSettle();
 
-      expect(find.text(l10n.accountsDisconnected), findsOneWidget);
-      expect(disconnectedTitle, findsNothing);
-    });
+        expect(find.text(l10n.accountsDisconnected), findsOneWidget);
+        expect(disconnectedTitle, findsNothing);
+      },
+    );
 
     testWidgets('disconnect failure is not success and re-reads the DB', (
       tester,
@@ -766,48 +812,49 @@ void main() {
       expect(calls, 1);
     });
 
-    testWidgets('delete active connection uses delete and the bank disappears', (
-      tester,
-    ) async {
-      final store = _HealthStore([_health('item-1')]);
-      final repository = _FakeAccountRepository(
-        accounts: [_account(name: 'Checking')],
-        institutions: [_institution()],
-      );
-      final disconnectCalls = <String>[];
-      final deleteCalls = <String>[];
-      await pumpLifecycle(
-        tester,
-        store: store,
-        repository: repository,
-        disconnectItem: (id) async {
-          disconnectCalls.add(id);
-          return const Success(null);
-        },
-        deleteItem: (id) async {
-          deleteCalls.add(id);
-          repository.removeConnection(id);
-          store.remove(id);
-          return const Success(null);
-        },
-      );
-      final accountLoadsBefore = repository.getAccountsCalls;
+    testWidgets(
+      'delete active connection uses delete and the bank disappears',
+      (tester) async {
+        final store = _HealthStore([_health('item-1')]);
+        final repository = _FakeAccountRepository(
+          accounts: [_account(name: 'Checking')],
+          institutions: [_institution()],
+        );
+        final disconnectCalls = <String>[];
+        final deleteCalls = <String>[];
+        await pumpLifecycle(
+          tester,
+          store: store,
+          repository: repository,
+          disconnectItem: (id) async {
+            disconnectCalls.add(id);
+            return const Success(null);
+          },
+          deleteItem: (id) async {
+            deleteCalls.add(id);
+            repository.removeConnection(id);
+            store.remove(id);
+            return const Success(null);
+          },
+        );
+        final accountLoadsBefore = repository.getAccountsCalls;
 
-      await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
-      expect(
-        find.text(l10n.accountsRemoveBankConnectionDialogBody),
-        findsOneWidget,
-      );
-      await tester.tap(find.text(l10n.accountsDeleteConfirm));
-      await tester.pumpAndSettle();
+        await chooseMenu(tester, l10n.accountsBankMenuRemoveConnection);
+        expect(
+          find.text(l10n.accountsRemoveBankConnectionDialogBody),
+          findsOneWidget,
+        );
+        await tester.tap(find.text(l10n.accountsDeleteConfirm));
+        await tester.pumpAndSettle();
 
-      expect(deleteCalls, ['item-1']);
-      expect(disconnectCalls, isEmpty);
-      expect(repository.getAccountsCalls, accountLoadsBefore + 1);
-      expect(find.text('Test Bank'), findsNothing);
-      expect(find.byType(AccountsEmptyState), findsOneWidget);
-      expect(find.text(l10n.accountsConnectionDeleted), findsOneWidget);
-    });
+        expect(deleteCalls, ['item-1']);
+        expect(disconnectCalls, isEmpty);
+        expect(repository.getAccountsCalls, accountLoadsBefore + 1);
+        expect(find.text('Test Bank'), findsNothing);
+        expect(find.byType(AccountsEmptyState), findsOneWidget);
+        expect(find.text(l10n.accountsConnectionDeleted), findsOneWidget);
+      },
+    );
 
     testWidgets('delete disconnected connection uses delete', (tester) async {
       final store = _HealthStore([
@@ -1143,7 +1190,10 @@ void main() {
 
       expect(reconnectTitle, findsNothing);
       expect(reconnectCta, findsNothing);
-      expect(find.byKey(const ValueKey('connection-health-item-1')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('connection-health-item-1')),
+        findsNothing,
+      );
     });
 
     testWidgets('future consent expiry shows no warning', (tester) async {
@@ -1215,26 +1265,28 @@ void main() {
       expect(extendCta, findsNothing);
     });
 
-    testWidgets('reconnect_unavailable takes priority over pending disconnect', (
-      tester,
-    ) async {
-      await pumpScreen(
-        tester,
-        store: _HealthStore([
-          _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
-        ]),
-        functions: repairBackend(
-          createLinkToken: (_) => throw edgeError(409, 'reconnect_unavailable'),
-        ),
-      );
+    testWidgets(
+      'reconnect_unavailable takes priority over pending disconnect',
+      (tester) async {
+        await pumpScreen(
+          tester,
+          store: _HealthStore([
+            _health('item-1', pendingDisconnectAt: DateTime.utc(2099, 11, 15)),
+          ]),
+          functions: repairBackend(
+            createLinkToken: (_) =>
+                throw edgeError(409, 'reconnect_unavailable'),
+          ),
+        );
 
-      await tester.tap(extendCta);
-      await tester.pumpAndSettle();
+        await tester.tap(extendCta);
+        await tester.pumpAndSettle();
 
-      expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
-      expect(extensionBody, findsNothing);
-      expect(extendCta, findsNothing);
-    });
+        expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
+        expect(extensionBody, findsNothing);
+        expect(extendCta, findsNothing);
+      },
+    );
 
     testWidgets('extend access success syncs, refreshes and clears warning', (
       tester,
@@ -1526,66 +1578,68 @@ void main() {
       expect(functions.functionNames, ['plaid-create-link-token']);
     });
 
-    testWidgets('sync item_login_required shows repair UI without opening Link', (
-      tester,
-    ) async {
-      final link = FakePlaidLink();
-      final store = _HealthStore([_health('item-1'), _health('item-2')]);
+    testWidgets(
+      'sync item_login_required shows repair UI without opening Link',
+      (tester) async {
+        final link = FakePlaidLink();
+        final store = _HealthStore([_health('item-1'), _health('item-2')]);
 
-      await pumpScreen(
-        tester,
-        store: store,
-        link: link,
-        syncAccounts: (connectionId) async {
-          return const Failure(PlaidItemLoginRequiredFailure());
-        },
-      );
-      final healthLoadsBefore = store.loadCalls;
+        await pumpScreen(
+          tester,
+          store: store,
+          link: link,
+          syncAccounts: (connectionId) async {
+            return const Failure(PlaidItemLoginRequiredFailure());
+          },
+        );
+        final healthLoadsBefore = store.loadCalls;
 
-      await tester.tap(find.byIcon(Icons.more_vert).first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.accountsBankMenuSync));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(l10n.accountsBankMenuSync));
+        await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const ValueKey('connection-health-item-1')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('connection-health-item-2')),
-        findsNothing,
-      );
-      expect(reconnectCta, findsOneWidget);
-      expect(find.text(l10n.failureUnknown), findsNothing);
-      expect(store.loadCalls, greaterThan(healthLoadsBefore));
-      expect(link.openedTokens, isEmpty);
-    });
+        expect(
+          find.byKey(const ValueKey('connection-health-item-1')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('connection-health-item-2')),
+          findsNothing,
+        );
+        expect(reconnectCta, findsOneWidget);
+        expect(find.text(l10n.failureUnknown), findsNothing);
+        expect(store.loadCalls, greaterThan(healthLoadsBefore));
+        expect(link.openedTokens, isEmpty);
+      },
+    );
 
-    testWidgets('reconnect_unavailable shows message and stops offering retry', (
-      tester,
-    ) async {
-      final functions = repairBackend(
-        createLinkToken: (_) => throw edgeError(409, 'reconnect_unavailable'),
-      );
-      final link = FakePlaidLink();
+    testWidgets(
+      'reconnect_unavailable shows message and stops offering retry',
+      (tester) async {
+        final functions = repairBackend(
+          createLinkToken: (_) => throw edgeError(409, 'reconnect_unavailable'),
+        );
+        final link = FakePlaidLink();
 
-      await pumpScreen(
-        tester,
-        store: _HealthStore([
-          _health('item-1', status: PlaidConnectionStatus.loginRequired),
-        ]),
-        functions: functions,
-        link: link,
-      );
+        await pumpScreen(
+          tester,
+          store: _HealthStore([
+            _health('item-1', status: PlaidConnectionStatus.loginRequired),
+          ]),
+          functions: functions,
+          link: link,
+        );
 
-      await tester.tap(reconnectCta);
-      await tester.pumpAndSettle();
+        await tester.tap(reconnectCta);
+        await tester.pumpAndSettle();
 
-      expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
-      expect(reconnectCta, findsNothing);
-      expect(functions.functionNames, ['plaid-create-link-token']);
-      expect(link.openedTokens, isEmpty);
-    });
+        expect(find.text(l10n.accountsReconnectUnavailable), findsWidgets);
+        expect(reconnectCta, findsNothing);
+        expect(functions.functionNames, ['plaid-create-link-token']);
+        expect(link.openedTokens, isEmpty);
+      },
+    );
 
     testWidgets('connection_not_found shows message and refreshes state', (
       tester,
@@ -2091,13 +2145,14 @@ void main() {
       expect(synced, ['item-new']);
     });
 
-    final closeWithoutConnecting = <String, Future<void> Function(WidgetTester)>{
-      'already connected': (tester) => tester.tap(
-        find.text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
-      ),
-      'tap outside': (tester) => tester.tapAt(const Offset(4, 4)),
-      'back': (tester) => tester.binding.handlePopRoute(),
-    };
+    final closeWithoutConnecting =
+        <String, Future<void> Function(WidgetTester)>{
+          'already connected': (tester) => tester.tap(
+            find.text(l10n.accountsAmbiguousConnectionDialogAlreadyConnected),
+          ),
+          'tap outside': (tester) => tester.tapAt(const Offset(4, 4)),
+          'back': (tester) => tester.binding.handlePopRoute(),
+        };
     for (final MapEntry(key: label, value: close)
         in closeWithoutConnecting.entries) {
       testWidgets('$label closes the flow without connecting', (tester) async {
@@ -2128,10 +2183,7 @@ void main() {
 
     for (final (status, title) in [
       ('duplicate', l10n.accountsDuplicateConnectionDialogTitle),
-      (
-        'disconnected_existing',
-        l10n.accountsDisconnectedExistingDialogTitle,
-      ),
+      ('disconnected_existing', l10n.accountsDisconnectedExistingDialogTitle),
     ]) {
       testWidgets('different account rechecked as $status is blocked', (
         tester,
@@ -2445,6 +2497,7 @@ void main() {
 
   group('AccountsScreen account row layout', () {
     const identity = 'checking \u2022 \u2022\u2022\u2022\u20222755';
+    final frenchBalance = _largeBalanceText(const Locale('fr'));
 
     Account checking({
       String id = 'account-1',
@@ -2459,7 +2512,7 @@ void main() {
         mask: mask,
         plaidSubtype: 'checking',
         currentBalance: 40000.15,
-        currencyCode: 'USD',
+        currencyCode: 'CAD',
       );
     }
 
@@ -2517,7 +2570,7 @@ void main() {
       final l10n = lookupAppLocalizations(locale);
       expectFullyVisible(tester, inRow('Checking'), width);
       expectFullyVisible(tester, inRow(identity), width);
-      expectFullyVisible(tester, inRow('40000.15 USD'), width);
+      expectFullyVisible(tester, inRow(_largeBalanceText(locale)), width);
       expectFullyVisible(
         tester,
         find.text(l10n.accountsFinancialParticipationIncludedStatus),
@@ -2559,7 +2612,7 @@ void main() {
               mask: '2755',
               plaidSubtype: 'checking',
               currentBalance: 40000.15,
-              currencyCode: 'USD',
+              currencyCode: 'CAD',
               plaidMissingSince: DateTime(2026, 10, 2),
             ),
           ],
@@ -2574,7 +2627,7 @@ void main() {
           find.text(l10n.accountsFinancialParticipationIncludedStatus),
           360,
         );
-        expect(find.textContaining('40000.15'), findsNothing);
+        expect(find.textContaining(_largeBalanceText(locale)), findsNothing);
         expect(find.byType(AppCompactSwitch), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
@@ -2596,7 +2649,7 @@ void main() {
 
       expect(inRow(longName), findsOneWidget);
       expectFullyVisible(tester, inRow(identity), 360);
-      expectFullyVisible(tester, inRow('40000.15 USD'), 360);
+      expectFullyVisible(tester, inRow(frenchBalance), 360);
       expect(tester.takeException(), isNull);
     });
 
@@ -2651,7 +2704,7 @@ void main() {
           360,
         );
       }
-      expect(inRow('40000.15 USD'), findsNWidgets(3));
+      expect(inRow(frenchBalance), findsNWidgets(3));
       expect(find.text('Inclus dans les finances'), findsNWidgets(3));
       expect(find.byType(AppCompactSwitch), findsNWidgets(3));
       expect(tester.takeException(), isNull);
@@ -2669,7 +2722,7 @@ void main() {
           mask: '1062',
           plaidSubtype: 'checking',
           currentBalance: 40000.15,
-          currencyCode: 'USD',
+          currencyCode: 'CAD',
         ),
         _account(
           id: 'account-2',
@@ -2813,7 +2866,7 @@ void main() {
 
           for (final text in [
             'checking \u2022 \u2022\u2022\u2022\u20221062',
-            '40000.15 USD',
+            _largeBalanceText(locale),
           ]) {
             final finder = find.descendant(
               of: find.byType(AccountListTile),
@@ -3057,6 +3110,14 @@ final class _ParticipationUpdate {
   String toString() {
     return '_ParticipationUpdate($accountId, $isIncludedInFinances)';
   }
+}
+
+String _largeBalanceText(Locale locale) {
+  return switch (locale.languageCode) {
+    'fr' => '40\u202F000,15 CAD',
+    'ru' => '40\u00A0000,15 CAD',
+    _ => '40,000.15 CAD',
+  };
 }
 
 Account _account({

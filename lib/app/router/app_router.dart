@@ -17,6 +17,7 @@ import '../../features/settings/presentation/screens/settings_about_screen.dart'
 import '../../features/settings/presentation/screens/settings_data_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/statistics/presentation/screens/statistics_screen.dart';
+import '../../core/localization/generated/app_localizations.dart';
 import '../../core/theme_v1/app_theme_colors.dart';
 import '../shell/app_shell.dart';
 import 'app_routes.dart';
@@ -46,6 +47,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.failure,
         builder: (context, state) {
           final colors = context.appThemeColors;
+          final l10n = AppLocalizations.of(context);
 
           return Scaffold(
             body: Center(
@@ -54,7 +56,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 children: [
                   Icon(Icons.error_outline, color: colors.error, size: 48),
                   const SizedBox(height: 16),
-                  const Text('Failed to verify budget setup status'),
+                  Text(l10n.budgetSetupStatusLoadError),
                   const SizedBox(height: 16),
                   Consumer(
                     builder: (context, ref, child) {
@@ -62,7 +64,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         onPressed: () {
                           ref.invalidate(budgetSetupGateProvider);
                         },
-                        child: const Text('Retry'),
+                        child: Text(l10n.budgetRetry),
                       );
                     },
                   ),

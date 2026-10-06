@@ -317,7 +317,7 @@ class BudgetMandatoryExpensesStepState
     return formatMoney(
       summaries[group]?.plannedAmount ?? 0,
       widget.currencyCode,
-      showPositiveSign: false,
+      locale: AppLocalizations.of(context).localeName,
     );
   }
 
@@ -333,7 +333,11 @@ class BudgetMandatoryExpensesStepState
       (total, summary) => total + summary.plannedAmount,
     );
 
-    return formatMoney(amount, widget.currencyCode, showPositiveSign: false);
+    return formatMoney(
+      amount,
+      widget.currencyCode,
+      locale: AppLocalizations.of(context).localeName,
+    );
   }
 
   Future<void> _openEditor(AppCategory category) async {

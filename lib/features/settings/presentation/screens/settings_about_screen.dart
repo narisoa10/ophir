@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../app/app_version_provider.dart';
 import '../../../../core/icons/app_icons.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
 import '../../domain/entities/settings_item.dart';
@@ -7,12 +9,13 @@ import '../../domain/entities/settings_section.dart';
 import '../widgets/settings_scaffold.dart';
 import '../widgets/settings_section_view.dart';
 
-class SettingsAboutScreen extends StatelessWidget {
+class SettingsAboutScreen extends ConsumerWidget {
   const SettingsAboutScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final version = ref.watch(appVersionProvider);
     final section = SettingsSection(
       title: l10n.settingsSectionAbout,
       items: [
@@ -25,7 +28,7 @@ class SettingsAboutScreen extends StatelessWidget {
         SettingsItem(
           icon: AppIcons.settingsVersion,
           title: l10n.settingsAppVersionTitle,
-          subtitle: l10n.settingsAppVersionValue,
+          subtitle: l10n.settingsAppVersionValue(version),
           onTap: () => _showComingSoon(context, l10n),
         ),
         SettingsItem(

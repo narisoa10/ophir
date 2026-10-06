@@ -14,6 +14,7 @@ import '../../domain/entities/budget_obligation.dart';
 import '../../domain/enums/budget_data_confidence.dart';
 import '../../domain/enums/budget_data_source.dart';
 import '../../domain/enums/budget_frequency.dart';
+import '../mappers/budget_frequency_localization.dart';
 
 final class MandatoryExpenseEditorResult {
   const MandatoryExpenseEditorResult._({
@@ -132,7 +133,7 @@ class _MandatoryExpenseEditorSheetState
               for (final frequency in BudgetFrequency.values)
                 DropdownMenuItem(
                   value: frequency,
-                  child: Text(_frequencyLabel(frequency, l10n)),
+                  child: Text(frequency.localized(l10n)),
                 ),
             ],
             onChanged: (value) {
@@ -285,19 +286,5 @@ class _MandatoryExpenseEditorSheetState
     }
 
     return null;
-  }
-
-  String _frequencyLabel(BudgetFrequency frequency, AppLocalizations l10n) {
-    return switch (frequency) {
-      BudgetFrequency.daily => l10n.budgetFrequencyDaily,
-      BudgetFrequency.weekly => l10n.budgetFrequencyWeekly,
-      BudgetFrequency.biweekly => l10n.budgetFrequencyBiweekly,
-      BudgetFrequency.semiMonthly => l10n.budgetFrequencySemiMonthly,
-      BudgetFrequency.monthly => l10n.budgetFrequencyMonthly,
-      BudgetFrequency.everyNMonths => l10n.budgetFrequencyEveryNMonths,
-      BudgetFrequency.timesPerYear => l10n.budgetFrequencyTimesPerYear,
-      BudgetFrequency.yearly => l10n.budgetFrequencyYearly,
-      BudgetFrequency.irregular => l10n.budgetFrequencyIrregular,
-    };
   }
 }

@@ -10,7 +10,7 @@ class MandatoryExpenseEducation extends StatelessWidget {
   const MandatoryExpenseEducation({
     required this.categories,
     required this.selectedCount,
-    this.formattedAmount = '0.00 CAD',
+    required this.formattedAmount,
     required this.isExpanded,
     required this.onToggle,
     required this.currencyCode,

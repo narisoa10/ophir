@@ -3,18 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:ophir/core/categories/app_categories.dart';
 import 'package:ophir/core/database/app_database.dart';
 import 'package:ophir/core/database/app_database_provider.dart';
-import 'package:ophir/core/errors/app_failure.dart';
-import 'package:ophir/core/errors/result.dart';
 import 'package:ophir/features/auth/controller/auth_providers.dart';
-import 'package:ophir/features/profile/controller/profile_providers.dart';
-import 'package:ophir/features/profile/domain/entities/profile.dart';
-import 'package:ophir/features/profile/domain/repositories/profile_repository.dart';
 import 'package:ophir/features/budget_planning/controller/budget_planning_providers.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_gate_provider.dart';
 import 'package:ophir/features/budget_planning/controller/budget_setup_gate_status.dart';
+import 'package:ophir/features/budget_planning/domain/entities/budget_income_source.dart';
+import 'package:ophir/features/budget_planning/domain/entities/budget_obligation.dart';
 import 'package:ophir/features/budget_planning/domain/entities/budget_setup.dart';
+import 'package:ophir/features/budget_planning/domain/enums/budget_data_confidence.dart';
+import 'package:ophir/features/budget_planning/domain/enums/budget_data_source.dart';
+import 'package:ophir/features/budget_planning/domain/enums/budget_frequency.dart';
 import 'package:ophir/features/budget_planning/domain/repositories/budget_planning_repository.dart';
 import 'package:ophir/features/budget_planning/domain/entities/budget_household.dart';
 
@@ -26,43 +27,6 @@ final class _FakeUser implements User {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-final class _FakeProfileRepository implements ProfileRepository {
-  _FakeProfileRepository({required this.currencyCode, this.shouldFail = false});
-
-  final String currencyCode;
-  final bool shouldFail;
-
-  @override
-  Future<Result<Profile>> getCurrentProfile() async {
-    if (shouldFail) {
-      return const Failure(UnknownFailure());
-    }
-    final now = DateTime.utc(2026);
-    return Success(
-      Profile(
-        id: 'user-1',
-        email: 'user@example.com',
-        locale: 'en',
-        currencyCode: currencyCode,
-        timezone: 'America/Toronto',
-        onboardingCompleted: true,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-  }
-
-  @override
-  Future<Result<Profile>> updateProfile(Profile profile) async {
-    return Success(profile);
-  }
-
-  @override
-  Stream<Result<Profile>> watchCurrentProfile() {
-    throw UnimplementedError();
-  }
 }
 
 final class _FakeBudgetPlanningRepository implements BudgetPlanningRepository {
@@ -117,6 +81,8 @@ BudgetSetup _setup({
   String userId = 'user-1',
   String status = 'draft',
   int currentStep = 0,
+  List<BudgetIncomeSource> incomeSources = const [],
+  List<BudgetObligation> obligations = const [],
 }) {
   final now = DateTime.utc(2026);
   return BudgetSetup(
@@ -126,10 +92,43 @@ BudgetSetup _setup({
     version: 1,
     currentStep: currentStep,
     household: const BudgetHousehold(adultsCount: 1, childrenCount: 0),
-    incomeSources: const [],
-    obligations: const [],
+    incomeSources: incomeSources,
+    obligations: obligations,
     createdAt: now,
     updatedAt: now,
+  );
+}
+
+BudgetIncomeSource _incomeSource({required String currencyCode}) {
+  return BudgetIncomeSource(
+    id: 'income-$currencyCode',
+    setupId: 'remote-id',
+    userId: 'user-1',
+    name: 'Salary',
+    categoryId: AppCategoryId.incomeEmploymentSalary.name,
+    amount: 1000,
+    currencyCode: currencyCode,
+    frequency: BudgetFrequency.monthly,
+    source: BudgetDataSource.declared,
+    confidence: BudgetDataConfidence.estimated,
+    isActive: true,
+  );
+}
+
+BudgetObligation _obligation({required String currencyCode}) {
+  return BudgetObligation(
+    id: 'obligation-$currencyCode',
+    setupId: 'remote-id',
+    userId: 'user-1',
+    categoryId: AppCategoryId.expenseHousingRent.name,
+    obligationType: 'living_expense',
+    amount: 500,
+    currencyCode: currencyCode,
+    frequency: BudgetFrequency.monthly,
+    isOverdue: false,
+    source: BudgetDataSource.declared,
+    confidence: BudgetDataConfidence.estimated,
+    isActive: true,
   );
 }
 
@@ -137,20 +136,12 @@ ProviderContainer _container({
   required AppDatabase database,
   required _FakeBudgetPlanningRepository repository,
   User? user,
-  String currencyCode = 'USD',
-  bool profileFails = false,
 }) {
   return ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       currentUserProvider.overrideWithValue(user ?? _FakeUser(id: 'user-1')),
       supabaseBudgetPlanningRepositoryProvider.overrideWithValue(repository),
-      profileRepositoryProvider.overrideWithValue(
-        _FakeProfileRepository(
-          currencyCode: currencyCode,
-          shouldFail: profileFails,
-        ),
-      ),
     ],
   );
 }
@@ -163,10 +154,7 @@ void main() {
       final repository = _FakeBudgetPlanningRepository(
         getCurrentSetupError: StateError('Supabase should not be called'),
       );
-      await database.saveBudgetSetupWithCurrency(
-        _setup(id: 'user-1', status: 'completed'),
-        'USD',
-      );
+      await database.saveBudgetSetup(_setup(id: 'user-1', status: 'completed'));
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
 
@@ -185,14 +173,10 @@ void main() {
         final repository = _FakeBudgetPlanningRepository(
           remoteSetup: remoteSetup,
         );
-        await database.saveBudgetSetupWithCurrency(
-          _setup(id: 'user-1', status: 'draft'),
-          'USD',
-        );
+        await database.saveBudgetSetup(_setup(id: 'user-1', status: 'draft'));
         final container = _container(
           database: database,
           repository: repository,
-          currencyCode: 'USD',
         );
         addTearDown(container.dispose);
 
@@ -214,10 +198,7 @@ void main() {
       final repository = _FakeBudgetPlanningRepository(
         remoteSetup: remoteSetup,
       );
-      await database.saveBudgetSetupWithCurrency(
-        _setup(id: 'user-1', status: 'draft'),
-        'USD',
-      );
+      await database.saveBudgetSetup(_setup(id: 'user-1', status: 'draft'));
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
 
@@ -231,10 +212,7 @@ void main() {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
       final repository = _FakeBudgetPlanningRepository(remoteSetup: null);
-      await database.saveBudgetSetupWithCurrency(
-        _setup(id: 'user-1', status: 'draft'),
-        'USD',
-      );
+      await database.saveBudgetSetup(_setup(id: 'user-1', status: 'draft'));
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
 
@@ -250,10 +228,7 @@ void main() {
       final repository = _FakeBudgetPlanningRepository(
         getCurrentSetupError: StateError('Supabase error'),
       );
-      await database.saveBudgetSetupWithCurrency(
-        _setup(id: 'user-1', status: 'draft'),
-        'USD',
-      );
+      await database.saveBudgetSetup(_setup(id: 'user-1', status: 'draft'));
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
 
@@ -276,7 +251,6 @@ void main() {
         final container = _container(
           database: database,
           repository: repository,
-          currencyCode: 'USD',
         );
         addTearDown(container.dispose);
 
@@ -304,7 +278,6 @@ void main() {
         final container = _container(
           database: database,
           repository: repository,
-          currencyCode: 'USD',
         );
         addTearDown(container.dispose);
 
@@ -357,9 +330,8 @@ void main() {
       final database = AppDatabase(NativeDatabase.memory());
       addTearDown(database.close);
       final repository = _FakeBudgetPlanningRepository(remoteSetup: null);
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(id: 'user-1', status: 'draft', currentStep: 3),
-        'USD',
       );
       final container = _container(database: database, repository: repository);
       addTearDown(container.dispose);
@@ -378,9 +350,8 @@ void main() {
         final repository = _FakeBudgetPlanningRepository(
           getCurrentSetupError: StateError('Supabase should not be called'),
         );
-        await database.saveBudgetSetupWithCurrency(
+        await database.saveBudgetSetup(
           _setup(id: 'user-1', status: 'completed'),
-          'USD',
         );
         await database.markBudgetSyncFailed('user-1');
         final container = _container(
@@ -396,23 +367,58 @@ void main() {
       },
     );
 
+    test('12. remote budget without items is stored as CAD', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = _FakeBudgetPlanningRepository(
+        remoteSetup: _setup(id: 'remote-id', status: 'completed'),
+      );
+      final container = _container(database: database, repository: repository);
+      addTearDown(container.dispose);
+
+      await container.read(budgetSetupGateProvider.future);
+
+      final localSetup = await database.getBudgetSetup('user-1');
+      expect(localSetup?.currencyCode, 'CAD');
+    });
+
+    test('13. remote budget items keep their own currency locally', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final repository = _FakeBudgetPlanningRepository(
+        remoteSetup: _setup(
+          id: 'remote-id',
+          status: 'completed',
+          incomeSources: [_incomeSource(currencyCode: 'USD')],
+          obligations: [_obligation(currencyCode: 'USD')],
+        ),
+      );
+      final container = _container(database: database, repository: repository);
+      addTearDown(container.dispose);
+
+      await container.read(budgetSetupGateProvider.future);
+
+      final localSetup = await database.getBudgetSetup('user-1');
+      expect(localSetup?.incomeSources.single.currencyCode, 'USD');
+      expect(localSetup?.obligations.single.currencyCode, 'USD');
+    });
+
     test(
-      '12. local draft + remote completed + currency load error -> AsyncError',
+      '14. remote budget mixing currencies -> AsyncError, nothing relabeled',
       () async {
         final database = AppDatabase(NativeDatabase.memory());
         addTearDown(database.close);
-        final remoteSetup = _setup(id: 'remote-id', status: 'completed');
         final repository = _FakeBudgetPlanningRepository(
-          remoteSetup: remoteSetup,
-        );
-        await database.saveBudgetSetupWithCurrency(
-          _setup(id: 'user-1', status: 'draft'),
-          'USD',
+          remoteSetup: _setup(
+            id: 'remote-id',
+            status: 'completed',
+            incomeSources: [_incomeSource(currencyCode: 'CAD')],
+            obligations: [_obligation(currencyCode: 'USD')],
+          ),
         );
         final container = _container(
           database: database,
           repository: repository,
-          profileFails: true,
         );
         addTearDown(container.dispose);
 
@@ -420,30 +426,7 @@ void main() {
           container.read(budgetSetupGateProvider.future),
           throwsA(isA<StateError>()),
         );
-      },
-    );
-
-    test(
-      '13. no local + remote completed + currency load error -> AsyncError',
-      () async {
-        final database = AppDatabase(NativeDatabase.memory());
-        addTearDown(database.close);
-        final remoteSetup = _setup(id: 'remote-id', status: 'completed');
-        final repository = _FakeBudgetPlanningRepository(
-          remoteSetup: remoteSetup,
-        );
-
-        final container = _container(
-          database: database,
-          repository: repository,
-          profileFails: true,
-        );
-        addTearDown(container.dispose);
-
-        await expectLater(
-          container.read(budgetSetupGateProvider.future),
-          throwsA(isA<StateError>()),
-        );
+        expect(await database.getBudgetSetup('user-1'), isNull);
       },
     );
   });

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ophir/core/categories/app_categories.dart';
@@ -23,10 +25,7 @@ void main() {
     });
 
     test('saves and reads BudgetSetup', () async {
-      await database.saveBudgetSetupWithCurrency(
-        _setup(userId: 'user-1'),
-        'CAD',
-      );
+      await database.saveBudgetSetup(_setup(userId: 'user-1'));
 
       final setup = await database.getBudgetSetup('user-1');
 
@@ -36,12 +35,11 @@ void main() {
     });
 
     test('saves income sources with AppCategoryId.name', () async {
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(
           userId: 'user-1',
           incomeSources: [_incomeSource(id: 'income-1', userId: 'user-1')],
         ),
-        'CAD',
       );
 
       final incomeSources = await database.getBudgetIncomeSources('user-1');
@@ -55,12 +53,11 @@ void main() {
     });
 
     test('saves obligations with AppCategoryId.name', () async {
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(
           userId: 'user-1',
           obligations: [_obligation(id: 'obligation-1', userId: 'user-1')],
         ),
-        'CAD',
       );
 
       final obligations = await database.getBudgetObligations('user-1');
@@ -75,7 +72,7 @@ void main() {
     test(
       'saves and reads debt names with duplicate categoryId values',
       () async {
-        await database.saveBudgetSetupWithCurrency(
+        await database.saveBudgetSetup(
           _setup(
             userId: 'user-1',
             obligations: [
@@ -87,7 +84,6 @@ void main() {
               ),
             ],
           ),
-          'CAD',
         );
 
         final obligations = await database.getBudgetObligations('user-1');
@@ -108,10 +104,7 @@ void main() {
     );
 
     test('replace does not create duplicates', () async {
-      await database.saveBudgetSetupWithCurrency(
-        _setup(userId: 'user-1'),
-        'CAD',
-      );
+      await database.saveBudgetSetup(_setup(userId: 'user-1'));
       await database.replaceBudgetIncomeSources('user-1', [
         _incomeSource(id: 'income-1', userId: 'user-1', amount: 100),
       ]);
@@ -127,19 +120,17 @@ void main() {
     });
 
     test('does not mix different userId values', () async {
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(
           userId: 'user-1',
           incomeSources: [_incomeSource(id: 'income-1', userId: 'user-1')],
         ),
-        'CAD',
       );
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(
           userId: 'user-2',
           incomeSources: [_incomeSource(id: 'income-2', userId: 'user-2')],
         ),
-        'CAD',
       );
 
       final firstUser = await database.getBudgetIncomeSources('user-1');
@@ -150,9 +141,8 @@ void main() {
     });
 
     test('completed setup remains local after sync status changes', () async {
-      await database.saveBudgetSetupWithCurrency(
+      await database.saveBudgetSetup(
         _setup(userId: 'user-1', status: 'completed'),
-        'CAD',
       );
 
       await database.markBudgetSyncFailed('user-1');
@@ -163,6 +153,113 @@ void main() {
       setup = await database.getBudgetSetup('user-1');
       expect(setup?.status, 'completed');
     });
+  });
+
+  group('AppDatabase budget currency', () {
+    late AppDatabase database;
+
+    setUp(() {
+      database = AppDatabase(NativeDatabase.memory());
+    });
+
+    tearDown(() async {
+      await database.close();
+    });
+
+    test('a budget without items is stored as CAD', () async {
+      await database.saveBudgetSetup(_setup(userId: 'user-1'));
+
+      expect((await database.getBudgetSetup('user-1'))?.currencyCode, 'CAD');
+    });
+
+    test('items are read back in their own currency', () async {
+      await database.saveBudgetSetup(
+        _setup(
+          userId: 'user-1',
+          incomeSources: [
+            _incomeSource(id: 'income-1', userId: 'user-1', currency: 'USD'),
+          ],
+        ),
+      );
+
+      final incomeSources = await database.getBudgetIncomeSources('user-1');
+      expect(incomeSources.single.currencyCode, 'USD');
+    });
+
+    test('a budget mixing currencies is refused and not stored', () async {
+      final mixed = _setup(
+        userId: 'user-1',
+        incomeSources: [_incomeSource(id: 'income-1', userId: 'user-1')],
+        obligations: [
+          _obligation(id: 'obligation-1', userId: 'user-1', currency: 'USD'),
+        ],
+      );
+
+      await expectLater(database.saveBudgetSetup(mixed), throwsStateError);
+      expect(await database.getBudgetSetup('user-1'), isNull);
+    });
+
+    test('replacing items in another currency is refused', () async {
+      await database.saveBudgetSetup(_setup(userId: 'user-1'));
+
+      await expectLater(
+        database.replaceBudgetIncomeSources('user-1', [
+          _incomeSource(id: 'income-1', userId: 'user-1', currency: 'USD'),
+        ]),
+        throwsStateError,
+      );
+      await expectLater(
+        database.replaceBudgetObligations('user-1', [
+          _obligation(id: 'obligation-1', userId: 'user-1', currency: 'USD'),
+        ]),
+        throwsStateError,
+      );
+      expect(await database.getBudgetIncomeSources('user-1'), isEmpty);
+      expect(await database.getBudgetObligations('user-1'), isEmpty);
+    });
+  });
+
+  test('upgrading to schema 6 relabels a legacy USD budget to CAD with the '
+      'same amounts', () async {
+    final directory = await Directory.systemTemp.createTemp('ophir_db_');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/ophir.sqlite');
+
+    final legacy = AppDatabase(NativeDatabase(file));
+    await legacy.saveBudgetSetup(
+      _setup(
+        userId: 'user-1',
+        incomeSources: [
+          _incomeSource(
+            id: 'income-1',
+            userId: 'user-1',
+            amount: 5000,
+            currency: 'USD',
+          ),
+        ],
+        obligations: [
+          _obligation(
+            id: 'obligation-1',
+            userId: 'user-1',
+            amount: 1200,
+            currency: 'USD',
+          ),
+        ],
+      ),
+    );
+    await legacy.customStatement('PRAGMA user_version = 5');
+    await legacy.close();
+
+    final upgraded = AppDatabase(NativeDatabase(file));
+    addTearDown(upgraded.close);
+
+    expect((await upgraded.getBudgetSetup('user-1'))?.currencyCode, 'CAD');
+    final incomeSource = (await upgraded.getBudgetIncomeSources(
+      'user-1',
+    )).single;
+    expect((incomeSource.amount, incomeSource.currencyCode), (5000, 'CAD'));
+    final obligation = (await upgraded.getBudgetObligations('user-1')).single;
+    expect((obligation.amount, obligation.currencyCode), (1200, 'CAD'));
   });
 }
 
@@ -193,6 +290,7 @@ BudgetIncomeSource _incomeSource({
   required String id,
   required String userId,
   double amount = 100,
+  String currency = 'CAD',
 }) {
   return BudgetIncomeSource(
     id: id,
@@ -201,7 +299,7 @@ BudgetIncomeSource _incomeSource({
     name: 'Main salary',
     categoryId: AppCategoryId.incomeEmploymentSalary.name,
     amount: amount,
-    currencyCode: 'CAD',
+    currencyCode: currency,
     frequency: BudgetFrequency.monthly,
     source: BudgetDataSource.declared,
     confidence: BudgetDataConfidence.estimated,
@@ -213,6 +311,7 @@ BudgetObligation _obligation({
   required String id,
   required String userId,
   double amount = 100,
+  String currency = 'CAD',
 }) {
   return BudgetObligation(
     id: id,
@@ -221,7 +320,7 @@ BudgetObligation _obligation({
     categoryId: AppCategoryId.expenseHousingRent.name,
     obligationType: 'living_expense',
     amount: amount,
-    currencyCode: 'CAD',
+    currencyCode: currency,
     frequency: BudgetFrequency.monthly,
     isOverdue: false,
     source: BudgetDataSource.declared,

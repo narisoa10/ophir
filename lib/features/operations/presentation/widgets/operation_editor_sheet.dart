@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/categories/app_categories.dart';
 import '../../../../core/categories/presentation/app_category_picker.dart';
+import '../../../../core/currency/product_currency.dart';
 import '../../../../core/localization/generated/app_localizations.dart';
 import '../../../../core/theme_v1/app_theme_colors.dart';
 import '../../../../core/theme_v1/app_radius.dart';
@@ -74,7 +75,7 @@ class _OperationEditorSheetState extends State<OperationEditorSheet> {
     _category =
         _categoryForType(categoryId: widget.category?.id.name, type: _type) ??
         (_isPlaidCategoryOnly ? null : _categoriesFor(_type).first);
-    _currencyCode = operation?.currencyCode ?? 'CAD';
+    _currencyCode = operation?.currencyCode ?? productCurrencyCode;
     _frequency = operation == null
         ? _OperationEditorFrequency.monthly
         : _frequencyFor(operation.recurrence);
