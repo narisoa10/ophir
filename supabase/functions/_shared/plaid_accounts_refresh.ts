@@ -5,7 +5,7 @@ import {
   loginRequiredObservation,
   type RecordItemHealthObservation,
 } from "./plaid_item_health.ts";
-import { plaidApiUrl, postPlaid } from "./plaid_http.ts";
+import { PLAID_COUNTRY_CODES, plaidApiUrl, postPlaid } from "./plaid_http.ts";
 
 export const PLAID_SANDBOX_ACCOUNTS_GET_URL = plaidApiUrl(
   "sandbox",
@@ -277,7 +277,7 @@ async function institutionFromPlaid(params: {
     params.secret,
     {
       institution_id: params.plaidInstitutionId,
-      country_codes: ["CA"],
+      country_codes: PLAID_COUNTRY_CODES,
       options: {
         include_optional_metadata: true,
       },

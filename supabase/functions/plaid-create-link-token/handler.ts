@@ -8,13 +8,13 @@ import {
   optionsResponse,
   readJsonObject,
 } from "../_shared/http.ts";
+import { PLAID_COUNTRY_CODES } from "../_shared/plaid_http.ts";
 import { isItemUnavailableError } from "../_shared/plaid_item_health.ts";
 
 const PLAID_SANDBOX_LINK_TOKEN_CREATE_URL =
   "https://sandbox.plaid.com/link/token/create";
 
 const PLAID_CLIENT_NAME = "Ophir";
-const PLAID_COUNTRY_CODES = ["CA"] as const;
 const PLAID_PRODUCTS = ["transactions"] as const;
 const TRANSACTIONS_DAYS_REQUESTED = 730;
 

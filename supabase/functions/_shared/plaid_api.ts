@@ -4,6 +4,7 @@ import {
 } from "./plaid_accounts_refresh.ts";
 import type { PlaidApiEnvironment } from "./plaid_item_health.ts";
 import {
+  PLAID_COUNTRY_CODES,
   plaidApiUrl,
   type PlaidCredentials,
   type PlaidFailure,
@@ -135,11 +136,10 @@ export async function getItemAccounts(
 export async function getInstitutionById(
   client: PlaidClient,
   institutionId: string,
-  countryCodes: readonly string[] = ["CA"],
 ): Promise<PlaidInstitution | PlaidFailure> {
   const result = await post(client, "/institutions/get_by_id", {
     institution_id: institutionId,
-    country_codes: countryCodes,
+    country_codes: PLAID_COUNTRY_CODES,
     options: { include_optional_metadata: true },
   });
   if (result.kind !== "ok") {

@@ -118,6 +118,30 @@ Deno.test("transactions product and 730 days are preserved", async () => {
   );
 });
 
+Deno.test("initial and update Link request Canada only", async () => {
+  for (const connectionId of [undefined, ownedConnectionId]) {
+    const { handler, request, fetchBodies } = createHarness({
+      requestBody: { locale: "en-CA", connection_id: connectionId },
+    });
+
+    const response = await handler(request);
+
+    assertEquals(response.status, 200);
+    assertEquals(JSON.stringify(fetchBodies[0].country_codes), '["CA"]');
+  }
+});
+
+Deno.test("client cannot choose the Plaid country", async () => {
+  const { handler, request, fetchBodies } = createHarness({
+    requestBody: { locale: "en-US", country_codes: ["US"] },
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(JSON.stringify(fetchBodies[0].country_codes), '["CA"]');
+});
+
 Deno.test("missing Plaid webhook URL fails closed before Plaid call", async () => {
   const { handler, request, fetchBodies } = createHarness({
     plaidWebhookUrl: null,

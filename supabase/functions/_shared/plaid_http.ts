@@ -3,6 +3,9 @@ import type { PlaidApiEnvironment } from "./plaid_item_health.ts";
 // Bounds the whole request: connect, response headers and body.
 export const PLAID_REQUEST_TIMEOUT_MS = 15_000;
 
+// Ophir is Canada-only: every Plaid request that takes country_codes sends this.
+export const PLAID_COUNTRY_CODES = ["CA"] as const;
+
 export const plaidApiBaseUrls: Record<PlaidApiEnvironment, string> = {
   sandbox: "https://sandbox.plaid.com",
   development: "https://development.plaid.com",
