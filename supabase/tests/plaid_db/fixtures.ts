@@ -29,6 +29,8 @@ export interface PlaidAccountInput {
   name: string;
   persistentAccountId?: string;
   mask?: string;
+  currencyCode?: string | null;
+  unofficialCurrencyCode?: string;
 }
 
 export async function syncAccounts(
@@ -43,7 +45,8 @@ export async function syncAccounts(
     mask: account.mask ?? "0000",
     plaid_type: "depository",
     plaid_subtype: "checking",
-    currency_code: "CAD",
+    currency_code: account.currencyCode === undefined ? "CAD" : account.currencyCode,
+    unofficial_currency_code: account.unofficialCurrencyCode ?? null,
     current_balance: "100.00",
     available_balance: "100.00",
     persistent_account_id: account.persistentAccountId ?? null,
@@ -73,6 +76,8 @@ export interface TransactionInput {
   pendingTransactionId?: string;
   pfcPrimary?: string;
   pfcDetailed?: string;
+  isoCurrencyCode?: string | null;
+  unofficialCurrencyCode?: string;
 }
 
 function transactionPayload(transaction: TransactionInput) {
@@ -85,7 +90,12 @@ function transactionPayload(transaction: TransactionInput) {
     ...(transaction.pendingTransactionId === undefined
       ? {}
       : { pending_transaction_id: transaction.pendingTransactionId }),
-    iso_currency_code: "CAD",
+    iso_currency_code: transaction.isoCurrencyCode === undefined
+      ? "CAD"
+      : transaction.isoCurrencyCode,
+    ...(transaction.unofficialCurrencyCode === undefined
+      ? {}
+      : { unofficial_currency_code: transaction.unofficialCurrencyCode }),
     name: transaction.name,
     merchant_name: transaction.name,
     personal_finance_category_primary: transaction.pfcPrimary ?? "FOOD_AND_DRINK",
